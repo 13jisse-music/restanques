@@ -9,7 +9,7 @@ import {
   TILES, MW, MH, CELL, CAMP_POS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
-import { getCharSprite, getTileSprite, getMonsterSprite, getGemSprite, getItemSprite, type Direction, CAMP_SPRITE } from "../lib/sprites";
+import { type Direction } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -22,99 +22,12 @@ const PXB = (c = C.terra, tc = C.white, sm = false): React.CSSProperties => ({
   borderRadius: "4px",
 });
 
-// ─── SPRITE TILE ───
-function SpriteTile({ tileCode, size }: { tileCode: string; size: number }) {
-  const sprite = getTileSprite(tileCode);
-  const tile = TILES[tileCode];
-  if (!sprite) {
-    return <div style={{ width: size, height: size, background: tile?.bg || "#8FBE4A" }}>
-      {tile?.c && <span style={{ fontSize: size * 0.4, opacity: 0.4 }}>{tile.c}</span>}
-    </div>;
-  }
-  return (
-    <div style={{
-      width: size, height: size,
-      backgroundImage: `url(${sprite.src})`,
-      backgroundPosition: sprite.bgPos,
-      backgroundSize: sprite.bgSize,
-      backgroundRepeat: "no-repeat",
-      imageRendering: "pixelated",
-    }} />
-  );
-}
-
-// ─── CHARACTER SPRITE ───
-function CharSprite({ player, dir, walking, size }: { player: "jisse" | "melanie"; dir: Direction; walking: boolean; size: number }) {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    if (!walking) { setFrame(0); return; }
-    const iv = setInterval(() => setFrame((f) => (f + 1) % 4), 200);
-    return () => clearInterval(iv);
-  }, [walking]);
-  const sprite = getCharSprite(player, dir, walking ? frame : 0);
-  return (
-    <div style={{
-      width: size, height: size,
-      backgroundImage: `url(${sprite.src})`,
-      backgroundPosition: sprite.bgPos,
-      backgroundSize: sprite.bgSize,
-      backgroundRepeat: "no-repeat",
-      imageRendering: "pixelated",
-      filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.5))",
-      zIndex: 3,
-    }} />
-  );
-}
-
-// ─── MONSTER SPRITE for combat ───
-function MonsterSprite({ biome, size, shaking }: { biome: string; size: number; shaking: boolean }) {
-  const sprite = getMonsterSprite(biome);
-  const guard = GUARDS[biome];
-  if (!sprite) return <span style={{ fontSize: size * 0.7 }}>{guard?.e || "👾"}</span>;
-  return (
-    <div style={{
-      width: size, height: size,
-      backgroundImage: `url(${sprite.src})`,
-      backgroundPosition: sprite.bgPos,
-      backgroundSize: sprite.bgSize,
-      backgroundRepeat: "no-repeat",
-      imageRendering: "pixelated",
-      animation: shaking ? "shake 0.3s ease-in-out" : "none",
-      filter: "drop-shadow(2px 2px 4px rgba(0,0,0,0.5))",
-    }} />
-  );
-}
-
-// ─── GEM SPRITE for match-3 ───
-function GemSprite({ gemId, size, selected, destroying }: { gemId: number; size: number; selected: boolean; destroying: boolean }) {
-  const sprite = getGemSprite(gemId);
-  const gem = GEMS[gemId] || GEMS[0];
-  return (
-    <div style={{
-      width: size, height: size,
-      backgroundImage: `url(${sprite.src})`,
-      backgroundPosition: sprite.bgPos,
-      backgroundSize: sprite.bgSize,
-      backgroundRepeat: "no-repeat",
-      imageRendering: "pixelated",
-      border: selected ? `3px solid ${C.sun}` : `2px solid ${gem.color}55`,
-      borderRadius: "6px",
-      boxShadow: selected ? `0 0 8px ${C.sun}` : "none",
-      transform: selected ? "scale(1.15)" : destroying ? "scale(0) rotate(180deg)" : "scale(1)",
-      opacity: destroying ? 0 : 1,
-      transition: "all 0.2s ease",
-      cursor: "pointer",
-    }} />
-  );
-}
-
 function GameContent() {
   const searchParams = useSearchParams();
   const playerParam = searchParams.get("player");
 
   const [pName] = useState(playerParam === "melanie" ? "Mélanie" : "Jisse");
   const [pEmoji] = useState(playerParam === "melanie" ? "🎨" : "🎸");
-  const pKey = playerParam === "melanie" ? "melanie" : "jisse" as const;
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [inv, setInv] = useState<string[]>([]);
@@ -177,9 +90,7 @@ function GameContent() {
   // ─── SUPABASE SESSION ───
   useEffect(() => {
     async function initSession() {
-      const { data: sessions } = await supabase
-        .from("game_sessions").select("*").eq("active", true)
-        .order("created_at", { ascending: false }).limit(1);
+      const { data: sessions } = await supabase.from("game_sessions").select("*").eq("active", true).order("created_at", { ascending: false }).limit(1);
       let session = sessions?.[0];
       if (!session) {
         const seed = Math.floor(Math.random() * 999999);
@@ -202,7 +113,7 @@ function GameContent() {
         const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single();
         if (np) setPlayerId(np.id);
       }
-      setStory("🏔️ La légende raconte qu'un magnifique duché provençal s'élevait autrefois sur les terrasses de pierre...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Deux aventuriers partent restaurer les Restanques.\n\n🌿 Votre quête commence dans la Garrigue.\n⛺ Revenez au camp pour récupérer vos PV !");
+      setStory("🏔️ Un magnifique duché provençal s'élevait sur les terrasses de pierre...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Deux aventuriers partent restaurer les Restanques.\n\n🌿 Votre quête commence dans la Garrigue.\n⛺ Revenez au camp 🔥 pour récupérer vos PV !");
     }
     initSession();
   }, [pName, pEmoji]);
@@ -213,11 +124,7 @@ function GameContent() {
     if (!playerId || !sessionId) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(async () => {
-      await supabase.from("players").update({
-        x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp,
-        inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses,
-        updated_at: new Date().toISOString(),
-      }).eq("id", playerId);
+      await supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, updated_at: new Date().toISOString() }).eq("id", playerId);
     }, 200);
   }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, playerId, sessionId]);
 
@@ -285,22 +192,16 @@ function GameContent() {
     setWalking(true);
     if (walkTimerRef.current) clearTimeout(walkTimerRef.current);
     walkTimerRef.current = setTimeout(() => setWalking(false), 300);
-
     const nx = pos.x + dx, ny = pos.y + dy;
     if (nx < 0 || nx >= MW || ny < 0 || ny >= MH) return;
-    const tile = world.m[ny][nx];
-    const tt = TILES[tile];
+    const tile = world.m[ny][nx]; const tt = TILES[tile];
     const gate = world.gates.find((g) => g.x === nx && g.y === ny);
     if (gate) {
       const bio = gate.b;
       const needMap: Record<string, string> = { calanques: "baton", mines: "pioche", mer: "filet", restanques: "cle" };
       const need = needMap[bio];
       if (need && !tools.includes(need)) { notify(`🚪 Verrouillé ! Il faut ${TOOLS[need].e} ${TOOLS[need].n}`); return; }
-      if (!unlocked.includes(bio)) {
-        setUnlocked((p) => [...p, bio]);
-        const msgs: Record<string, string> = { calanques: "🏖️ Les Calanques !", mines: "⛏️ Les Mines d'Ocre !", mer: "🌊 La Méditerranée !", restanques: "⛰️ Les Restanques ! Le Mistral vous attend !" };
-        if (msgs[bio]) setStory(msgs[bio]);
-      }
+      if (!unlocked.includes(bio)) { setUnlocked((p) => [...p, bio]); const msgs: Record<string, string> = { calanques: "🏖️ Les Calanques !", mines: "⛏️ Les Mines d'Ocre !", mer: "🌊 La Méditerranée !", restanques: "⛰️ Les Restanques ! Le Mistral vous attend !" }; if (msgs[bio]) setStory(msgs[bio]); }
     }
     if (!tt?.w && tile !== "gt") return;
     setPos({ x: nx, y: ny });
@@ -319,28 +220,16 @@ function GameContent() {
 
   const holdMove = (dx: number, dy: number) => { tryMove(dx, dy); moveRef.current = setInterval(() => tryMove(dx, dy), 160); };
   const stopMove = () => { if (moveRef.current) clearInterval(moveRef.current); moveRef.current = null; };
-
   useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft" || e.key === "a") tryMove(-1, 0);
-      if (e.key === "ArrowRight" || e.key === "d") tryMove(1, 0);
-      if (e.key === "ArrowUp" || e.key === "w") tryMove(0, -1);
-      if (e.key === "ArrowDown" || e.key === "s") tryMove(0, 1);
-    };
+    const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft" || e.key === "a") tryMove(-1, 0); if (e.key === "ArrowRight" || e.key === "d") tryMove(1, 0); if (e.key === "ArrowUp" || e.key === "w") tryMove(0, -1); if (e.key === "ArrowDown" || e.key === "s") tryMove(0, 1); };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [tryMove]);
 
-  // ═══════════════════════════════════════════════════════════
-  // COMBAT — IMPROVED with visible enemy turns
-  // ═══════════════════════════════════════════════════════════
+  // ═══ COMBAT — enemy turns visibles ═══
   const startCombat = (node: GameNode) => {
     setDialog(null);
     const g = node.guard || GUARDS[node.biome];
-    setCombat({
-      grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp,
-      playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0,
-      msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false,
-    });
+    setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false });
     setEnemyTurnMsg("");
   };
 
@@ -353,10 +242,7 @@ function GameContent() {
       if ((adx === 1 && ady === 0) || (adx === 0 && ady === 1)) {
         const newGrid = swapGems(prev.grid, sel.x, sel.y, x, y);
         const matches = findMatches(newGrid);
-        if (matches.length > 0) {
-          setTimeout(() => processMatchesFromState(newGrid, matches, 0), 50);
-          return { ...prev, grid: newGrid, sel: null, animating: true, msg: "💥 Match !" };
-        }
+        if (matches.length > 0) { setTimeout(() => processMatchesFromState(newGrid, matches, 0), 50); return { ...prev, grid: newGrid, sel: null, animating: true, msg: "💥 Match !" }; }
         return { ...prev, sel: null, msg: "Pas de match ! Réessayez." };
       }
       return { ...prev, sel: { x, y } };
@@ -369,71 +255,42 @@ function GameContent() {
     const bonusDmg = currentCards.reduce((a, c) => a + (c.pow || 0), 0);
     const totalD = dmg + Math.floor(bonusDmg / 2);
     const comboMsg = combo > 0 ? ` COMBO x${combo + 1} !` : "";
-
     const g = grid.map((r) => [...r]);
     matches.forEach(({ x, y }) => { g[y][x] = -1; });
-
-    // Enemy shakes when hit
     setEnemyShaking(true);
     setTimeout(() => setEnemyShaking(false), 400);
-
     setTimeout(() => {
       const filled = applyGravity(g);
       const newMatches = findMatches(filled);
-
       setCombat((p) => {
         if (!p) return p;
         const newEHp = Math.max(0, p.enemyHp - totalD);
-
-        // Victory
         if (newEHp <= 0) {
-          const node = p.node;
-          node.done = true;
+          const node = p.node; node.done = true;
           if (node.boss) setBosses((prev) => [...prev, node.biome]);
           if (node.res) setInv((prev) => [...prev, node.res!]);
           const lootRes = Object.entries(RES).filter(([, v]) => v.b === node.biome).map(([k]) => k);
           if (lootRes.length > 0) setInv((prev) => [...prev, lootRes[Math.floor(Math.random() * lootRes.length)]]);
           gainXp(node.boss ? 50 : 15);
-          if (node.boss && node.biome === "restanques") {
-            setTimeout(() => { setCombat(null); setStory("🏆 LE MISTRAL EST VAINCU !\n\n🏔️ Les Restanques reprennent vie !\n🫒 Les oliviers refleurissent...\n\n👑 Vous êtes les souverains de Provence !\n🎸🎨 FÉLICITATIONS !"); }, 1500);
-          }
+          if (node.boss && node.biome === "restanques") { setTimeout(() => { setCombat(null); setStory("🏆 LE MISTRAL EST VAINCU !\n\n🏔️ Les Restanques reprennent vie !\n🫒 Les oliviers refleurissent...\n\n👑 Souverains de Provence !\n🎸🎨 FÉLICITATIONS !"); }, 1500); }
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg} VICTOIRE ! 🎉`, won: true, animating: false };
         }
-
-        // Cascade
-        if (newMatches.length > 0) {
-          setTimeout(() => processMatchesFromState(filled, newMatches, combo + 1), 400);
-          return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg}`, animating: true };
-        }
-
-        // ── ENEMY TURN (visible!) ──
+        if (newMatches.length > 0) { setTimeout(() => processMatchesFromState(filled, newMatches, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg}`, animating: true }; }
+        // ── ENEMY TURN ──
         const eDmg = Math.ceil(p.enemy.hp / 5);
         const shield = currentCards.find((c) => c.n === "Bouclier") ? 1 : 0;
         const realDmg = Math.max(1, eDmg - shield);
-
-        // Show enemy preparing to attack
-        const attackNames = ["charge", "frappe", "mord", "griffe", "souffle"];
-        const attackName = attackNames[Math.floor(Math.random() * attackNames.length)];
-        setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${attackName} !`);
-
-        // Delay enemy attack for visible feedback
+        const attacks = ["charge", "frappe", "mord", "griffe", "souffle"];
+        setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${attacks[Math.floor(Math.random() * attacks.length)]} !`);
         setTimeout(() => {
-          setPlayerShaking(true);
-          setTimeout(() => setPlayerShaking(false), 400);
-
+          setPlayerShaking(true); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => {
             if (!c) return c;
-            const newPHp = c.playerHp - realDmg;
-            setHp(Math.max(0, newPHp));
-            setEnemyTurnMsg("");
-
-            if (newPHp <= 0) {
-              return { ...c, playerHp: 0, sel: null, combo: 0, totalDmg: 0, msg: `${c.enemy.e} -${realDmg} PV... KO ! 💀`, lost: true, animating: false };
-            }
+            const newPHp = c.playerHp - realDmg; setHp(Math.max(0, newPHp)); setEnemyTurnMsg("");
+            if (newPHp <= 0) return { ...c, playerHp: 0, sel: null, combo: 0, totalDmg: 0, msg: `${c.enemy.e} -${realDmg} PV... KO ! 💀`, lost: true, animating: false };
             return { ...c, playerHp: newPHp, sel: null, combo: 0, msg: `Ton tour ! (-${realDmg} PV subi)`, animating: false };
           });
         }, 800);
-
         return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: 0, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg}`, animating: true };
       });
     }, 300);
@@ -470,7 +327,6 @@ function GameContent() {
     </div>
   );
 
-  const biome = getBiome();
   const bagCount = countBagItems(inv);
   const bagFull = bagCount >= BAG_LIMIT;
   const vw = Math.min(13, Math.floor((typeof window !== "undefined" ? window.innerWidth - 8 : 360) / CELL));
@@ -478,13 +334,19 @@ function GameContent() {
   const camX = Math.max(0, Math.min(MW - vw, pos.x - Math.floor(vw / 2)));
   const camY = Math.max(0, Math.min(MH - vh, pos.y - Math.floor(vh / 2)));
 
+  // Player emoji with walk animation
+  const playerDisplay = walking
+    ? (lastDir === "left" ? "🏃" : lastDir === "right" ? "🏃" : lastDir === "up" ? "🏃" : "🏃")
+    : pEmoji;
+
   return (
     <div style={{ width: "100%", minHeight: "100vh", background: C.dark, fontFamily: "'Courier New',monospace", color: C.white, display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}>
-      {/* CSS for shake animation */}
       <style>{`
         @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 50%{transform:translateX(6px)} 75%{transform:translateX(-4px)} }
-        @keyframes playerHit { 0%,100%{transform:translateX(0)} 25%{transform:translateX(4px)} 50%{transform:translateX(-4px)} 75%{transform:translateX(2px)} }
-        @keyframes enemyAttack { 0%{transform:scale(1)} 50%{transform:scale(1.2) translateY(-4px)} 100%{transform:scale(1)} }
+        @keyframes playerHit { 0%,100%{transform:translateX(0);filter:none} 25%{transform:translateX(4px);filter:brightness(2)} 50%{transform:translateX(-4px);filter:brightness(0.5)} 75%{transform:translateX(2px)} }
+        @keyframes enemyAttack { 0%{transform:scale(1)} 40%{transform:scale(1.3) translateY(-8px)} 100%{transform:scale(1)} }
+        @keyframes pulse { 0%,100%{filter:drop-shadow(0 0 4px #F4D03F)} 50%{filter:drop-shadow(0 0 8px #FF6600)} }
+        @keyframes gemPop { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
       `}</style>
 
       {/* TOP BAR */}
@@ -496,23 +358,15 @@ function GameContent() {
         {otherPlayer && <span style={{ color: C.sun }}>👥 {otherPlayer.emoji}{otherPlayer.name}</span>}
         <button style={{ background: "none", border: "none", color: C.sun, fontSize: "13px", cursor: "pointer", padding: "2px" }} onClick={() => setMmap(!mmap)}>🗺️</button>
       </div>
-
-      {/* XP BAR */}
       <div style={{ width: "100%", maxWidth: "400px", height: "4px", background: "#333" }}>
         <div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: C.sun, transition: "width 0.3s" }} />
       </div>
 
-      {/* NOTIF */}
       {notif && <div style={{ position: "fixed", top: "52px", left: "50%", transform: "translateX(-50%)", background: C.sun, color: C.earth, padding: "6px 16px", borderRadius: "4px", fontSize: "13px", fontWeight: "bold", zIndex: 50, border: `2px solid ${C.earth}`, whiteSpace: "nowrap" }}>{notif}</div>}
 
-      {/* MINIMAP */}
       {mmap && <div style={{ position: "fixed", top: "54px", right: "4px", zIndex: 40, background: C.earth, border: `2px solid ${C.sun}`, borderRadius: "4px", padding: "3px" }}>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${MW},2.5px)`, gap: 0 }}>
-          {world.m.map((row, y) => row.map((_, x) => {
-            const isP = pos.x === x && pos.y === y;
-            const isO = otherPlayer && Math.abs(otherPlayer.x - x) < 2 && Math.abs(otherPlayer.y - y) < 2;
-            return <div key={`m${x}${y}`} style={{ width: 2.5, height: 2.5, background: isP ? C.sun : isO ? C.pink : TILES[world.m[y][x]]?.bg || C.gar }} />;
-          }))}
+          {world.m.map((row, y) => row.map((_, x) => <div key={`m${x}${y}`} style={{ width: 2.5, height: 2.5, background: pos.x === x && pos.y === y ? C.sun : otherPlayer && Math.abs(otherPlayer.x - x) < 2 && Math.abs(otherPlayer.y - y) < 2 ? C.pink : TILES[world.m[y][x]]?.bg || C.gar }} />))}
         </div>
       </div>}
 
@@ -524,10 +378,10 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* DIALOG (encounter) */}
+      {/* DIALOG */}
       {dialog && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
         <div style={{ background: C.bg, color: C.earth, padding: "18px", borderRadius: "8px", maxWidth: "320px", border: `3px solid ${C.red}`, textAlign: "center" }}>
-          <MonsterSprite biome={dialog.biome} size={80} shaking={false} />
+          <div style={{ fontSize: "64px", marginBottom: "4px" }}>{dialog.guard?.e}</div>
           <div style={{ fontSize: "16px", fontWeight: "bold", margin: "6px 0" }}>{dialog.guard?.n}</div>
           <div style={{ fontSize: "12px", fontStyle: "italic", marginBottom: "10px" }}>&quot;{dialog.guard?.d}&quot;</div>
           <div style={{ fontSize: "11px", marginBottom: "12px" }}>❤️ {dialog.guard?.hp} PV</div>
@@ -538,57 +392,60 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* ═══ COMBAT (Match-3) — with enemy turns ═══ */}
+      {/* ═══ COMBAT ═══ */}
       {combat && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px" }}>
         <div style={{ background: C.bg, color: C.earth, padding: "12px", borderRadius: "8px", maxWidth: "360px", width: "100%", border: `3px solid ${C.red}` }}>
-          {/* Fighter display with sprites */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          {/* Fighters */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <div style={{ flex: 1, textAlign: "center", animation: playerShaking ? "playerHit 0.3s" : "none" }}>
-              <CharSprite player={pKey} dir="right" walking={false} size={48} />
-              <div style={{ fontSize: "10px", fontWeight: "bold" }}>{pEmoji} {pName}</div>
-              <div style={{ width: "100%", height: "8px", background: "#ddd", borderRadius: "4px", overflow: "hidden", border: `1px solid ${C.earth}` }}>
-                <div style={{ width: `${(combat.playerHp / maxHp) * 100}%`, height: "100%", background: C.olive, transition: "width 0.3s" }} />
+              <div style={{ fontSize: "36px" }}>{pEmoji}</div>
+              <div style={{ fontSize: "10px", fontWeight: "bold" }}>{pName}</div>
+              <div style={{ width: "100%", height: "8px", background: "#ddd", borderRadius: "4px", overflow: "hidden", border: `1px solid ${C.earth}`, margin: "2px 0" }}>
+                <div style={{ width: `${(combat.playerHp / maxHp) * 100}%`, height: "100%", background: combat.playerHp < maxHp * 0.3 ? C.red : C.olive, transition: "width 0.3s" }} />
               </div>
-              <span style={{ fontSize: "10px" }}>{combat.playerHp}/{maxHp}</span>
+              <span style={{ fontSize: "10px" }}>❤️ {combat.playerHp}/{maxHp}</span>
             </div>
-            <div style={{ fontSize: "22px", padding: "0 6px" }}>⚔️</div>
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ display: "flex", justifyContent: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-                <MonsterSprite biome={combat.node.biome} size={56} shaking={enemyShaking} />
-              </div>
-              <div style={{ fontSize: "10px", fontWeight: "bold" }}>{combat.enemy.e} {combat.enemy.n}</div>
-              <div style={{ width: "100%", height: "8px", background: "#ddd", borderRadius: "4px", overflow: "hidden", border: `1px solid ${C.earth}` }}>
+            <div style={{ fontSize: "22px", padding: "0 4px" }}>⚔️</div>
+            <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
+              <div style={{ fontSize: "36px" }}>{combat.enemy.e}</div>
+              <div style={{ fontSize: "10px", fontWeight: "bold" }}>{combat.enemy.n}</div>
+              <div style={{ width: "100%", height: "8px", background: "#ddd", borderRadius: "4px", overflow: "hidden", border: `1px solid ${C.earth}`, margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: C.red, transition: "width 0.3s" }} />
               </div>
-              <span style={{ fontSize: "10px" }}>{Math.max(0, combat.enemyHp)}/{combat.enemyMaxHp}</span>
+              <span style={{ fontSize: "10px" }}>❤️ {Math.max(0, combat.enemyHp)}/{combat.enemyMaxHp}</span>
             </div>
           </div>
 
-          {/* Enemy turn message */}
-          {enemyTurnMsg && <div style={{ textAlign: "center", fontSize: "13px", fontWeight: "bold", color: C.red, padding: "4px", background: C.red + "22", borderRadius: "4px", marginBottom: "4px", animation: "enemyAttack 0.5s" }}>{enemyTurnMsg}</div>}
+          {/* Enemy turn banner */}
+          {enemyTurnMsg && <div style={{ textAlign: "center", fontSize: "14px", fontWeight: "bold", color: "#fff", padding: "6px", background: `linear-gradient(90deg, transparent, ${C.red}CC, transparent)`, borderRadius: "4px", marginBottom: "4px", animation: "enemyAttack 0.6s ease" }}>{enemyTurnMsg}</div>}
 
-          {/* Combat message */}
-          <div style={{ textAlign: "center", fontSize: "12px", fontWeight: "bold", marginBottom: "6px", color: combat.won ? C.green : combat.lost ? C.red : C.earth, minHeight: "18px" }}>{combat.msg}</div>
+          {/* Message */}
+          <div style={{ textAlign: "center", fontSize: "12px", fontWeight: "bold", marginBottom: "6px", color: combat.won ? C.green : combat.lost ? C.red : C.earth, minHeight: "16px" }}>{combat.msg}</div>
 
-          {/* Gem grid with sprites */}
+          {/* Gem grid — emoji-based, clean */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "3px", maxWidth: "280px", margin: "0 auto", padding: "6px", background: C.dark, borderRadius: "6px", border: `2px solid ${C.earth}` }}>
             {combat.grid.map((row, y) => row.map((gem, x) => {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
-              return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <GemSprite gemId={gem} size={38} selected={!!sel} destroying={false} />
-              </div>;
+              const g = GEMS[gem] || GEMS[0];
+              return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
+                aspectRatio: "1", background: g.color + "33", borderRadius: "6px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "20px", cursor: "pointer",
+                border: sel ? `3px solid ${C.sun}` : `2px solid ${g.color}55`,
+                boxShadow: sel ? `0 0 8px ${C.sun}` : "none",
+                transform: sel ? "scale(1.12)" : "scale(1)",
+                transition: "all 0.15s",
+              }}>{g.emoji}</div>;
             }))}
           </div>
 
-          {cards.length > 0 && !combat.won && !combat.lost && <div style={{ fontSize: "10px", color: C.earth, textAlign: "center", marginTop: "6px", opacity: 0.7 }}>🃏 {cards.map((c) => `${c.e}${c.n}`).join(" ")}</div>}
+          {cards.length > 0 && !combat.won && !combat.lost && <div style={{ fontSize: "10px", color: C.earth, textAlign: "center", marginTop: "4px", opacity: 0.7 }}>🃏 {cards.map((c) => `${c.e}${c.n}`).join(" ")}</div>}
 
           {!combat.won && !combat.lost && inv.includes("potion") && <button style={{ ...PXB(C.lav, C.white, true), width: "100%", marginTop: "6px", textAlign: "center" }} onClick={() => {
             const i = inv.indexOf("potion"); if (i >= 0) { setInv((p) => { const n = [...p]; n.splice(i, 1); return n; }); setCombat((p) => p ? { ...p, playerHp: Math.min(maxHp, p.playerHp + 8), msg: "🧪 +8 PV !" } : p); setHp((h) => Math.min(maxHp, h + 8)); }
           }}>🧪 Potion (+8 PV)</button>}
 
-          {(combat.won || combat.lost) && <button style={{ ...PXB(combat.won ? C.olive : C.stone), width: "100%", marginTop: "8px", textAlign: "center" }} onClick={endCombat}>
-            {combat.won ? "🎉 Victoire !" : "😤 Retenter plus tard"}
-          </button>}
+          {(combat.won || combat.lost) && <button style={{ ...PXB(combat.won ? C.olive : C.stone), width: "100%", marginTop: "8px", textAlign: "center" }} onClick={endCombat}>{combat.won ? "🎉 Victoire !" : "😤 Retenter"}</button>}
         </div>
       </div>}
 
@@ -617,9 +474,7 @@ function GameContent() {
             <button style={PXB(C.stone, C.white, true)} onClick={() => { setCraft(false); setCraftSlots([]); setCraftMsg(""); }}>✕</button>
           </div>
           <div style={{ display: "flex", gap: "6px", alignItems: "center", justifyContent: "center", marginBottom: "10px" }}>
-            {[0, 1, 2].map((i) => <div key={i} style={{ width: 48, height: 48, border: `2px dashed ${C.earth}`, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", background: craftSlots[i] ? RES[craftSlots[i].id]?.c + "33" : C.white, cursor: "pointer" }} onClick={() => { if (craftSlots[i]) setCraftSlots((p) => p.filter((_, j) => j !== i)); }}>
-              {craftSlots[i] ? RES[craftSlots[i].id]?.e : "?"}
-            </div>)}
+            {[0, 1, 2].map((i) => <div key={i} style={{ width: 48, height: 48, border: `2px dashed ${C.earth}`, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", background: craftSlots[i] ? RES[craftSlots[i].id]?.c + "33" : C.white, cursor: "pointer" }} onClick={() => { if (craftSlots[i]) setCraftSlots((p) => p.filter((_, j) => j !== i)); }}>{craftSlots[i] ? RES[craftSlots[i].id]?.e : "?"}</div>)}
             <button style={PXB(craftSlots.length >= 2 ? C.sun : C.stone, C.earth, true)} onClick={() => craftSlots.length >= 2 && doCraft()}>⚒️</button>
           </div>
           {craftMsg && <div style={{ fontSize: "12px", fontWeight: "bold", color: craftMsg[0] === "✨" ? C.green : C.red, marginBottom: "8px", textAlign: "center" }}>{craftMsg}</div>}
@@ -644,7 +499,7 @@ function GameContent() {
           <div style={{ fontSize: "11px", marginBottom: "6px", color: bagFull ? C.red : C.earth }}>📦 {bagCount}/{BAG_LIMIT} {bagFull ? "— PLEIN !" : ""}</div>
           {tools.length > 0 && <div style={{ marginBottom: "6px" }}><div style={{ fontSize: "11px", fontWeight: "bold" }}>🔧 Outils</div>{tools.map((t) => <div key={t} style={{ fontSize: "11px" }}>{TOOLS[t].e} {TOOLS[t].n}</div>)}</div>}
           {cards.length > 0 && <div style={{ marginBottom: "6px" }}><div style={{ fontSize: "11px", fontWeight: "bold" }}>🃏 Cartes</div>{cards.map((c, i) => <div key={i} style={{ fontSize: "11px" }}>{c.e} {c.n} — {c.d}</div>)}</div>}
-          <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px" }}>📦 Items (tap pour jeter)</div>
+          <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px" }}>📦 Items (tap = jeter)</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
             {inv.map((id, i) => <button key={i} onClick={() => dropItem(i)} style={{ fontSize: "14px", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: RES[id]?.c + "22", border: `1px solid ${RES[id]?.c || "#888"}`, borderRadius: "4px", cursor: "pointer" }}>{RES[id]?.e}</button>)}
           </div>
@@ -669,8 +524,8 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* ═══ MAP with sprite tiles ═══ */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, border: `2px solid ${C.earth}`, margin: "2px 0", borderRadius: "2px", position: "relative" }}>
+      {/* ═══ MAP — couleurs + emoji (propre, aligné) ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, border: `2px solid ${C.earth}`, margin: "2px 0", borderRadius: "2px" }}>
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
           const wx = camX + vx, wy = camY + vy;
           const tile = world.m[wy]?.[wx] || "g";
@@ -681,33 +536,26 @@ function GameContent() {
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vil = world.villages.find((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
-          const tileSprite = getTileSprite(tile);
 
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL,
-            background: tileSprite ? undefined : tt.bg,
-            backgroundImage: tileSprite ? `url(${tileSprite.src})` : undefined,
-            backgroundPosition: tileSprite ? tileSprite.bgPos : undefined,
-            backgroundSize: tileSprite ? tileSprite.bgSize : undefined,
-            backgroundRepeat: "no-repeat",
-            imageRendering: "pixelated",
+            width: CELL, height: CELL, background: tt.bg,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: isP || isOther ? "16px" : "13px", position: "relative",
             boxShadow: isP ? `inset 0 0 0 2px ${C.sun}` : isOther ? `inset 0 0 0 2px ${C.pink}` : "none",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {isP ? <CharSprite player={pKey} dir={lastDir} walking={walking} size={CELL} />
+            {isP ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.6))", zIndex: 2, transform: walking ? "scale(1.1)" : "scale(1)", transition: "transform 0.1s" }}>{pEmoji}</span>
               : isOther ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.4))", opacity: 0.8 }}>{otherPlayer!.emoji}</span>
-                : isCamp ? <span style={{ fontSize: "15px", filter: "drop-shadow(0 0 4px #F4D03F)" }}>🔥</span>
+                : isCamp ? <span style={{ fontSize: "15px", animation: "pulse 2s infinite" }}>🔥</span>
                   : node ? <span style={{ filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.5))" }}>{node.guard ? (node.boss ? node.guard.e : "⚔️") : RES[node.res!]?.e}</span>
                     : gate ? <span style={{ fontSize: "15px" }}>🚪</span>
                       : vil ? <span style={{ fontSize: "14px" }}>🏘️</span>
-                        : !tileSprite && tt.c ? <span style={{ fontSize: "10px", opacity: 0.4 }}>{tt.c}</span>
+                        : tt.c ? <span style={{ fontSize: "10px", opacity: 0.4 }}>{tt.c}</span>
                           : null}
           </div>;
         })).flat()}
       </div>
 
-      {/* ── CONTROLS ── */}
+      {/* CONTROLS */}
       <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%", maxWidth: "400px", justifyContent: "space-between", padding: "4px 6px", marginTop: "2px" }}>
         <div style={{ display: "grid", gridTemplateAreas: `". u ." "l . r" ". d ."`, gap: "2px" }}>
           {([["u", 0, -1, "▲"], ["l", -1, 0, "◀"], ["r", 1, 0, "▶"], ["d", 0, 1, "▼"]] as [string, number, number, string][]).map(([a, dx, dy, ch]) =>
