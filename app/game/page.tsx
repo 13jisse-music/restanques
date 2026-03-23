@@ -785,6 +785,16 @@ function GameContent() {
 }
 
 export default function GamePage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return (
+    <div style={{ width: "100%", minHeight: "100vh", background: "#1A1410", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace", color: "#F4D03F" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: "48px", marginBottom: "12px" }}>⛰️</div>
+        <div>Chargement...</div>
+      </div>
+    </div>
+  );
   return (
     <Suspense fallback={<div style={{ width: "100%", minHeight: "100vh", background: "#1A1410", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace", color: "#F4D03F" }}>Chargement...</div>}>
       <GameContent />
