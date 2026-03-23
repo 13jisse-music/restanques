@@ -539,9 +539,15 @@ function GameContent() {
   // ─── NEW GAME ───
   const newGame = async () => {
     if (sessionId) {
+      await supabase.from("players").delete().eq("session_id", sessionId);
       await supabase.from("game_sessions").update({ active: false }).eq("id", sessionId);
     }
     window.location.href = `/game?player=${playerParam}`;
+  };
+
+  // ─── BACK TO MENU ───
+  const backToMenu = () => {
+    window.location.href = "/";
   };
 
   // ═══ RENDER ═══
@@ -837,7 +843,7 @@ function GameContent() {
           <button style={{ ...PXB(C.honey, C.earth, true), textAlign: "center", padding: "10px 4px" }} onClick={() => { setCraftSlots([]); setCraftMsg(""); setCraft(true); }}>🏺 Craft</button>
           <button style={{ ...PXB(bagFull ? C.red : C.sea, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={() => setBag(true)}>🎒 {bagFull ? "PLEIN" : "Sac"}</button>
           <button style={{ ...PXB(C.sun, C.earth, true), textAlign: "center", padding: "10px 4px" }} onClick={() => setQuestPanel(true)}>📋 Quêtes</button>
-          <button style={{ ...PXB(C.stone, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={newGame}>🔄 Nouveau</button>
+          <button style={{ ...PXB(C.stone, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={backToMenu}>🏠 Menu</button>
         </div>
       </div>
     </div>

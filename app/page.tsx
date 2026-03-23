@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { supabase } from "./lib/supabase";
 
 const C = {
   sky: "#87CEEB", bg: "#F5ECD7", earth: "#3D2B1F", sun: "#F4D03F",
@@ -18,6 +20,25 @@ const PXB = (c: string, tc: string): React.CSSProperties => ({
 });
 
 export default function Home() {
+  const [resetting, setResetting] = useState(false);
+
+  const resetGame = async () => {
+    setResetting(true);
+    // Désactiver toutes les sessions actives + supprimer les joueurs
+    const { data: sessions } = await supabase
+      .from("game_sessions")
+      .select("id")
+      .eq("active", true);
+    if (sessions) {
+      for (const s of sessions) {
+        await supabase.from("players").delete().eq("session_id", s.id);
+        await supabase.from("game_sessions").update({ active: false }).eq("id", s.id);
+      }
+    }
+    setResetting(false);
+    alert("✅ Partie réinitialisée ! Choisissez un personnage pour démarrer.");
+  };
+
   return (
     <div style={{
       width: "100%", minHeight: "100vh",
@@ -36,6 +57,9 @@ export default function Home() {
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "260px", marginTop: "8px" }}>
         <Link href="/game?player=jisse" style={PXB(C.olive, C.white)}>🎸 Jouer : Jisse</Link>
         <Link href="/game?player=melanie" style={PXB(C.pink, C.white)}>🎨 Jouer : Mélanie</Link>
+        <button onClick={resetGame} disabled={resetting} style={{ ...PXB(C.terra, C.white), opacity: resetting ? 0.5 : 1, border: `3px solid ${C.earth}` }}>
+          {resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}
+        </button>
       </div>
 
       <div style={{ background: C.white, border: `2px solid ${C.stone}`, padding: "12px", maxWidth: "310px", fontSize: "11px", lineHeight: 1.7, borderRadius: "6px", marginTop: "4px" }}>
