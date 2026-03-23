@@ -10,7 +10,12 @@ import {
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
-import { playerSprite, mobSprite, bonfireSprite, type Direction } from "../lib/sprites";
+import {
+  playerSprite, mobSprite, bonfireSprite, npcSprite,
+  floorTile, waterTile, treeTile, bushTile, rockTile, resourceSprite,
+  villageTile, gateTile, cliffTile, mineWallTile, restanqueWallTile,
+  type Direction,
+} from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -589,48 +594,57 @@ function GameContent() {
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
           const wx = camX + vx, wy = camY + vy;
           const tile = world.m[wy]?.[wx] || "g";
-          const tt = TILES[tile] || TILES.g;
-          const tc = TILE_COLORS[tile] || { bg: tt.bg };
+          const tc = TILE_COLORS[tile] || { bg: "#7BB33A" };
           const isP = pos.x === wx && pos.y === wy;
           const isOther = otherPlayer && otherPlayer.x === wx && otherPlayer.y === wy;
-          // Resource node at STATIC position (non-guard only)
           const staticNode = world.nodes.find((n) => n.x === wx && n.y === wy && !n.done && !n.guard);
-          // Mobile enemy at this position
           const mobileEnemy = Object.entries(enemyPositions).find(([, ep]) => ep.x === wx && ep.y === wy);
           const mobileEnemyNode = mobileEnemy ? world.nodes[Number(mobileEnemy[0])] : null;
           const isAlerted = mobileEnemy ? alertedEnemies.has(Number(mobileEnemy[0])) : false;
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
-          const vil = world.villages.find((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
+          const vilIdx = world.villages.findIndex((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
-          const opVar = 0.88 + (((wx * 7 + wy * 13) % 12) / 100);
+
+          // Floor sprite or CSS fallback
+          const floor = floorTile(tile, CELL);
+          // Water tiles
+          const isWater = tile === "w" || tile === "dw" || tile === "cf";
+
+          // Terrain overlay (trees, rocks, etc.) — only if no entity on this tile
+          const hasEntity = isP || isOther || mobileEnemyNode || isCamp || staticNode || gate || vilIdx >= 0;
 
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL, background: tc.bg,
-            backgroundImage: tc.pattern, opacity: opVar,
+            width: CELL, height: CELL,
+            ...(isWater ? waterTile(spriteFrame, CELL, tile === "dw") : floor ? floor : { background: tc.bg, backgroundImage: tc.pattern }),
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: Math.floor(CELL * 0.5), position: "relative",
-            boxShadow: isP ? `inset 0 0 0 2px #F4D03F` : isOther ? `inset 0 0 0 2px #E88EAD` : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
-            transition: "box-shadow 0.2s",
+            position: "relative", overflow: "visible",
+            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : "none",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {/* PLAYER — animated sprite */}
-            {isP ? <div style={{ ...playerSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: (playerParam === "melanie" ? "hue-rotate(280deg) saturate(1.3) " : "") + "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
-              /* OTHER PLAYER */
-              : isOther ? <div style={{ ...playerSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75, filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.4))" }} />
-                /* MOBILE ENEMY — animated mob sprite */
+            {/* PLAYER */}
+            {isP ? <div style={{ ...playerSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
+              : isOther ? <div style={{ ...playerSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
+                /* ENEMY */
                 : mobileEnemyNode ? <div style={{ position: "relative" }}>
-                    <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                    <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  /* BONFIRE — animated */
+                  /* CAMP FIRE */
                   : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                    : staticNode ? <div style={{ animation: "float 2s ease infinite", fontSize: Math.floor(CELL * 0.45) }}>{RES[staticNode.res!]?.e}</div>
-                      : gate ? <span style={{ fontSize: Math.floor(CELL * 0.5), filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
-                        : vil ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🏘️</span>
-                          : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.55), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
-                            : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>🌸</span>
-                              : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>💜</span>
-                                : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.4), opacity: 0.6 }}>🪨</span>
-                                  : null}
+                    /* RESOURCE NODE — sprite */
+                    : staticNode && staticNode.res ? <div style={{ ...(resourceSprite(staticNode.res, CELL) || {}), animation: "float 2s ease infinite" }} />
+                      /* GATE */
+                      : gate ? <div style={gateTile(CELL)} />
+                        /* VILLAGE — NPC sprite */
+                        : vilIdx >= 0 ? <div style={npcSprite(vilIdx, spriteFrame, CELL)} />
+                          /* TERRAIN DECORATIONS — sprites */
+                          : tile === "t" ? <div style={{ ...treeTile((wx + wy) % 4, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
+                            : tile === "fl" || tile === "lv" ? <div style={bushTile((wx + wy) % 4, CELL)} />
+                              : tile === "r" ? <div style={rockTile((wx + wy) % 3, CELL)} />
+                                : tile === "cl" ? <div style={cliffTile(CELL)} />
+                                  : tile === "mw" ? <div style={mineWallTile(CELL)} />
+                                    : tile === "rw" ? <div style={restanqueWallTile(CELL)} />
+                                      : tile === "vi" ? <div style={villageTile(CELL)} />
+                                        : null}
           </div>;
         })).flat()}
       </div>
