@@ -283,7 +283,10 @@ function GameContent() {
   const camY = Math.max(0, Math.min(MH - vh, pos.y - Math.floor(vh / 2)));
 
   return (
-    <div onClick={initSound} style={{ width: "100%", height: "100vh", background: "#1A1410", fontFamily: "'Courier New',monospace", color: "#FFF8E7", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}>
+    <div onClick={initSound} style={{ width: "100%", height: "100vh", background: "#1A1410", fontFamily: "'Courier New',monospace", color: "#FFF8E7", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", position: "relative" }}>
+      {/* Fond poster flouté */}
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(/splash.png)", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(20px) brightness(0.3)", zIndex: 0 }} />
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", width: "100%", height: "100%" }}>
       <style>{`
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
         @keyframes playerHit{0%,100%{transform:translateX(0)}25%{transform:translateX(4px);filter:brightness(1.5)}50%{transform:translateX(-4px)}75%{transform:translateX(2px)}}
@@ -392,37 +395,85 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* CRAFT */}
+      {/* CRAFT + LIVRE DE RECETTES */}
       {craft && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 8, overflow: "auto" }}>
-        <div style={{ ...UI.panel, padding: 14, maxWidth: 360, width: "100%", color: "#3D2B1F" }}>
+        <div style={{ ...UI.panel, padding: 14, maxWidth: 370, width: "100%", color: "#3D2B1F" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><span style={{ fontSize: 15, fontWeight: "bold" }}>🏺 Atelier</span><button style={UI.close} onClick={() => { setCraft(false); setCraftSlots([]); setCraftMsg(""); }}>✕</button></div>
+          {/* Slots de craft */}
           <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-            {[0, 1, 2].map((i) => <div key={i} style={{ width: 48, height: 48, border: "2px dashed #8B7355", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, background: craftSlots[i] ? RES[craftSlots[i].id]?.c + "33" : "#FFF8E7", cursor: "pointer" }} onClick={() => { if (craftSlots[i]) setCraftSlots((p) => p.filter((_, j) => j !== i)); }}>{craftSlots[i] ? RES[craftSlots[i].id]?.e : "?"}</div>)}
-            <button style={UI.btn(craftSlots.length >= 2 ? "#F4D03F" : "#8B7355", "#3D2B1F", true)} onClick={() => craftSlots.length >= 2 && doCraft()}>⚒️</button>
+            {[0, 1, 2].map((i) => <div key={i} style={{ width: 52, height: 52, border: "2px dashed #8B7355", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, background: craftSlots[i] ? RES[craftSlots[i].id]?.c + "33" : "#FFF8E7", cursor: "pointer" }} onClick={() => { if (craftSlots[i]) setCraftSlots((p) => p.filter((_, j) => j !== i)); }}>{craftSlots[i] ? RES[craftSlots[i].id]?.e : "?"}</div>)}
+            <button style={UI.btn(craftSlots.length >= 2 ? "#F4D03F" : "#8B7355", "#3D2B1F", true)} onClick={() => craftSlots.length >= 2 && doCraft()}>⚒️ Forger</button>
           </div>
-          {craftMsg && <div style={{ fontSize: 12, fontWeight: "bold", color: craftMsg[0] === "✨" ? "#3D7A18" : "#D94F4F", marginBottom: 8, textAlign: "center" }}>{craftMsg}</div>}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, maxHeight: 100, overflow: "auto" }}>
-            {inv.map((id, i) => { const used = craftSlots.find((s) => s.idx === i); return <button key={i} onClick={() => !used && addSlot(id, i)} style={{ background: used ? "#ccc" : RES[id]?.c + "22", border: `2px solid ${RES[id]?.c || "#888"}`, borderRadius: 6, padding: 3, fontSize: 16, cursor: used ? "default" : "pointer", opacity: used ? 0.3 : 1, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>{RES[id]?.e}</button>; })}
+          {craftMsg && <div style={{ fontSize: 13, fontWeight: "bold", color: craftMsg[0] === "✨" ? "#3D7A18" : "#D94F4F", marginBottom: 8, textAlign: "center" }}>{craftMsg}</div>}
+          {/* Inventaire pour craft */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, maxHeight: 90, overflow: "auto", marginBottom: 10 }}>
+            {inv.map((id, i) => { const used = craftSlots.find((s) => s.idx === i); return <button key={i} onClick={() => !used && addSlot(id, i)} style={{ background: used ? "#ccc" : RES[id]?.c + "22", border: `2px solid ${RES[id]?.c || "#888"}`, borderRadius: 6, fontSize: 18, cursor: used ? "default" : "pointer", opacity: used ? 0.3 : 1, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>{RES[id]?.e}</button>; })}
           </div>
-          <div style={{ marginTop: 8, fontSize: 9, opacity: 0.6, lineHeight: 1.5 }}><strong>Outils:</strong> 🪵🪵→🥖 · 🪨🪵→⛏️ · 🐚🌿→🕸️ · ⚙️🪵→🔪 · 💎🟠🫧→🗝️<br /><strong>Cartes:</strong> 💜🌿→🌫️ · 🪨🧂→🛡️ · 🟠💎→✨ · 🐟🧂→🍽️ · 🫧🪸→🌊 · ⚙️🪨→💥</div>
+          {/* LIVRE DE RECETTES */}
+          <div style={{ background: "#FFF8E7", border: "2px solid #D4C5A9", borderRadius: 8, padding: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", marginBottom: 8, textAlign: "center" }}>📖 Livre de Recettes</div>
+            <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 4, color: "#5C4033" }}>🔧 Outils</div>
+            {Object.entries(TOOLS).map(([tid, tool]) => {
+              const owned = tools.includes(tid);
+              return <div key={tid} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", opacity: owned ? 0.5 : 1, borderBottom: "1px solid #E8D5A3" }}>
+                <span style={{ fontSize: 18, width: 28 }}>{tool.e}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: "bold" }}>{tool.n} {owned && "✅"}</div>
+                  <div style={{ fontSize: 11, color: "#8B7355" }}>{tool.r.map((r) => RES[r]?.e || r).join(" + ")} → {tool.d}</div>
+                </div>
+              </div>;
+            })}
+            <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 8, marginBottom: 4, color: "#5C4033" }}>🃏 Cartes de combat</div>
+            {CARD_RECIPES.map((rec, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", borderBottom: "1px solid #E8D5A3" }}>
+              <span style={{ fontSize: 18, width: 28 }}>{rec.c.e}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: "bold" }}>{rec.c.n}</div>
+                <div style={{ fontSize: 11, color: "#8B7355" }}>{rec.r.map((r) => RES[r]?.e || r).join(" + ")} → {rec.c.d}</div>
+              </div>
+            </div>)}
+          </div>
         </div>
       </div>}
 
-      {/* BAG */}
-      {bag && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+      {/* BAG — items groupés */}
+      {bag && (() => {
+        // Grouper les items par type avec compteur
+        const grouped: { id: string; count: number; indices: number[] }[] = [];
+        inv.forEach((id, i) => {
+          const existing = grouped.find((g) => g.id === id);
+          if (existing) { existing.count++; existing.indices.push(i); }
+          else grouped.push({ id, count: 1, indices: [i] });
+        });
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
         <div style={{ ...UI.panel, padding: 14, maxWidth: 340, width: "100%", color: "#3D2B1F", maxHeight: "80vh", overflow: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><span style={{ fontSize: 15, fontWeight: "bold" }}>🎒 Inventaire</span><button style={UI.close} onClick={() => setBag(false)}>✕</button></div>
-          <div style={{ fontSize: 12, marginBottom: 6 }}>❤️ {hp}/{maxHp} · Nv.{lvl} · XP {xp}/{lvl * 50}</div>
-          <div style={{ fontSize: 11, marginBottom: 6, color: bagFull ? "#D94F4F" : "#3D2B1F" }}>📦 {bagCount}/{BAG_LIMIT} {bagFull ? "PLEIN !" : ""}</div>
-          {tools.length > 0 && <div style={{ marginBottom: 6 }}><strong style={{ fontSize: 11 }}>🔧 Outils</strong>{tools.map((t) => <div key={t} style={{ fontSize: 11 }}>{TOOLS[t].e} {TOOLS[t].n}</div>)}</div>}
-          {cards.length > 0 && <div style={{ marginBottom: 6 }}><strong style={{ fontSize: 11 }}>🃏 Cartes</strong>{cards.map((c, i) => <div key={i} style={{ fontSize: 11 }}>{c.e} {c.n}</div>)}</div>}
-          <strong style={{ fontSize: 11 }}>📦 Items (tap = jeter)</strong>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>{inv.map((id, i) => <button key={i} onClick={() => dropItem(i)} style={{ fontSize: 14, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: RES[id]?.c + "22", border: `1px solid ${RES[id]?.c || "#888"}`, borderRadius: 6, cursor: "pointer" }}>{RES[id]?.e}</button>)}</div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>❤️ {hp}/{maxHp} · Nv.{lvl} · XP {xp}/{lvl * 50}</div>
+          <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #F4D03F, #E67E22)" }} />
+          </div>
+          <div style={{ fontSize: 12, marginBottom: 8, color: bagFull ? "#D94F4F" : "#3D2B1F", fontWeight: "bold" }}>📦 Ressources: {bagCount}/{BAG_LIMIT} {bagFull ? "— PLEIN !" : ""}</div>
+          {tools.length > 0 && <div style={{ marginBottom: 8, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}><strong style={{ fontSize: 12 }}>🔧 Outils</strong>{tools.map((t) => <div key={t} style={{ fontSize: 12, padding: "2px 0" }}>{TOOLS[t].e} {TOOLS[t].n} <span style={{ fontSize: 10, color: "#8B7355" }}>— {TOOLS[t].d}</span></div>)}</div>}
+          {cards.length > 0 && <div style={{ marginBottom: 8, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}><strong style={{ fontSize: 12 }}>🃏 Cartes</strong>{cards.map((c, i) => <div key={i} style={{ fontSize: 12, padding: "2px 0" }}>{c.e} {c.n} <span style={{ fontSize: 10, color: "#8B7355" }}>— {c.d}</span></div>)}</div>}
+          <strong style={{ fontSize: 12 }}>📦 Items <span style={{ fontSize: 10, fontWeight: "normal", color: "#8B7355" }}>(tap = jeter ×1)</span></strong>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 6 }}>
+            {grouped.map((g) => (
+              <button key={g.id} onClick={() => dropItem(g.indices[g.indices.length - 1])} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                padding: 6, background: RES[g.id]?.c + "18", border: `2px solid ${RES[g.id]?.c || "#888"}`,
+                borderRadius: 8, cursor: "pointer", position: "relative", minHeight: 50,
+              }}>
+                <span style={{ fontSize: 22 }}>{RES[g.id]?.e}</span>
+                <span style={{ fontSize: 10, fontWeight: "bold", color: "#3D2B1F" }}>×{g.count}</span>
+                <span style={{ fontSize: 8, color: "#8B7355" }}>{RES[g.id]?.n}</span>
+              </button>
+            ))}
+          </div>
           <strong style={{ fontSize: 11, display: "block", marginTop: 8 }}>⛰️ Zones</strong>
           {Object.entries({ garrigue: "🌿 Garrigue", calanques: "🏖️ Calanques", mines: "⛏️ Mines", mer: "🌊 Mer", restanques: "⛰️ Restanques" }).map(([id, n]) => <div key={id} style={{ fontSize: 11, opacity: unlocked.includes(id) ? 1 : 0.3 }}>{n} {unlocked.includes(id) ? "✅" : "🔒"}{bosses.includes(id) ? " 🏆" : ""}</div>)}
           {(inv.includes("potion") || inv.includes("pain")) && <button style={{ ...UI.btn("#9B7EDE", "#FFF", true), width: "100%", marginTop: 8, textAlign: "center" }} onClick={() => { usePotion(); setBag(false); }}>{inv.includes("potion") ? "🧪 Potion" : "🥖 Pain"}</button>}
         </div>
-      </div>}
+      </div>;
+      })()}
 
       {/* QUESTS */}
       {questPanel && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
@@ -490,6 +541,7 @@ function GameContent() {
           <button style={{ ...UI.btn("#8B7355", "#E8D5A3", true), textAlign: "center", padding: "9px 4px" }} onClick={() => { window.location.href = "/"; }}>🏠 Menu</button>
         </div>
       </div>
+      </div>{/* close z-1 wrapper */}
     </div>
   );
 }
