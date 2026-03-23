@@ -1,34 +1,25 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "./lib/supabase";
 
-const C = {
-  sky: "#87CEEB", bg: "#F5ECD7", earth: "#3D2B1F", sun: "#F4D03F",
-  olive: "#7A9E3F", pink: "#E88EAD", stone: "#D4C5A9", white: "#FFF8E7",
-  terra: "#CC7043",
-};
-
-const PXB = (c: string, tc: string): React.CSSProperties => ({
-  background: c, color: tc, border: `3px solid ${C.earth}`,
-  padding: "14px 24px", fontSize: "16px",
-  fontWeight: "bold", fontFamily: "'Courier New',monospace", cursor: "pointer",
-  boxShadow: `2px 2px 0 ${C.earth}`, letterSpacing: "1px",
-  userSelect: "none", textDecoration: "none", display: "block",
-  textAlign: "center", borderRadius: "4px",
-});
-
 export default function Home() {
+  const router = useRouter();
+  const [visible, setVisible] = useState(false);
+  const [fading, setFading] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  useEffect(() => { setTimeout(() => setVisible(true), 100); }, []);
+
+  const play = (player: string) => {
+    setFading(true);
+    setTimeout(() => router.push(`/game?player=${player}`), 500);
+  };
 
   const resetGame = async () => {
     setResetting(true);
-    // Désactiver toutes les sessions actives + supprimer les joueurs
-    const { data: sessions } = await supabase
-      .from("game_sessions")
-      .select("id")
-      .eq("active", true);
+    const { data: sessions } = await supabase.from("game_sessions").select("id").eq("active", true);
     if (sessions) {
       for (const s of sessions) {
         await supabase.from("players").delete().eq("session_id", s.id);
@@ -36,36 +27,66 @@ export default function Home() {
       }
     }
     setResetting(false);
-    alert("✅ Partie réinitialisée ! Choisissez un personnage pour démarrer.");
   };
 
   return (
     <div style={{
-      width: "100%", minHeight: "100vh",
-      background: `linear-gradient(180deg,${C.sky}44,${C.bg})`,
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      gap: "14px", fontFamily: "'Courier New',monospace", padding: "16px", boxSizing: "border-box",
+      width: "100%", height: "100vh", position: "relative", overflow: "hidden",
+      background: "#1A1410",
+      opacity: fading ? 0 : 1, transition: "opacity 0.5s ease",
     }}>
-      <div style={{ fontSize: "56px", textShadow: "2px 4px 8px rgba(0,0,0,0.2)" }}>⛰️</div>
-      <h1 style={{ fontSize: "34px", fontWeight: "bold", color: C.earth, textShadow: `2px 2px ${C.sun}`, letterSpacing: "4px", margin: 0 }}>RESTANQUES</h1>
-      <p style={{ color: C.terra, fontSize: "12px", fontStyle: "italic", margin: 0, textAlign: "center" }}>Reconstruis le duché provençal à deux</p>
-      <div style={{ display: "flex", gap: "4px", fontSize: "10px", color: C.earth, opacity: 0.5 }}>
-        <span>🌿 Explore</span><span>·</span><span>🏺 Craft</span><span>·</span>
-        <span>💎 Match-3</span><span>·</span><span>🏰 Conquiers</span>
-      </div>
+      {/* Poster background */}
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: "url(/splash.png)",
+        backgroundSize: "cover", backgroundPosition: "center top",
+        opacity: visible ? 1 : 0, transition: "opacity 1.5s ease",
+      }} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "260px", marginTop: "8px" }}>
-        <Link href="/game?player=jisse" style={PXB(C.olive, C.white)}>🎸 Jouer : Jisse</Link>
-        <Link href="/game?player=melanie" style={PXB(C.pink, C.white)}>🎨 Jouer : Mélanie</Link>
-        <button onClick={resetGame} disabled={resetting} style={{ ...PXB(C.terra, C.white), opacity: resetting ? 0.5 : 1, border: `3px solid ${C.earth}` }}>
-          {resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}
-        </button>
-      </div>
+      {/* Dark gradient overlay at bottom */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "55%",
+        background: "linear-gradient(transparent, rgba(26,20,16,0.85) 50%, rgba(26,20,16,0.95))",
+      }} />
 
-      <div style={{ background: C.white, border: `2px solid ${C.stone}`, padding: "12px", maxWidth: "310px", fontSize: "11px", lineHeight: 1.7, borderRadius: "6px", marginTop: "4px" }}>
-        <strong>🗺️ Le jeu :</strong> Explorez ensemble la Provence sur une grande carte ! Récoltez des ressources, forgez des outils pour débloquer 5 zones, combattez les gardiens en <strong>match-3</strong>, achetez aux villages, et affrontez le Mistral !<br /><br />
-        <strong>👫 À deux :</strong> Chacun choisit son personnage. Vous voyez l&apos;autre sur la carte en temps réel. Explorez chacun de votre côté ou ensemble !<br /><br />
-        <strong>🔧</strong> Garrigue → Calanques → Mines → Mer → Restanques
+      {/* Content */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        padding: "20px 16px 32px",
+        gap: "10px",
+        opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
+        transition: "all 1s ease 0.5s",
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", maxWidth: "300px" }}>
+          <button onClick={() => play("jisse")} style={{
+            padding: "14px 20px", fontSize: "16px", fontWeight: "bold",
+            fontFamily: "'Courier New',monospace",
+            background: "linear-gradient(145deg, rgba(122,158,63,0.9), rgba(74,110,31,0.9))",
+            color: "#FFF8E7", border: "2px solid #F4D03F",
+            borderRadius: "12px", cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+            letterSpacing: "1px",
+          }}>🎸 Rejoindre : Jisse</button>
+
+          <button onClick={() => play("melanie")} style={{
+            padding: "14px 20px", fontSize: "16px", fontWeight: "bold",
+            fontFamily: "'Courier New',monospace",
+            background: "linear-gradient(145deg, rgba(232,142,173,0.9), rgba(180,90,120,0.9))",
+            color: "#FFF8E7", border: "2px solid #F4D03F",
+            borderRadius: "12px", cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+            letterSpacing: "1px",
+          }}>🎨 Rejoindre : Mélanie</button>
+
+          <button onClick={resetGame} disabled={resetting} style={{
+            padding: "10px 16px", fontSize: "12px", fontWeight: "bold",
+            fontFamily: "'Courier New',monospace",
+            background: "rgba(61,43,31,0.7)", color: "#D4C5A9",
+            border: "1px solid #8B7355", borderRadius: "8px", cursor: "pointer",
+            opacity: resetting ? 0.5 : 0.8,
+          }}>{resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}</button>
+        </div>
       </div>
     </div>
   );
