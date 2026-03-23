@@ -10,12 +10,7 @@ import {
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
-import {
-  playerSprite, mobSprite, bonfireSprite, npcSprite,
-  floorTile, waterTile, treeTile, bushTile, rockTile, resourceSprite,
-  villageTile, gateTile, cliffTile, mineWallTile, restanqueWallTile,
-  type Direction,
-} from "../lib/sprites";
+import { playerSprite, mobSprite, bonfireSprite, npcSprite, type Direction } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -604,47 +599,36 @@ function GameContent() {
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vilIdx = world.villages.findIndex((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
-
-          // Floor sprite or CSS fallback
-          const floor = floorTile(tile, CELL);
-          // Water tiles
-          const isWater = tile === "w" || tile === "dw" || tile === "cf";
-
-          // Terrain overlay (trees, rocks, etc.) — only if no entity on this tile
-          const hasEntity = isP || isOther || mobileEnemyNode || isCamp || staticNode || gate || vilIdx >= 0;
+          const fs = Math.floor(CELL * 0.5);
 
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL,
-            ...(isWater ? waterTile(spriteFrame, CELL, tile === "dw") : floor ? floor : { background: tc.bg, backgroundImage: tc.pattern }),
+            width: CELL, height: CELL, background: tc.bg, backgroundImage: tc.pattern,
             display: "flex", alignItems: "center", justifyContent: "center",
-            position: "relative", overflow: "visible",
-            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : "none",
+            position: "relative", fontSize: fs,
+            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {/* PLAYER */}
+            {/* PLAYER — Pixel Crawler sprite */}
             {isP ? <div style={{ ...playerSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
               : isOther ? <div style={{ ...playerSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
-                /* ENEMY */
+                /* ENEMY — Pixel Crawler mob sprite */
                 : mobileEnemyNode ? <div style={{ position: "relative" }}>
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  /* CAMP FIRE */
+                  /* BONFIRE — Pixel Crawler animated */
                   : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                    /* RESOURCE NODE — sprite */
-                    : staticNode && staticNode.res ? <div style={{ ...(resourceSprite(staticNode.res, CELL) || {}), animation: "float 2s ease infinite" }} />
+                    /* RESOURCE NODE */
+                    : staticNode && staticNode.res ? <span style={{ animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}>{RES[staticNode.res].e}</span>
                       /* GATE */
-                      : gate ? <div style={gateTile(CELL)} />
+                      : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         /* VILLAGE — NPC sprite */
-                        : vilIdx >= 0 ? <div style={npcSprite(vilIdx, spriteFrame, CELL)} />
-                          /* TERRAIN DECORATIONS — sprites */
-                          : tile === "t" ? <div style={{ ...treeTile((wx + wy) % 4, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
-                            : tile === "fl" || tile === "lv" ? <div style={bushTile((wx + wy) % 4, CELL)} />
-                              : tile === "r" ? <div style={rockTile((wx + wy) % 3, CELL)} />
-                                : tile === "cl" ? <div style={cliffTile(CELL)} />
-                                  : tile === "mw" ? <div style={mineWallTile(CELL)} />
-                                    : tile === "rw" ? <div style={restanqueWallTile(CELL)} />
-                                      : tile === "vi" ? <div style={villageTile(CELL)} />
-                                        : null}
+                        : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                          /* TERRAIN DECORATIONS */
+                          : tile === "t" ? <span style={{ fontSize: fs + 2, filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
+                            : tile === "fl" ? <span style={{ fontSize: fs - 4 }}>🌸</span>
+                              : tile === "lv" ? <span style={{ fontSize: fs - 4 }}>💜</span>
+                                : tile === "r" ? <span style={{ fontSize: fs - 2, opacity: 0.7 }}>🪨</span>
+                                  : null}
           </div>;
         })).flat()}
       </div>
