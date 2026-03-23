@@ -9,7 +9,7 @@ import {
   TILES, MW, MH, CELL, CAMP_POS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
-import { type Direction, kenney, TILE_SPRITES, MONSTER_SPRITES, PLAYER_SPRITES, GEM_SPRITES } from "../lib/sprites";
+import { type Direction, kenney, TILE_SPRITES } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -548,7 +548,7 @@ function GameContent() {
             position: "relative",
             boxShadow: isP ? `inset 0 0 0 2px ${C.sun}` : isOther ? `inset 0 0 0 2px ${C.pink}` : "none",
           } as React.CSSProperties} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {isP ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.6))", zIndex: 2, transform: walking ? "scale(1.15)" : "scale(1)", transition: "transform 0.1s" }}>{pEmoji}</span>
+            {isP ? <span style={{ fontSize: Math.floor(CELL * 0.7) + "px", filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.7))", zIndex: 2, transform: walking ? "scale(1.15)" : "scale(1)", transition: "transform 0.1s", lineHeight: 1 }}>{pEmoji}</span>
               : isOther ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.4))", opacity: 0.8 }}>{otherPlayer!.emoji}</span>
                 : isCamp ? <span style={{ animation: "pulse 2s infinite" }}>🔥</span>
                   : node ? <span style={{ filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.5))" }}>{node.guard ? (node.boss ? node.guard.e : "⚔️") : RES[node.res!]?.e}</span>
