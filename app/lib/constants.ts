@@ -112,7 +112,19 @@ export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   fl: { bg: "#8FBE4A", w: 1, c: "🌸" },
   lv: { bg: "#B39DDB", w: 1, c: "💜" },
   vi: { bg: "#D4B896", w: 1, c: "🏘️" },
+  camp: { bg: "#8FBE4A", w: 1, c: "⛺" },
 };
+
+export const CAMP_POS = { x: 12, y: 8 };
+export const BAG_LIMIT = 20;
+
+export function countBagItems(inv: string[]): number {
+  return inv.filter((id) => id !== "pain" && id !== "potion").length;
+}
+
+export function isBagFull(inv: string[]): boolean {
+  return countBagItems(inv) >= BAG_LIMIT;
+}
 
 export interface GameNode {
   x: number;

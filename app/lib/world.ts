@@ -2,7 +2,7 @@
 // WORLD GENERATION — Seeded PRNG for shared world
 // ═══════════════════════════════════════════════════════════
 
-import { MW, MH, TILES, GUARDS, BIOME_ZONES, VILLAGES, type GameNode, type Gate, type Village, type GameWorld } from './constants';
+import { MW, MH, TILES, GUARDS, BIOME_ZONES, VILLAGES, CAMP_POS, type GameNode, type Gate, type Village, type GameWorld } from './constants';
 
 function makeRng(seed: number) {
   let s = seed | 0;
@@ -122,5 +122,8 @@ export function genWorld(seed: number): GameWorld {
     nodes.push({ x: z.cx, y: z.cy, biome: b, res: null, guard: GUARDS[b], boss: true, done: false });
   });
 
-  return { m, nodes, gates, villages, Z, spawn: { x: Z.garrigue.cx, y: Z.garrigue.cy - 4 } };
+  // Camp de base au spawn
+  S(CAMP_POS.x, CAMP_POS.y, "camp");
+
+  return { m, nodes, gates, villages, Z, spawn: { x: CAMP_POS.x, y: CAMP_POS.y } };
 }

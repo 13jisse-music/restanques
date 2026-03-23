@@ -6,7 +6,7 @@ import { genWorld } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
   COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF,
-  TILES, MW, MH, CELL,
+  TILES, MW, MH, CELL, CAMP_POS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
 import { useSearchParams } from "next/navigation";
@@ -59,6 +59,16 @@ function GameContent() {
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
 
+  // Refs for stale closure fixes in combat
+  const cardsRef = useRef<CombatCard[]>([]);
+  cardsRef.current = cards;
+  const invRef = useRef<string[]>([]);
+  invRef.current = inv;
+  const hpRef = useRef(20);
+  hpRef.current = hp;
+  const maxHpRef = useRef(20);
+  maxHpRef.current = maxHp;
+
   const notify = (msg: string) => { setNotif(msg); setTimeout(() => setNotif(""), 2500); };
 
   const gainXp = useCallback((amount: number) => {
@@ -79,7 +89,6 @@ function GameContent() {
   // ─── SUPABASE SESSION ───
   useEffect(() => {
     async function initSession() {
-      // Find or create active session
       const { data: sessions } = await supabase
         .from("game_sessions")
         .select("*")
@@ -104,20 +113,17 @@ function GameContent() {
       seed = session.seed;
       setSessionId(session.id);
 
-      // Generate world from shared seed
       const w = genWorld(seed);
       setWorld(w);
       worldRef.current = w;
       setPos(w.spawn);
 
-      // Apply collected nodes from session
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) {
         for (const idx of session.collected_nodes) {
           if (w.nodes[idx]) w.nodes[idx].done = true;
         }
       }
 
-      // Upsert player
       const { data: existingPlayer } = await supabase
         .from("players")
         .select("*")
@@ -127,7 +133,6 @@ function GameContent() {
 
       if (existingPlayer) {
         setPlayerId(existingPlayer.id);
-        // Restore state
         setPos({ x: existingPlayer.x, y: existingPlayer.y });
         setHp(existingPlayer.hp);
         setMaxHp(existingPlayer.max_hp);
@@ -153,14 +158,13 @@ function GameContent() {
         if (newPlayer) setPlayerId(newPlayer.id);
       }
 
-      // Show intro
-      setStory("🏔️ La légende raconte qu'un magnifique duché provençal s'élevait autrefois sur les terrasses de pierre des collines...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Aujourd'hui, deux aventuriers partent restaurer les Restanques.\n\n🌿 Votre quête commence dans la Garrigue parfumée.\nExplorez, récoltez, forgez vos outils, et ouvrez le chemin vers les Restanques !");
+      setStory("🏔️ La légende raconte qu'un magnifique duché provençal s'élevait autrefois sur les terrasses de pierre des collines...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Aujourd'hui, deux aventuriers partent restaurer les Restanques.\n\n🌿 Votre quête commence dans la Garrigue parfumée.\nExplorez, récoltez, forgez vos outils, et ouvrez le chemin vers les Restanques !\n\n⛺ Revenez au camp pour récupérer vos PV !");
     }
 
     initSession();
   }, [pName, pEmoji]);
 
-  // ─── SYNC PLAYER STATE TO SUPABASE (throttled) ───
+  // ─── SYNC PLAYER STATE TO SUPABASE ───
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!playerId || !sessionId) return;
@@ -176,21 +180,24 @@ function GameContent() {
 
   // ─── SYNC COLLECTED NODES ───
   const syncNodesRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doneCountRef = useRef(0);
   useEffect(() => {
     if (!sessionId || !world) return;
+    const newDone = world.nodes.filter((n) => n.done).length;
+    if (newDone === doneCountRef.current) return;
+    doneCountRef.current = newDone;
     if (syncNodesRef.current) clearTimeout(syncNodesRef.current);
     syncNodesRef.current = setTimeout(async () => {
       const collected = world.nodes.map((n, i) => n.done ? i : -1).filter((i) => i >= 0);
       await supabase.from("game_sessions").update({ collected_nodes: collected }).eq("id", sessionId);
     }, 300);
-  }, [world?.nodes.filter((n) => n.done).length, sessionId]);
+  });
 
-  // ─── REALTIME: listen for other player + collected nodes ───
+  // ─── REALTIME ───
   useEffect(() => {
     if (!sessionId) return;
     const otherName = pName === "Jisse" ? "Mélanie" : "Jisse";
 
-    // Poll other player position
     const pollInterval = setInterval(async () => {
       const { data } = await supabase
         .from("players")
@@ -201,7 +208,6 @@ function GameContent() {
       if (data) setOtherPlayer(data);
     }, 1000);
 
-    // Subscribe to game_sessions changes for collected nodes
     const channel = supabase
       .channel(`session-${sessionId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_sessions", filter: `id=eq.${sessionId}` }, (payload) => {
@@ -297,6 +303,17 @@ function GameContent() {
     if (!tt?.w && tile !== "gt") return;
     setPos({ x: nx, y: ny });
 
+    // Camp de base — full heal
+    if (nx === CAMP_POS.x && ny === CAMP_POS.y) {
+      setHp((h) => {
+        if (h < maxHp) {
+          notify("⛺ Camp — PV restaurés !");
+          return maxHp;
+        }
+        return h;
+      });
+    }
+
     // Village?
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1);
     if (vil && !shop) setShop(vil);
@@ -307,12 +324,17 @@ function GameContent() {
       if (node.guard) {
         setDialog(node);
       } else if (node.res) {
+        // Check bag limit (pain/potion don't count)
+        if (node.res !== "pain" && node.res !== "potion" && isBagFull(inv)) {
+          notify("🎒 Sac plein ! (20/20) Jetez un item dans le Sac");
+          return;
+        }
         setInv((p) => [...p, node.res!]);
         node.done = true;
         notify(`${RES[node.res].e} +1 ${RES[node.res].n}`);
       }
     }
-  }, [world, pos, story, dialog, combat, craft, bag, shop, questPanel, tools, unlocked]);
+  }, [world, pos, story, dialog, combat, craft, bag, shop, questPanel, tools, unlocked, inv, maxHp]);
 
   const holdMove = (dx: number, dy: number) => { tryMove(dx, dy); moveRef.current = setInterval(() => tryMove(dx, dy), 160); };
   const stopMove = () => { if (moveRef.current) clearInterval(moveRef.current); moveRef.current = null; };
@@ -328,7 +350,7 @@ function GameContent() {
     return () => window.removeEventListener("keydown", h);
   }, [tryMove]);
 
-  // ─── COMBAT (Match-3) ───
+  // ─── COMBAT (Match-3) — fixed stale closures ───
   const startCombat = (node: GameNode) => {
     setDialog(null);
     const g = node.guard || GUARDS[node.biome];
@@ -337,7 +359,7 @@ function GameContent() {
       enemy: { ...g },
       enemyHp: g.hp,
       enemyMaxHp: g.hp,
-      playerHp: hp,
+      playerHp: hpRef.current,
       node,
       sel: null,
       combo: 0,
@@ -348,31 +370,37 @@ function GameContent() {
   };
 
   const selectGem = (x: number, y: number) => {
-    if (!combat || combat.won || combat.lost || combat.animating) return;
-    if (!combat.sel) {
-      setCombat((p) => p ? { ...p, sel: { x, y } } : p);
-    } else {
-      const { sel } = combat;
-      const dx = Math.abs(sel.x - x), dy = Math.abs(sel.y - y);
-      if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
-        const newGrid = swapGems(combat.grid, sel.x, sel.y, x, y);
+    setCombat((prev) => {
+      if (!prev || prev.won || prev.lost || prev.animating) return prev;
+      if (!prev.sel) {
+        return { ...prev, sel: { x, y } };
+      }
+      const { sel } = prev;
+      const adx = Math.abs(sel.x - x), ady = Math.abs(sel.y - y);
+      if ((adx === 1 && ady === 0) || (adx === 0 && ady === 1)) {
+        const newGrid = swapGems(prev.grid, sel.x, sel.y, x, y);
         const matches = findMatches(newGrid);
         if (matches.length > 0) {
-          processMatches(newGrid, matches, 0);
+          // Schedule processing — use the NEW grid state
+          setTimeout(() => processMatchesFromState(newGrid, matches, 0), 50);
+          return { ...prev, grid: newGrid, sel: null, animating: true, msg: "..." };
         } else {
-          setCombat((p) => p ? { ...p, sel: null, msg: "Pas de match ! Réessayez." } : p);
+          return { ...prev, sel: null, msg: "Pas de match ! Réessayez." };
         }
       } else {
-        setCombat((p) => p ? { ...p, sel: { x, y } } : p);
+        return { ...prev, sel: { x, y } };
       }
-    }
+    });
   };
 
-  const processMatches = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
-    setCombat((p) => p ? { ...p, animating: true } : p);
+  const processMatchesFromState = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
+    const currentCards = cardsRef.current;
     const dmg = matches.length + combo * 2;
-    const bonusDmg = cards.reduce((a, c) => a + (c.pow || 0), 0);
+    const bonusDmg = currentCards.reduce((a, c) => a + (c.pow || 0), 0);
+    const totalD = dmg + Math.floor(bonusDmg / 2);
+    const comboMsg = combo > 0 ? ` COMBO x${combo + 1} !` : "";
 
+    // Remove matched gems
     const g = grid.map((r) => [...r]);
     matches.forEach(({ x, y }) => { g[y][x] = -1; });
 
@@ -382,17 +410,19 @@ function GameContent() {
 
       setCombat((p) => {
         if (!p) return p;
-        const totalD = dmg + Math.floor(bonusDmg / 2);
         const newEHp = Math.max(0, p.enemyHp - totalD);
-        const comboMsg = combo > 0 ? ` COMBO x${combo + 1} !` : "";
 
+        // Victory
         if (newEHp <= 0) {
           const node = p.node;
           node.done = true;
           if (node.boss) setBosses((prev) => [...prev, node.biome]);
-          if (node.res) setInv((prev) => [...prev, node.res!]);
-          const biome = node.biome;
-          const lootRes = Object.entries(RES).filter(([, v]) => v.b === biome).map(([k]) => k);
+          // Add resource from node
+          if (node.res) {
+            setInv((prev) => [...prev, node.res!]);
+          }
+          // Bonus loot from biome
+          const lootRes = Object.entries(RES).filter(([, v]) => v.b === node.biome).map(([k]) => k);
           if (lootRes.length > 0) {
             const bonus = lootRes[Math.floor(Math.random() * lootRes.length)];
             setInv((prev) => [...prev, bonus]);
@@ -408,14 +438,15 @@ function GameContent() {
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg} VICTOIRE ! 🎉`, won: true, animating: false };
         }
 
+        // Cascade — more matches found
         if (newMatches.length > 0) {
-          setTimeout(() => processMatches(filled, newMatches, combo + 1), 400);
+          setTimeout(() => processMatchesFromState(filled, newMatches, combo + 1), 400);
           return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + totalD, msg: `💥 -${totalD}${comboMsg}`, animating: true };
         }
 
-        // Enemy turn
+        // No more cascades — enemy turn
         const eDmg = Math.ceil(p.enemy.hp / 5);
-        const shield = cards.find((c) => c.n === "Bouclier") ? 1 : 0;
+        const shield = currentCards.find((c) => c.n === "Bouclier") ? 1 : 0;
         const realDmg = Math.max(1, eDmg - shield);
         const newPHp = p.playerHp - realDmg;
         setHp(Math.max(0, newPHp));
@@ -430,8 +461,10 @@ function GameContent() {
   };
 
   const endCombat = () => {
-    if (combat?.lost) setHp(Math.max(5, maxHp - 5));
-    setCombat(null);
+    setCombat((prev) => {
+      if (prev?.lost) setHp(Math.max(5, maxHp - 5));
+      return null;
+    });
   };
 
   // ─── CRAFT ───
@@ -468,6 +501,10 @@ function GameContent() {
   const buyItem = (item: { sell: string; cost: string[] }) => {
     const has = item.cost.every((c) => inv.includes(c));
     if (!has) { notify("❌ Pas assez de ressources !"); return; }
+    // Check bag limit for non-consumables
+    if (item.sell !== "pain" && item.sell !== "potion" && isBagFull(inv)) {
+      notify("🎒 Sac plein ! (20/20)"); return;
+    }
     const newInv = [...inv];
     item.cost.forEach((c) => { const i = newInv.indexOf(c); if (i >= 0) newInv.splice(i, 1); });
     newInv.push(item.sell);
@@ -492,6 +529,13 @@ function GameContent() {
     }
   };
 
+  // ─── DROP ITEM ───
+  const dropItem = (idx: number) => {
+    const item = inv[idx];
+    setInv((p) => { const n = [...p]; n.splice(idx, 1); return n; });
+    notify(`🗑️ ${RES[item]?.e || item} jeté`);
+  };
+
   // ─── NEW GAME ───
   const newGame = async () => {
     if (sessionId) {
@@ -511,6 +555,8 @@ function GameContent() {
   );
 
   const biome = getBiome();
+  const bagCount = countBagItems(inv);
+  const bagFull = bagCount >= BAG_LIMIT;
   const vw = Math.min(13, Math.floor((typeof window !== "undefined" ? window.innerWidth - 8 : 360) / CELL));
   const vh = Math.min(9, Math.floor(((typeof window !== "undefined" ? window.innerHeight : 700) - 280) / CELL));
   const camX = Math.max(0, Math.min(MW - vw, pos.x - Math.floor(vw / 2)));
@@ -523,7 +569,7 @@ function GameContent() {
       <div style={{ display: "flex", width: "100%", maxWidth: "400px", justifyContent: "space-between", alignItems: "center", padding: "4px 8px", background: C.earth + "DD", fontSize: "10px", flexWrap: "wrap", gap: "2px" }}>
         <span>{pEmoji} Nv.{lvl}</span>
         <span style={{ color: C.red }}>❤️{hp}/{maxHp}</span>
-        <span>🎒{inv.length} 🃏{cards.length}</span>
+        <span style={{ color: bagFull ? C.red : C.white }}>🎒{bagCount}/{BAG_LIMIT} 🃏{cards.length}</span>
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: C.sun }}>👥 {otherPlayer.emoji}{otherPlayer.name}</span>}
         <button style={{ background: "none", border: "none", color: C.sun, fontSize: "13px", cursor: "pointer", padding: "2px" }} onClick={() => setMmap(!mmap)}>🗺️</button>
@@ -694,10 +740,22 @@ function GameContent() {
             <button style={PXB(C.stone, C.white, true)} onClick={() => setBag(false)}>✕</button>
           </div>
           <div style={{ fontSize: "12px", marginBottom: "6px" }}>❤️ {hp}/{maxHp} · ⭐ Nv.{lvl} · XP {xp}/{lvl * 50}</div>
+          <div style={{ fontSize: "11px", marginBottom: "6px", color: bagFull ? C.red : C.earth }}>📦 Ressources: {bagCount}/{BAG_LIMIT} {bagFull ? "— SAC PLEIN !" : ""}</div>
           {tools.length > 0 && <div style={{ marginBottom: "6px" }}><div style={{ fontSize: "11px", fontWeight: "bold" }}>🔧 Outils</div>{tools.map((t) => <div key={t} style={{ fontSize: "11px" }}>{TOOLS[t].e} {TOOLS[t].n}</div>)}</div>}
           {cards.length > 0 && <div style={{ marginBottom: "6px" }}><div style={{ fontSize: "11px", fontWeight: "bold" }}>🃏 Cartes</div>{cards.map((c, i) => <div key={i} style={{ fontSize: "11px" }}>{c.e} {c.n} — {c.d}</div>)}</div>}
-          <div style={{ fontSize: "11px", fontWeight: "bold" }}>📦 Ressources ({inv.length})</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "4px" }}>{inv.map((id, i) => <span key={i} style={{ fontSize: "14px" }}>{RES[id]?.e}</span>)}</div>
+          <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px" }}>📦 Items (tap pour jeter)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "4px" }}>
+            {inv.map((id, i) => (
+              <button key={i} onClick={() => dropItem(i)} style={{
+                fontSize: "14px", width: "32px", height: "32px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: (id === "pain" || id === "potion") ? C.lav + "22" : RES[id]?.c + "22",
+                border: `1px solid ${RES[id]?.c || "#888"}`, borderRadius: "4px", cursor: "pointer",
+              }} title={`Jeter ${RES[id]?.n || id}`}>
+                {RES[id]?.e}
+              </button>
+            ))}
+          </div>
           <div style={{ marginTop: "8px", fontSize: "11px", fontWeight: "bold" }}>⛰️ Zones</div>
           {Object.entries({ garrigue: "🌿 Garrigue", calanques: "🏖️ Calanques", mines: "⛏️ Mines", mer: "🌊 Mer", restanques: "⛰️ Restanques" }).map(([id, n]) =>
             <div key={id} style={{ fontSize: "11px", opacity: unlocked.includes(id) ? 1 : 0.3 }}>{n} {unlocked.includes(id) ? "✅" : "🔒"}{bosses.includes(id) ? " 🏆" : ""}</div>
@@ -733,6 +791,7 @@ function GameContent() {
           const node = world.nodes.find((n) => n.x === wx && n.y === wy && !n.done);
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vil = world.villages.find((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
+          const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
 
           return <div key={`${vx}${vy}`} style={{
             width: CELL, height: CELL, background: tt.bg,
@@ -745,11 +804,12 @@ function GameContent() {
           }}>
             {isP ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.6))", zIndex: 2 }}>{pEmoji}</span>
               : isOther ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.4))", opacity: 0.8 }}>{otherPlayer!.emoji}</span>
-                : node ? <span>{node.guard ? (node.boss ? node.guard.e : "⚔️") : RES[node.res!]?.e}</span>
-                  : gate ? <span style={{ fontSize: "15px" }}>🚪</span>
-                    : vil ? null
-                      : tt.c ? <span style={{ fontSize: "10px", opacity: 0.4 }}>{tt.c}</span>
-                        : null}
+                : isCamp ? <span style={{ fontSize: "15px" }}>🔥</span>
+                  : node ? <span>{node.guard ? (node.boss ? node.guard.e : "⚔️") : RES[node.res!]?.e}</span>
+                    : gate ? <span style={{ fontSize: "15px" }}>🚪</span>
+                      : vil ? null
+                        : tt.c ? <span style={{ fontSize: "10px", opacity: 0.4 }}>{tt.c}</span>
+                          : null}
           </div>;
         })).flat()}
       </div>
@@ -775,7 +835,7 @@ function GameContent() {
         {/* Action buttons */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", flex: 1, maxWidth: "200px" }}>
           <button style={{ ...PXB(C.honey, C.earth, true), textAlign: "center", padding: "10px 4px" }} onClick={() => { setCraftSlots([]); setCraftMsg(""); setCraft(true); }}>🏺 Craft</button>
-          <button style={{ ...PXB(C.sea, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={() => setBag(true)}>🎒 Sac</button>
+          <button style={{ ...PXB(bagFull ? C.red : C.sea, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={() => setBag(true)}>🎒 {bagFull ? "PLEIN" : "Sac"}</button>
           <button style={{ ...PXB(C.sun, C.earth, true), textAlign: "center", padding: "10px 4px" }} onClick={() => setQuestPanel(true)}>📋 Quêtes</button>
           <button style={{ ...PXB(C.stone, C.white, true), textAlign: "center", padding: "10px 4px" }} onClick={newGame}>🔄 Nouveau</button>
         </div>
