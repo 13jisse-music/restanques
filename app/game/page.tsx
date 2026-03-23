@@ -9,7 +9,7 @@ import {
   TILES, MW, MH, CELL, CAMP_POS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
-import { type Direction } from "../lib/sprites";
+import { type Direction, kenney, TILE_SPRITES, MONSTER_SPRITES, PLAYER_SPRITES, GEM_SPRITES } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -422,17 +422,17 @@ function GameContent() {
           {/* Message */}
           <div style={{ textAlign: "center", fontSize: "12px", fontWeight: "bold", marginBottom: "6px", color: combat.won ? C.green : combat.lost ? C.red : C.earth, minHeight: "16px" }}>{combat.msg}</div>
 
-          {/* Gem grid — emoji-based, clean */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "3px", maxWidth: "280px", margin: "0 auto", padding: "6px", background: C.dark, borderRadius: "6px", border: `2px solid ${C.earth}` }}>
+          {/* Gem grid — BIG for mobile */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "4px", width: "100%", maxWidth: "340px", margin: "0 auto", padding: "8px", background: C.dark, borderRadius: "8px", border: `2px solid ${C.earth}` }}>
             {combat.grid.map((row, y) => row.map((gem, x) => {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
               const g = GEMS[gem] || GEMS[0];
               return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
-                aspectRatio: "1", background: g.color + "33", borderRadius: "6px",
+                aspectRatio: "1", background: g.color + "44", borderRadius: "8px",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "20px", cursor: "pointer",
-                border: sel ? `3px solid ${C.sun}` : `2px solid ${g.color}55`,
-                boxShadow: sel ? `0 0 8px ${C.sun}` : "none",
+                fontSize: "26px", cursor: "pointer",
+                border: sel ? `3px solid ${C.sun}` : `2px solid ${g.color}66`,
+                boxShadow: sel ? `0 0 10px ${C.sun}` : `inset 0 -2px 4px rgba(0,0,0,0.2)`,
                 transform: sel ? "scale(1.12)" : "scale(1)",
                 transition: "all 0.15s",
               }}>{g.emoji}</div>;
@@ -524,7 +524,7 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* ═══ MAP — couleurs + emoji (propre, aligné) ═══ */}
+      {/* ═══ MAP — Kenney sprites + emoji overlay ═══ */}
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, border: `2px solid ${C.earth}`, margin: "2px 0", borderRadius: "2px" }}>
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
           const wx = camX + vx, wy = camY + vy;
@@ -536,21 +536,25 @@ function GameContent() {
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vil = world.villages.find((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
+          const ts = TILE_SPRITES[tile];
+          const tileStyle = ts ? kenney(ts.sheet, ts.col, ts.row, CELL) : {};
 
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL, background: tt.bg,
+            width: CELL, height: CELL,
+            background: ts ? undefined : tt.bg,
+            ...tileStyle,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: isP || isOther ? "16px" : "13px", position: "relative",
+            fontSize: isP || isOther ? Math.floor(CELL * 0.55) + "px" : Math.floor(CELL * 0.45) + "px",
+            position: "relative",
             boxShadow: isP ? `inset 0 0 0 2px ${C.sun}` : isOther ? `inset 0 0 0 2px ${C.pink}` : "none",
-          }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {isP ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.6))", zIndex: 2, transform: walking ? "scale(1.1)" : "scale(1)", transition: "transform 0.1s" }}>{pEmoji}</span>
+          } as React.CSSProperties} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
+            {isP ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.6))", zIndex: 2, transform: walking ? "scale(1.15)" : "scale(1)", transition: "transform 0.1s" }}>{pEmoji}</span>
               : isOther ? <span style={{ filter: "drop-shadow(1px 1px 1px rgba(0,0,0,0.4))", opacity: 0.8 }}>{otherPlayer!.emoji}</span>
-                : isCamp ? <span style={{ fontSize: "15px", animation: "pulse 2s infinite" }}>🔥</span>
+                : isCamp ? <span style={{ animation: "pulse 2s infinite" }}>🔥</span>
                   : node ? <span style={{ filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.5))" }}>{node.guard ? (node.boss ? node.guard.e : "⚔️") : RES[node.res!]?.e}</span>
-                    : gate ? <span style={{ fontSize: "15px" }}>🚪</span>
-                      : vil ? <span style={{ fontSize: "14px" }}>🏘️</span>
-                        : tt.c ? <span style={{ fontSize: "10px", opacity: 0.4 }}>{tt.c}</span>
-                          : null}
+                    : gate ? <span>🚪</span>
+                      : vil ? <span>🏘️</span>
+                        : null}
           </div>;
         })).flat()}
       </div>

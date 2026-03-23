@@ -90,7 +90,7 @@ export const VILLAGES = [
 
 export const MW = 50;
 export const MH = 50;
-export const CELL = 28;
+export const CELL = 36;
 
 export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   g: { bg: "#8FBE4A", w: 1, c: "" },
