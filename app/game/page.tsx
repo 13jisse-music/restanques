@@ -10,6 +10,7 @@ import {
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
+import { playerSprite, mobSprite, bonfireSprite, type Direction } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -98,6 +99,8 @@ function GameContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [walking, setWalking] = useState(false);
+  const [lastDir, setLastDir] = useState<Direction>("down");
+  const [spriteFrame, setSpriteFrame] = useState(0);
   const [enemyShaking, setEnemyShaking] = useState(false);
   const [playerShaking, setPlayerShaking] = useState(false);
   const [enemyTurnMsg, setEnemyTurnMsg] = useState("");
@@ -179,6 +182,12 @@ function GameContent() {
     }));
   }, [inv, tools, bosses, gainXp]);
   useEffect(() => { if (world) checkQuests(); }, [inv, tools, bosses, checkQuests, world]);
+
+  // ─── SPRITE ANIMATION TICK ───
+  useEffect(() => {
+    const iv = setInterval(() => setSpriteFrame((f) => f + 1), 200);
+    return () => clearInterval(iv);
+  }, []);
 
   // ─── MOBILE ENEMIES ───
   // Initialize enemy positions from world nodes
@@ -272,7 +281,9 @@ function GameContent() {
   const tryMove = useCallback((dx: number, dy: number) => {
     if (!world || story || dialog || combat || craft || bag || shop || questPanel) return;
     initSound();
-    setWalking(true); if (walkTimerRef.current) clearTimeout(walkTimerRef.current); walkTimerRef.current = setTimeout(() => setWalking(false), 300);
+    const dir: Direction = dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "up" : "down";
+    setLastDir(dir);
+    setWalking(true); if (walkTimerRef.current) clearTimeout(walkTimerRef.current); walkTimerRef.current = setTimeout(() => setWalking(false), 400);
     const nx = pos.x + dx, ny = pos.y + dy;
     if (nx < 0 || nx >= MW || ny < 0 || ny >= MH) return;
     const tile = world.m[ny][nx]; const tt = TILES[tile];
@@ -432,7 +443,7 @@ function GameContent() {
         <div style={{ ...UI.panel, padding: 12, maxWidth: 380, width: "100%", color: "#3D2B1F" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ flex: 1, textAlign: "center", animation: playerShaking ? "playerHit 0.3s" : "none" }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: pColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, margin: "0 auto", border: "3px solid #3D2B1F", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}>{pEmoji}</div>
+              <div style={{ ...playerSprite("idle", "right", spriteFrame, 48, playerParam === "melanie"), margin: "0 auto", filter: (playerParam === "melanie" ? "hue-rotate(280deg) saturate(1.3)" : "") }} />
               <div style={{ fontSize: 10, fontWeight: "bold", marginTop: 2 }}>{pName}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${(combat.playerHp / maxHp) * 100}%`, height: "100%", background: combat.playerHp < maxHp * 0.3 ? "#D94F4F" : "linear-gradient(90deg, #7A9E3F, #5E9A22)", transition: "width 0.3s" }} />
@@ -441,7 +452,7 @@ function GameContent() {
             </div>
             <div style={{ fontSize: 20, padding: "0 4px" }}>⚔️</div>
             <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-              <div style={{ fontSize: 40, lineHeight: 1 }}>{combat.enemy.e}</div>
+              <div style={{ ...mobSprite(combat.node.biome, false, spriteFrame, 48), margin: "0 auto" }} />
               <div style={{ fontSize: 10, fontWeight: "bold" }}>{combat.enemy.n}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #D94F4F, #A92F2F)", transition: "width 0.3s" }} />
@@ -601,13 +612,17 @@ function GameContent() {
             boxShadow: isP ? `inset 0 0 0 2px #F4D03F` : isOther ? `inset 0 0 0 2px #E88EAD` : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
             transition: "box-shadow 0.2s",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {isP ? <div style={{ width: CELL * 0.8, height: CELL * 0.8, borderRadius: "50%", background: `radial-gradient(circle at 40% 35%, ${pColor}, ${pColor}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.5), border: "2px solid #3D2B1F", boxShadow: "0 2px 4px rgba(0,0,0,0.4)", zIndex: 2, animation: walking ? "bounce 0.4s ease infinite" : "none" }}>{pEmoji}</div>
-              : isOther ? <div style={{ width: CELL * 0.7, height: CELL * 0.7, borderRadius: "50%", background: "rgba(232,142,173,0.7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.4), border: "2px solid #3D2B1F88", opacity: 0.8, animation: "float 2s ease infinite" }}>{otherPlayer!.emoji}</div>
-                : mobileEnemyNode ? <div style={{ fontSize: Math.floor(CELL * 0.6), animation: isAlerted ? "shake 0.5s ease infinite" : "float 3s ease infinite", filter: isAlerted ? "drop-shadow(0 0 6px #D94F4F)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.4))", position: "relative" }}>
-                    {mobileEnemyNode.guard?.e || "👾"}
-                    {isAlerted && <span style={{ position: "absolute", top: -6, right: -4, fontSize: 8, color: "#D94F4F", fontWeight: "bold" }}>❗</span>}
+            {/* PLAYER — animated sprite */}
+            {isP ? <div style={{ ...playerSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: (playerParam === "melanie" ? "hue-rotate(280deg) saturate(1.3) " : "") + "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
+              /* OTHER PLAYER */
+              : isOther ? <div style={{ ...playerSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75, filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.4))" }} />
+                /* MOBILE ENEMY — animated mob sprite */
+                : mobileEnemyNode ? <div style={{ position: "relative" }}>
+                    <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                    {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  : isCamp ? <span style={{ fontSize: Math.floor(CELL * 0.55), animation: "pulse 2s infinite" }}>🔥</span>
+                  /* BONFIRE — animated */
+                  : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
                     : staticNode ? <div style={{ animation: "float 2s ease infinite", fontSize: Math.floor(CELL * 0.45) }}>{RES[staticNode.res!]?.e}</div>
                       : gate ? <span style={{ fontSize: Math.floor(CELL * 0.5), filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         : vil ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🏘️</span>
