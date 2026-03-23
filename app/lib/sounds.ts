@@ -57,6 +57,11 @@ class GameSounds {
   unlock() {
     [400, 500, 600, 800].forEach((f, i) => this.osc(f, "sine", 0.1, 0.3, i * 0.12));
   }
+
+  enemyAlert() {
+    this.osc(300, "square", 0.12, 0.1);
+    this.osc(450, "square", 0.1, 0.15, 0.1);
+  }
 }
 
 export const sounds = new GameSounds();

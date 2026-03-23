@@ -90,7 +90,7 @@ export const VILLAGES = [
 
 export const MW = 50;
 export const MH = 50;
-export const CELL = 36;
+// CELL est calculé dynamiquement dans le composant (24 mobile, 32 desktop)
 
 export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   g: { bg: "#8FBE4A", w: 1, c: "" },

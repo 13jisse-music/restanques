@@ -68,6 +68,9 @@ function GameContent() {
   const pEmoji = playerParam === "melanie" ? "🎨" : "🎸";
   const pColor = playerParam === "melanie" ? "#E88EAD" : "#E67E22";
 
+  // Responsive CELL size
+  const CELL = typeof window !== "undefined" && window.innerWidth < 500 ? 24 : 32;
+
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [inv, setInv] = useState<string[]>([]);
@@ -100,6 +103,8 @@ function GameContent() {
   const [enemyTurnMsg, setEnemyTurnMsg] = useState("");
   const [muted, setMuted] = useState(false);
   const [soundInit, setSoundInit] = useState(false);
+  const [enemyPositions, setEnemyPositions] = useState<Record<number, { x: number; y: number }>>({});
+  const [alertedEnemies, setAlertedEnemies] = useState<Set<number>>(new Set());
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,9 +112,6 @@ function GameContent() {
   const hpRef = useRef(20); hpRef.current = hp;
   const maxHpRef = useRef(20); maxHpRef.current = maxHp;
   const stepCountRef = useRef(0);
-
-  // Responsive cell size
-  const CELL = typeof window !== "undefined" && window.innerWidth < 500 ? 30 : 36;
 
   const initSound = () => { if (!soundInit) { sounds.init(); setSoundInit(true); } };
 
@@ -177,6 +179,94 @@ function GameContent() {
     }));
   }, [inv, tools, bosses, gainXp]);
   useEffect(() => { if (world) checkQuests(); }, [inv, tools, bosses, checkQuests, world]);
+
+  // ─── MOBILE ENEMIES ───
+  // Initialize enemy positions from world nodes
+  useEffect(() => {
+    if (!world) return;
+    const positions: Record<number, { x: number; y: number }> = {};
+    world.nodes.forEach((node, idx) => {
+      if (node.guard && !node.done) {
+        positions[idx] = { x: node.x, y: node.y };
+      }
+    });
+    setEnemyPositions(positions);
+  }, [world]);
+
+  // Enemy movement tick
+  useEffect(() => {
+    if (!world || combat || dialog || story) return;
+    const iv = setInterval(() => {
+      setEnemyPositions((prev) => {
+        const next = { ...prev };
+        const newAlerted = new Set<number>();
+        Object.entries(next).forEach(([idxStr, ePos]) => {
+          const idx = Number(idxStr);
+          const node = world.nodes[idx];
+          if (!node || node.done) { delete next[idx]; return; }
+          const isBoss = !!node.boss;
+          const distToPlayer = Math.abs(ePos.x - pos.x) + Math.abs(ePos.y - pos.y);
+          const chaseRange = isBoss ? 5 : 3;
+          const patrolRadius = 6;
+          const chasing = distToPlayer <= chaseRange;
+          if (chasing) newAlerted.add(idx);
+
+          // Pick direction
+          let dx = 0, dy = 0;
+          if (chasing) {
+            // Chase player
+            if (Math.abs(ePos.x - pos.x) > Math.abs(ePos.y - pos.y)) {
+              dx = ePos.x < pos.x ? 1 : -1;
+            } else {
+              dy = ePos.y < pos.y ? 1 : -1;
+            }
+          } else {
+            // Patrol randomly (seeded by tick + idx for determinism)
+            const tick = Math.floor(Date.now() / 1500);
+            const seed = (tick * 7 + idx * 13) & 0xFFFF;
+            const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+            const dir = dirs[seed % 4];
+            dx = dir[0]; dy = dir[1];
+          }
+
+          const nx = ePos.x + dx, ny = ePos.y + dy;
+          // Check bounds + walkable + not too far from spawn
+          if (nx >= 0 && nx < MW && ny >= 0 && ny < MH) {
+            const tile = world.m[ny][nx];
+            const walkable = TILES[tile]?.w === 1 || tile === "gt";
+            const distFromSpawn = Math.abs(nx - node.x) + Math.abs(ny - node.y);
+            if (walkable && distFromSpawn <= patrolRadius) {
+              next[idx] = { x: nx, y: ny };
+            }
+          }
+        });
+        // Play alert sound for newly alerted enemies
+        const prevAlerted = alertedEnemies;
+        newAlerted.forEach((idx) => {
+          if (!prevAlerted.has(idx)) sounds.enemyAlert();
+        });
+        setAlertedEnemies(newAlerted);
+        return next;
+      });
+    }, 1500);
+    return () => clearInterval(iv);
+  }, [world, pos, combat, dialog, story]);
+
+  // Check enemy collision with player
+  const checkEnemyCollision = useCallback(() => {
+    if (!world || combat || dialog) return;
+    Object.entries(enemyPositions).forEach(([idxStr, ePos]) => {
+      if (ePos.x === pos.x && ePos.y === pos.y) {
+        const idx = Number(idxStr);
+        const node = world.nodes[idx];
+        if (node && !node.done && node.guard) {
+          setDialog(node);
+        }
+      }
+    });
+  }, [world, pos, enemyPositions, combat, dialog]);
+
+  useEffect(() => { checkEnemyCollision(); }, [pos, enemyPositions, checkEnemyCollision]);
 
   // ─── MOVEMENT ───
   const tryMove = useCallback((dx: number, dy: number) => {
@@ -492,34 +582,40 @@ function GameContent() {
           const tc = TILE_COLORS[tile] || { bg: tt.bg };
           const isP = pos.x === wx && pos.y === wy;
           const isOther = otherPlayer && otherPlayer.x === wx && otherPlayer.y === wy;
-          const node = world.nodes.find((n) => n.x === wx && n.y === wy && !n.done);
+          // Resource node at STATIC position (non-guard only)
+          const staticNode = world.nodes.find((n) => n.x === wx && n.y === wy && !n.done && !n.guard);
+          // Mobile enemy at this position
+          const mobileEnemy = Object.entries(enemyPositions).find(([, ep]) => ep.x === wx && ep.y === wy);
+          const mobileEnemyNode = mobileEnemy ? world.nodes[Number(mobileEnemy[0])] : null;
+          const isAlerted = mobileEnemy ? alertedEnemies.has(Number(mobileEnemy[0])) : false;
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vil = world.villages.find((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
-          // Micro-variation pour casser la grille
-          const hueVar = ((wx * 7 + wy * 13) % 5) - 2;
+          const opVar = 0.88 + (((wx * 7 + wy * 13) % 12) / 100);
 
           return <div key={`${vx}${vy}`} style={{
             width: CELL, height: CELL, background: tc.bg,
-            backgroundImage: tc.pattern, filter: `hue-rotate(${hueVar}deg)`,
+            backgroundImage: tc.pattern, opacity: opVar,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: Math.floor(CELL * 0.5), position: "relative",
             boxShadow: isP ? `inset 0 0 0 2px #F4D03F` : isOther ? `inset 0 0 0 2px #E88EAD` : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
+            transition: "box-shadow 0.2s",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {/* Player */}
-            {isP ? <div style={{ width: CELL * 0.75, height: CELL * 0.75, borderRadius: "50%", background: `radial-gradient(circle at 40% 35%, ${pColor}, ${pColor}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.45), border: "2px solid #3D2B1F", boxShadow: "0 2px 4px rgba(0,0,0,0.4)", zIndex: 2, animation: walking ? "bounce 0.4s ease infinite" : "none" }}>{pEmoji}</div>
-              : isOther ? <div style={{ width: CELL * 0.65, height: CELL * 0.65, borderRadius: "50%", background: "rgba(232,142,173,0.7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.4), border: "2px solid #3D2B1F88", opacity: 0.8, animation: "float 2s ease infinite" }}>{otherPlayer!.emoji}</div>
-                : isCamp ? <span style={{ fontSize: Math.floor(CELL * 0.55), animation: "pulse 2s infinite" }}>🔥</span>
-                  : node ? (node.boss ? <div style={{ fontSize: Math.floor(CELL * 0.55), animation: "float 3s ease infinite", filter: "drop-shadow(0 0 4px #D94F4F)" }}>{node.guard!.e}</div>
-                    : node.guard ? <div style={{ width: CELL * 0.6, height: CELL * 0.6, borderRadius: "50%", background: "rgba(217,79,79,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.4), border: "1px solid #D94F4F88" }}>⚔️</div>
-                      : <div style={{ animation: "float 2s ease infinite", fontSize: Math.floor(CELL * 0.45) }}>{RES[node.res!]?.e}</div>)
-                    : gate ? <span style={{ fontSize: Math.floor(CELL * 0.5), filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
-                      : vil ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🏘️</span>
-                        : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.55), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
-                          : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>🌸</span>
-                            : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>💜</span>
-                              : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.4), opacity: 0.6 }}>🪨</span>
-                                : null}
+            {isP ? <div style={{ width: CELL * 0.8, height: CELL * 0.8, borderRadius: "50%", background: `radial-gradient(circle at 40% 35%, ${pColor}, ${pColor}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.5), border: "2px solid #3D2B1F", boxShadow: "0 2px 4px rgba(0,0,0,0.4)", zIndex: 2, animation: walking ? "bounce 0.4s ease infinite" : "none" }}>{pEmoji}</div>
+              : isOther ? <div style={{ width: CELL * 0.7, height: CELL * 0.7, borderRadius: "50%", background: "rgba(232,142,173,0.7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.4), border: "2px solid #3D2B1F88", opacity: 0.8, animation: "float 2s ease infinite" }}>{otherPlayer!.emoji}</div>
+                : mobileEnemyNode ? <div style={{ fontSize: Math.floor(CELL * 0.6), animation: isAlerted ? "shake 0.5s ease infinite" : "float 3s ease infinite", filter: isAlerted ? "drop-shadow(0 0 6px #D94F4F)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.4))", position: "relative" }}>
+                    {mobileEnemyNode.guard?.e || "👾"}
+                    {isAlerted && <span style={{ position: "absolute", top: -6, right: -4, fontSize: 8, color: "#D94F4F", fontWeight: "bold" }}>❗</span>}
+                  </div>
+                  : isCamp ? <span style={{ fontSize: Math.floor(CELL * 0.55), animation: "pulse 2s infinite" }}>🔥</span>
+                    : staticNode ? <div style={{ animation: "float 2s ease infinite", fontSize: Math.floor(CELL * 0.45) }}>{RES[staticNode.res!]?.e}</div>
+                      : gate ? <span style={{ fontSize: Math.floor(CELL * 0.5), filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
+                        : vil ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🏘️</span>
+                          : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.55), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
+                            : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>🌸</span>
+                              : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.35) }}>💜</span>
+                                : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.4), opacity: 0.6 }}>🪨</span>
+                                  : null}
           </div>;
         })).flat()}
       </div>
