@@ -10,7 +10,11 @@ import {
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
-import { playerSprite, mobSprite, bonfireSprite, npcSprite, type Direction } from "../lib/sprites";
+import {
+  playerSprite, mobSprite, bonfireSprite, npcSprite, monsterSprite,
+  gemSprite, itemSprite, natureSprite, tileSpriteStyle, buildingSprite,
+  type Direction,
+} from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -443,7 +447,7 @@ function GameContent() {
         <div style={{ ...UI.panel, padding: 12, maxWidth: 380, width: "100%", color: "#3D2B1F" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ flex: 1, textAlign: "center", animation: playerShaking ? "playerHit 0.3s" : "none" }}>
-              <div style={{ ...playerSprite("idle", "right", spriteFrame, 48, playerParam === "melanie"), margin: "0 auto", filter: (playerParam === "melanie" ? "hue-rotate(280deg) saturate(1.3)" : "") }} />
+              <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", "right", spriteFrame, 56), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
               <div style={{ fontSize: 10, fontWeight: "bold", marginTop: 2 }}>{pName}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${(combat.playerHp / maxHp) * 100}%`, height: "100%", background: combat.playerHp < maxHp * 0.3 ? "#D94F4F" : "linear-gradient(90deg, #7A9E3F, #5E9A22)", transition: "width 0.3s" }} />
@@ -452,7 +456,7 @@ function GameContent() {
             </div>
             <div style={{ fontSize: 20, padding: "0 4px" }}>⚔️</div>
             <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-              <div style={{ ...mobSprite(combat.node.biome, false, spriteFrame, 48), margin: "0 auto" }} />
+              <div style={{ ...monsterSprite(combat.node.biome, 56), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
               <div style={{ fontSize: 10, fontWeight: "bold" }}>{combat.enemy.n}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #D94F4F, #A92F2F)", transition: "width 0.3s" }} />
@@ -469,15 +473,15 @@ function GameContent() {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
               const gc = GEM_COLORS[gem] || GEM_COLORS[0];
               return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
-                aspectRatio: "1", borderRadius: 10, cursor: "pointer",
-                background: `radial-gradient(circle at 35% 35%, ${gc.light}, ${gc.dark})`,
-                boxShadow: sel ? `0 0 12px ${gc.glow}, inset 2px 2px 4px rgba(255,255,255,0.4)` : `inset 2px 2px 4px rgba(255,255,255,0.3), 2px 2px 6px rgba(0,0,0,0.4)`,
-                transform: sel ? "scale(1.12)" : "scale(1)",
-                border: sel ? `3px solid #F4D03F` : "2px solid rgba(0,0,0,0.2)",
+                aspectRatio: "1", borderRadius: 8, cursor: "pointer",
+                ...gemSprite(gem, 48),
+                width: "100%", height: "auto",
+                boxShadow: sel ? `0 0 12px ${gc.glow}` : `2px 2px 6px rgba(0,0,0,0.3)`,
+                transform: sel ? "scale(1.15)" : "scale(1)",
+                border: sel ? `3px solid #F4D03F` : "2px solid rgba(0,0,0,0.15)",
                 transition: "all 0.15s ease",
-                position: "relative",
+                background: `${gc.dark}33`,
               }}>
-                <div style={{ position: "absolute", top: "15%", left: "20%", width: "30%", height: "20%", background: "rgba(255,255,255,0.35)", borderRadius: "50%", transform: "rotate(-20deg)" }} />
               </div>;
             }))}
           </div>
@@ -563,7 +567,7 @@ function GameContent() {
                 padding: 6, background: RES[g.id]?.c + "18", border: `2px solid ${RES[g.id]?.c || "#888"}`,
                 borderRadius: 8, cursor: "pointer", position: "relative", minHeight: 50,
               }}>
-                <span style={{ fontSize: 22 }}>{RES[g.id]?.e}</span>
+                <div style={{ ...(itemSprite(g.id, 32) || {}), flexShrink: 0 }} />
                 <span style={{ fontSize: 10, fontWeight: "bold", color: "#3D2B1F" }}>×{g.count}</span>
                 <span style={{ fontSize: 8, color: "#8B7355" }}>{RES[g.id]?.n}</span>
               </button>
@@ -601,33 +605,37 @@ function GameContent() {
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
           const fs = Math.floor(CELL * 0.5);
 
+          // Tile floor sprite (ChatGPT tiles.png) or CSS fallback
+          const tileStyle = tileSpriteStyle(tile, CELL);
+
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL, background: tc.bg, backgroundImage: tc.pattern,
+            width: CELL, height: CELL,
+            ...(tileStyle || { background: tc.bg, backgroundImage: tc.pattern }),
             display: "flex", alignItems: "center", justifyContent: "center",
             position: "relative", fontSize: fs,
-            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
+            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : "none",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {/* PLAYER — Pixel Crawler sprite */}
-            {isP ? <div style={{ ...playerSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
-              : isOther ? <div style={{ ...playerSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
-                /* ENEMY — Pixel Crawler mob sprite */
+            {/* PLAYER — ChatGPT sprite */}
+            {isP ? <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", lastDir, walking ? spriteFrame : 0, CELL), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
+              : isOther ? <div style={{ ...playerSprite(otherPlayer!.name === "Mélanie" ? "melanie" : "jisse", "down", spriteFrame, CELL * 0.85), opacity: 0.75 }} />
+                /* ENEMY — Pixel Crawler mob (animated) */
                 : mobileEnemyNode ? <div style={{ position: "relative" }}>
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  /* BONFIRE — Pixel Crawler animated */
+                  /* BONFIRE */
                   : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                    /* RESOURCE NODE */
-                    : staticNode && staticNode.res ? <span style={{ animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}>{RES[staticNode.res].e}</span>
+                    /* RESOURCE NODE — item sprite */
+                    : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
                       /* GATE */
-                      : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
-                        /* VILLAGE — NPC sprite */
-                        : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
-                          /* TERRAIN DECORATIONS */
-                          : tile === "t" ? <span style={{ fontSize: fs + 2, filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
-                            : tile === "fl" ? <span style={{ fontSize: fs - 4 }}>🌸</span>
-                              : tile === "lv" ? <span style={{ fontSize: fs - 4 }}>💜</span>
-                                : tile === "r" ? <span style={{ fontSize: fs - 2, opacity: 0.7 }}>🪨</span>
+                      : gate ? <div style={{ width: CELL * 0.8, height: CELL * 0.8, background: "#6B4226", border: "2px solid #F4D03F", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs, boxShadow: "0 0 6px #F4D03F44" }}>🚪</div>
+                        /* VILLAGE — building sprite */
+                        : vilIdx >= 0 ? <div style={{ ...buildingSprite(vilIdx, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                          /* NATURE — tree, rock, bush sprites */
+                          : tile === "t" ? <div style={{ ...natureSprite(1, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
+                            : tile === "r" ? <div style={{ ...natureSprite(2, CELL), opacity: 0.85 }} />
+                              : tile === "fl" ? <div style={{ ...natureSprite(3, CELL) }} />
+                                : tile === "lv" ? <div style={{ ...natureSprite(3, CELL), filter: "hue-rotate(270deg)" }} />
                                   : null}
           </div>;
         })).flat()}

@@ -1,87 +1,129 @@
 // ═══════════════════════════════════════════════════════════
-// PIXEL CRAWLER — FULL SPRITE SYSTEM
-// All sprites from the Pixel Crawler Free Pack
-// Player 64×64 | Mobs 32×32 idle, 64×64 run | Environment 32×32 | Items 16×16
+// SPRITE SYSTEM — ChatGPT spritesheets (processed by sharp)
+// All sheets are regular grids with 64×64 cells (transparent bg)
 // ═══════════════════════════════════════════════════════════
 
 export type Direction = "left" | "down" | "right" | "up";
 
-// Helper: crop a region from a spritesheet
-function sheet(src: string, frameW: number, frameH: number, col: number, row: number, displayW: number, displayH: number, flipX = false): React.CSSProperties {
-  const scaleX = displayW / frameW;
-  const scaleY = displayH / frameH;
+// Generic sprite from a regular grid sheet
+function fromSheet(src: string, cols: number, col: number, row: number, cellSize: number, displaySize: number, flipX = false): React.CSSProperties {
+  const scale = displaySize / cellSize;
   return {
-    width: displayW, height: displayH,
+    width: displaySize,
+    height: displaySize,
     backgroundImage: `url(${src})`,
-    backgroundPosition: `-${col * frameW * scaleX}px -${row * frameH * scaleY}px`,
-    backgroundSize: `auto`, // let it auto-scale based on display size
+    backgroundPosition: `-${col * displaySize}px -${row * displaySize}px`,
+    backgroundSize: `${cols * displaySize}px auto`,
     backgroundRepeat: "no-repeat",
     imageRendering: "pixelated",
     transform: flipX ? "scaleX(-1)" : "none",
   } as React.CSSProperties;
 }
 
-// Better helper using backgroundSize scaling
-function sprite(src: string, frameW: number, frameH: number, totalW: number, totalH: number, col: number, row: number, displaySize: number, flipX = false): React.CSSProperties {
-  const scale = displaySize / frameW;
-  const scaledTotalW = totalW * scale;
-  const scaledTotalH = totalH * scale;
-  const scaledH = frameH * scale;
-  return {
-    width: displaySize, height: scaledH > displaySize ? displaySize : scaledH,
-    backgroundImage: `url(${src})`,
-    backgroundPosition: `-${col * displaySize}px -${row * frameH * scale}px`,
-    backgroundSize: `${scaledTotalW}px ${scaledTotalH}px`,
-    backgroundRepeat: "no-repeat",
-    imageRendering: "pixelated",
-    transform: flipX ? "scaleX(-1)" : "none",
-  } as React.CSSProperties;
-}
-
-// ─── PLAYER (64×64 frames) ───
-export function playerSprite(action: "walk" | "idle", dir: Direction, frame: number, size: number, isMelanie: boolean): React.CSSProperties {
-  const dirMap: Record<Direction, { file: string; flip: boolean }> = {
-    down: { file: "down", flip: false }, up: { file: "up", flip: false },
-    right: { file: "side", flip: false }, left: { file: "side", flip: true },
+// ─── PLAYER (jisse.png / melanie.png — 4 cols × 3 rows × 64px) ───
+// Row 0 = face down (4 walk frames)
+// Row 1 = face side (4 walk frames) — flip for left
+// Row 2 = face up (4 walk frames)
+export function playerSprite(name: "jisse" | "melanie", dir: Direction, frame: number, size: number): React.CSSProperties {
+  const sheet = `/sprites/game/${name}.png`;
+  const f = frame % 4;
+  const dirMap: Record<Direction, { row: number; flip: boolean }> = {
+    down:  { row: 0, flip: false },
+    right: { row: 1, flip: false },
+    left:  { row: 1, flip: true },
+    up:    { row: 2, flip: false },
   };
-  const { file, flip } = dirMap[dir];
-  const totalFrames = action === "walk" ? 6 : 4;
-  const f = frame % totalFrames;
-  const totalW = totalFrames * 64;
-  return {
-    ...sprite(`/sprites/player/${action}-${file}.png`, 64, 64, totalW, 64, f, 0, size, flip),
-    filter: isMelanie ? "hue-rotate(280deg) saturate(1.3)" : "none",
-  } as React.CSSProperties;
+  const { row, flip } = dirMap[dir];
+  return fromSheet(sheet, 4, f, row, 64, size, flip);
 }
 
-// ─── MOBS (idle: 32×32×4 frames, run: 64×64×6 frames) ───
-export const MOB_SHEETS: Record<string, { idle: string; run: string }> = {
-  garrigue:   { idle: "/sprites/mobs/orc-idle.png", run: "/sprites/mobs/orc-run.png" },
-  calanques:  { idle: "/sprites/mobs/rogue-idle.png", run: "/sprites/mobs/orc-run.png" },
-  mines:      { idle: "/sprites/mobs/warrior-idle.png", run: "/sprites/mobs/warrior-run.png" },
-  mer:        { idle: "/sprites/mobs/mage-idle.png", run: "/sprites/mobs/mage-run.png" },
-  restanques: { idle: "/sprites/mobs/shaman-idle.png", run: "/sprites/mobs/shaman-run.png" },
+// ─── MONSTERS (monsters.png — 5 cols × 1 row × 64px) ───
+// 0=sanglier, 1=mouette, 2=tarasque, 3=pieuvre, 4=mistral
+const MONSTER_IDX: Record<string, number> = {
+  garrigue: 0, calanques: 1, mines: 2, mer: 3, restanques: 4,
+};
+export function monsterSprite(biome: string, size: number): React.CSSProperties {
+  return fromSheet("/sprites/game/monsters.png", 5, MONSTER_IDX[biome] ?? 0, 0, 64, size);
+}
+
+// ─── GEMS (gems.png — 6 cols × 1 row × 64px) ───
+export function gemSprite(gemIdx: number, size: number): React.CSSProperties {
+  return fromSheet("/sprites/game/gems.png", 6, gemIdx % 6, 0, 64, size);
+}
+
+// ─── ITEMS (items.png — 4 cols × 4 rows × 64px) ───
+// (col,row): branche(0,0) herbe(1,0) lavande(2,0) pierre(3,0)
+//            coquillage(0,1) sel(1,1) fer(2,1) ocre(3,1)
+//            cristal(0,2) poisson(1,2) perle(2,2) corail(3,2)
+//            pain(0,3) potion(1,3) cle(2,3) sac(3,3)
+const ITEM_POS: Record<string, [number, number]> = {
+  branche: [0, 0], herbe: [1, 0], lavande: [2, 0], pierre: [3, 0],
+  coquillage: [0, 1], sel: [1, 1], fer: [2, 1], ocre: [3, 1],
+  cristal: [0, 2], poisson: [1, 2], perle: [2, 2], corail: [3, 2],
+  pain: [0, 3], potion: [1, 3], cle: [2, 3], sac: [3, 3],
+};
+export function itemSprite(itemId: string, size: number): React.CSSProperties | null {
+  const pos = ITEM_POS[itemId];
+  if (!pos) return null;
+  return fromSheet("/sprites/game/items.png", 4, pos[0], pos[1], 64, size);
+}
+
+// ─── TOOLS (tools.png — 5 cols × 1 row × 64px) ───
+// 0=bâton, 1=pioche, 2=filet, 3=serpe, 4=clé
+const TOOL_IDX: Record<string, number> = { baton: 0, pioche: 1, filet: 2, serpe: 3, cle: 4 };
+export function toolSprite(toolId: string, size: number): React.CSSProperties | null {
+  const idx = TOOL_IDX[toolId];
+  if (idx === undefined) return null;
+  return fromSheet("/sprites/game/tools.png", 5, idx, 0, 64, size);
+}
+
+// ─── NATURE (nature.png — 4 cols × 1 row × 64px) ───
+// 0=chêne, 1=sapin, 2=rocher, 3=buisson fleuri
+export function natureSprite(variant: number, size: number): React.CSSProperties {
+  return fromSheet("/sprites/game/nature.png", 4, variant % 4, 0, 64, size);
+}
+
+// ─── TILES SOL (tiles.png — 6 cols × 5 rows × 64px) ───
+// Row 0: herbe verte, herbe foncée, herbe fleurie, chemin, lavande, pierre
+// Row 1: sable, sable foncé, eau claire, eau profonde, mine sombre, pierre grise
+// Row 2: bois, mine orange, eau turquoise, eau nuit, roche mine, lave
+// Row 3: mousse, lavande sol, nuit, ocre, cristal sol, restanque
+// Row 4: (bonus tiles)
+const TILE_MAP: Record<string, [number, number]> = {
+  g:    [0, 0],  // herbe verte
+  tg:   [1, 0],  // herbe foncée
+  fl:   [2, 0],  // herbe fleurie
+  p:    [3, 0],  // chemin terre
+  lv:   [4, 0],  // lavande
+  rs:   [5, 0],  // pierre claire
+  s:    [0, 1],  // sable
+  dk:   [1, 1],  // sable foncé (dock)
+  w:    [2, 1],  // eau claire
+  dw:   [3, 1],  // eau profonde
+  mf:   [4, 1],  // mine sol
+  rw:   [5, 1],  // mur restanque
+  mw:   [0, 2],  // mur mine (bois/planches)
+  cf:   [2, 2],  // fond marin turquoise
+  cl:   [4, 2],  // falaise
+  camp: [0, 0],  // herbe (feu par-dessus)
+  vi:   [3, 0],  // village (chemin)
+  gt:   [3, 0],  // porte (chemin)
 };
 
-export function mobSprite(biome: string, chasing: boolean, frame: number, size: number): React.CSSProperties {
-  const sheets = MOB_SHEETS[biome] || MOB_SHEETS.garrigue;
-  if (chasing) {
-    const f = frame % 6;
-    return sprite(sheets.run, 64, 64, 384, 64, f, 0, size);
-  }
-  const f = frame % 4;
-  return sprite(sheets.idle, 32, 32, 128, 32, f, 0, size);
+export function tileSpriteStyle(tileCode: string, size: number): React.CSSProperties | null {
+  const pos = TILE_MAP[tileCode];
+  if (!pos) return null;
+  return fromSheet("/sprites/game/tiles.png", 6, pos[0], pos[1], 64, size);
 }
 
-// ─── NPCs (32×32×4 frames idle) ───
-const NPC_SHEETS = ["/sprites/npcs/knight.png", "/sprites/npcs/rogue.png", "/sprites/npcs/wizzard.png"];
-export function npcSprite(villageIndex: number, frame: number, size: number): React.CSSProperties {
-  const src = NPC_SHEETS[villageIndex % NPC_SHEETS.length];
-  const f = frame % 4;
-  return sprite(src, 32, 32, 128, 32, f, 0, size);
+// ─── BUILDINGS (buildings.png — 3 cols × 2 rows × 96px) ───
+export function buildingSprite(index: number, size: number): React.CSSProperties {
+  const col = index % 3;
+  const row = Math.floor(index / 3);
+  return fromSheet("/sprites/game/buildings.png", 3, col, row, 96, size);
 }
 
-// ─── BONFIRE (64×384 vertical, 6 frames of 64×64) ───
+// ─── BONFIRE (keep Pixel Crawler bonfire — it works) ───
 export function bonfireSprite(frame: number, size: number): React.CSSProperties {
   const f = frame % 6;
   const scale = size / 64;
@@ -95,128 +137,24 @@ export function bonfireSprite(frame: number, size: number): React.CSSProperties 
   } as React.CSSProperties;
 }
 
-// ─── FIRE small (128×48, 4 frames of 32×48) ───
-export function fireSprite(frame: number, size: number): React.CSSProperties {
+// ─── NPC (keep Pixel Crawler NPCs — they work) ───
+export function npcSprite(villageIndex: number, frame: number, size: number): React.CSSProperties {
+  const sheets = ["/sprites/npcs/knight.png", "/sprites/npcs/rogue.png", "/sprites/npcs/wizzard.png"];
+  const src = sheets[villageIndex % sheets.length];
   const f = frame % 4;
-  return sprite("/sprites/env/fire-sheet.png", 32, 48, 128, 48, f, 0, size);
+  return fromSheet(src, 4, f, 0, 32, size);
 }
 
-// ─── FLOOR TILES (Floors_Tiles.png 400×416, 32×32 grid) ───
-// Row 0: green grass variants, Row 1: brown dirt, Row 2-3: orange/gray stone
-// Each row has 4 tiles (center, edge variants)
-// We use the center tile (col 1) for each type
-export function floorTile(tileType: string, size: number): React.CSSProperties | null {
-  const map: Record<string, [number, number]> = {
-    g:  [1, 1],   // green grass center
-    tg: [5, 1],   // darker grass
-    p:  [1, 4],   // brown dirt path
-    s:  [5, 4],   // sand/light dirt
-    mf: [1, 7],   // stone floor (mine)
-    rs: [5, 7],   // gray stone (restanque)
-    cf: [9, 1],   // blue stone (coral floor)
-    dk: [9, 4],   // peach floor (dock)
-  };
-  const pos = map[tileType];
-  if (!pos) return null;
-  return sprite("/sprites/env/floors.png", 32, 32, 400, 416, pos[0], pos[1], size);
-}
-
-// ─── WATER (Water_tiles.png 400×400, 32×32) ───
-export function waterTile(frame: number, size: number, deep = false): React.CSSProperties {
-  // Use first 2 tiles for animation
-  const col = deep ? 2 : (frame % 2);
-  return sprite("/sprites/env/water.png", 32, 32, 400, 400, col, 0, size);
-}
-
-// ─── VEGETATION (400×432) ───
-// Trees: top section, 32×32, rows 0-3 (4 seasonal variants per row)
-// Small plants: lower section, 16×16
-export function treeTile(variant: number, size: number): React.CSSProperties {
-  // Use green tree variants (row 0, cols 0-3)
-  const col = variant % 4;
-  return sprite("/sprites/env/vegetation.png", 32, 32, 400, 432, col, 0, size);
-}
-
-export function bushTile(variant: number, size: number): React.CSSProperties {
-  // Bushes in row 2-3
-  return sprite("/sprites/env/vegetation.png", 32, 32, 400, 432, variant % 4, 2, size);
-}
-
-export function flowerTile(variant: number, size: number): React.CSSProperties {
-  // Small flowers — row 8 area (16×16 scaled up)
-  const col = variant % 6;
-  return sprite("/sprites/env/vegetation.png", 16, 16, 400, 432, col, 16, size);
-}
-
-// ─── ROCKS (208×304, 32×32 primary) ───
-export function rockTile(variant: number, size: number): React.CSSProperties {
-  // Top rows have large rocks
-  const col = variant % 3;
-  return sprite("/sprites/env/rocks.png", 32, 32, 208, 304, col, 0, size);
-}
-
-// ─── RESOURCE NODES on map (Resources.png 400×400, 16×16) ───
-const RES_POS: Record<string, [number, number]> = {
-  branche:    [2, 0],   // stick/wood
-  herbe:      [4, 0],   // plant matter
-  lavande:    [6, 0],   // herb
-  pierre:     [0, 2],   // stone
-  coquillage: [2, 2],   // shell-like
-  sel:        [4, 2],   // crystal-white
-  fer:        [0, 4],   // dark ore
-  ocre:       [2, 4],   // orange ore
-  cristal:    [4, 4],   // blue crystal
-  poisson:    [6, 2],   // fish item
-  perle:      [6, 4],   // pearl
-  corail:     [8, 2],   // coral
-  pain:       [0, 6],   // bread/food
-  potion:     [2, 6],   // potion
+// ─── MOB SPRITES (keep Pixel Crawler for map mobs — they work) ───
+const MOB_SHEETS: Record<string, { idle: string; run: string }> = {
+  garrigue:   { idle: "/sprites/mobs/orc-idle.png", run: "/sprites/mobs/orc-run.png" },
+  calanques:  { idle: "/sprites/mobs/rogue-idle.png", run: "/sprites/mobs/orc-run.png" },
+  mines:      { idle: "/sprites/mobs/warrior-idle.png", run: "/sprites/mobs/warrior-run.png" },
+  mer:        { idle: "/sprites/mobs/mage-idle.png", run: "/sprites/mobs/mage-run.png" },
+  restanques: { idle: "/sprites/mobs/shaman-idle.png", run: "/sprites/mobs/shaman-run.png" },
 };
-
-export function resourceSprite(resId: string, size: number): React.CSSProperties | null {
-  const pos = RES_POS[resId];
-  if (!pos) return null;
-  return sprite("/sprites/env/resources.png", 16, 16, 400, 400, pos[0], pos[1], size);
-}
-
-// ─── TOOL ICONS (Tools.png 400×400, 16×16) ───
-const TOOL_POS: Record<string, [number, number]> = {
-  baton:  [0, 0],   // stick/club
-  pioche: [2, 0],   // pickaxe
-  filet:  [4, 0],   // net-like
-  serpe:  [6, 0],   // blade
-  cle:    [8, 0],   // key
-};
-
-export function toolSprite(toolId: string, size: number): React.CSSProperties | null {
-  const pos = TOOL_POS[toolId];
-  if (!pos) return null;
-  return sprite("/sprites/env/tools.png", 16, 16, 400, 400, pos[0], pos[1], size);
-}
-
-// ─── VILLAGE BUILDING (Walls.png 672×800 + Roofs.png 400×400) ───
-export function villageTile(size: number): React.CSSProperties {
-  // Use a wall section (col 2, row 0 — window wall)
-  return sprite("/sprites/env/walls.png", 32, 32, 672, 800, 2, 0, size);
-}
-
-// ─── GATE/DOOR ───
-export function gateTile(size: number): React.CSSProperties {
-  // Use wall with door (col 4, row 0)
-  return sprite("/sprites/env/walls.png", 32, 32, 672, 800, 4, 0, size);
-}
-
-// ─── CLIFF/WALL ───
-export function cliffTile(size: number): React.CSSProperties {
-  return sprite("/sprites/env/walls.png", 32, 32, 672, 800, 0, 4, size);
-}
-
-// ─── MINE WALL ───
-export function mineWallTile(size: number): React.CSSProperties {
-  return sprite("/sprites/env/walls.png", 32, 32, 672, 800, 6, 4, size);
-}
-
-// ─── RESTANQUE WALL ───
-export function restanqueWallTile(size: number): React.CSSProperties {
-  return sprite("/sprites/env/walls.png", 32, 32, 672, 800, 2, 4, size);
+export function mobSprite(biome: string, chasing: boolean, frame: number, size: number): React.CSSProperties {
+  const sheets = MOB_SHEETS[biome] || MOB_SHEETS.garrigue;
+  if (chasing) { return fromSheet(sheets.run, 6, frame % 6, 0, 64, size); }
+  return fromSheet(sheets.idle, 4, frame % 4, 0, 32, size);
 }
