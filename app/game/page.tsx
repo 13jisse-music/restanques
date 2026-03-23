@@ -6,8 +6,8 @@ import { genWorld } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
   COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF,
-  TILES, MW, MH, CAMP_POS, BAG_LIMIT, countBagItems, isBagFull,
-  type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village,
+  TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
+  type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
 import {
@@ -112,6 +112,12 @@ function GameContent() {
   const [soundInit, setSoundInit] = useState(false);
   const [enemyPositions, setEnemyPositions] = useState<Record<number, { x: number; y: number }>>({});
   const [alertedEnemies, setAlertedEnemies] = useState<Set<number>>(new Set());
+  const [stats, setStats] = useState<PlayerStats>({ atk: 1, def: 0, mag: 0, vit: 1 });
+  const [chest, setChest] = useState<string[]>([]);
+  const [campPanel, setCampPanel] = useState<"" | "rest" | "chest" | "craft">("");
+  const [charPanel, setCharPanel] = useState(false);
+  const [tutoStep, setTutoStep] = useState(-1); // -1 = not showing
+  const [levelUpChoice, setLevelUpChoice] = useState(false);
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,7 +126,12 @@ function GameContent() {
   const maxHpRef = useRef(20); maxHpRef.current = maxHp;
   const stepCountRef = useRef(0);
 
-  const initSound = () => { if (!soundInit) { sounds.init(); setSoundInit(true); } };
+  const initSound = () => {
+    if (!soundInit) {
+      sounds.init(); setSoundInit(true);
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
 
   const notify = (msg: string) => { setNotif(msg); setTimeout(() => setNotif(""), 2500); };
 
@@ -128,7 +139,7 @@ function GameContent() {
     setXp((prev) => {
       const next = prev + amount;
       const needed = lvl * 50;
-      if (next >= needed) { setLvl((l) => l + 1); setMaxHp((h) => h + 3); setHp((h) => Math.min(h + 5, maxHp + 3)); notify(`⬆️ Niveau ${lvl + 1} !`); sounds.levelUp(); return next - needed; }
+      if (next >= needed) { setLvl((l) => l + 1); setMaxHp((h) => h + 3); setHp((h) => Math.min(h + 5, maxHp + 3)); notify(`⬆️ Niveau ${lvl + 1} !`); sounds.levelUp(); setLevelUpChoice(true); return next - needed; }
       return next;
     });
   }, [lvl, maxHp]);
@@ -144,9 +155,12 @@ function GameContent() {
       const w = genWorld(session.seed); setWorld(w); worldRef.current = w; setPos(w.spawn);
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) { for (const idx of session.collected_nodes) { if (w.nodes[idx]) w.nodes[idx].done = true; } }
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
-      if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); }
+      if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); }
       else { const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single(); if (np) setPlayerId(np.id); }
       setStory("🏔️ Un magnifique duché provençal s'élevait sur les terrasses de pierre...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Deux aventuriers partent restaurer les Restanques.\n\n🌿 Explorez la Garrigue. ⛺ Le camp 🔥 restaure vos PV !");
+      // Tutorial + music
+      if (!localStorage.getItem("restanques_tuto")) { setTimeout(() => setTutoStep(0), 2000); }
+      setTimeout(() => sounds.playExploreMusic(), 1000);
     }
     init();
   }, [pName, pEmoji]);
@@ -156,8 +170,8 @@ function GameContent() {
   useEffect(() => {
     if (!playerId) return;
     if (syncRef.current) clearTimeout(syncRef.current);
-    syncRef.current = setTimeout(() => { supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, updated_at: new Date().toISOString() }).eq("id", playerId); }, 250);
-  }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, playerId]);
+    syncRef.current = setTimeout(() => { supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, chest, stats, updated_at: new Date().toISOString() }).eq("id", playerId); }, 250);
+  }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, chest, stats, playerId]);
 
   const doneRef = useRef(0);
   useEffect(() => {
@@ -248,7 +262,8 @@ function GameContent() {
             const tile = world.m[ny][nx];
             const walkable = TILES[tile]?.w === 1 || tile === "gt";
             const distFromSpawn = Math.abs(nx - node.x) + Math.abs(ny - node.y);
-            if (walkable && distFromSpawn <= patrolRadius) {
+            const inCampZone = Math.abs(nx - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(ny - CAMP_POS.y) <= CAMP_RADIUS;
+            if (walkable && distFromSpawn <= patrolRadius && !inCampZone) {
               next[idx] = { x: nx, y: ny };
             }
           }
@@ -300,7 +315,7 @@ function GameContent() {
     if (!tt?.w && tile !== "gt") return;
     setPos({ x: nx, y: ny });
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
-    if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp((h) => { if (h < maxHp) { notify("⛺ PV restaurés !"); return maxHp; } return h; }); }
+    if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1); if (vil && !shop) setShop(vil);
     const node = world.nodes.find((n) => n.x === nx && n.y === ny && !n.done);
     if (node) {
@@ -317,7 +332,7 @@ function GameContent() {
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft" || e.key === "a") tryMove(-1, 0); if (e.key === "ArrowRight" || e.key === "d") tryMove(1, 0); if (e.key === "ArrowUp" || e.key === "w") tryMove(0, -1); if (e.key === "ArrowDown" || e.key === "s") tryMove(0, 1); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [tryMove]);
 
   // ═══ COMBAT ═══
-  const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); };
+  const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); sounds.playCombatMusic(); };
 
   const selectGem = (x: number, y: number) => {
     setCombat((prev) => {
@@ -334,7 +349,7 @@ function GameContent() {
   };
 
   const processMatches = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
-    const cc = cardsRef.current; const dmg = matches.length + combo * 2; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
+    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + stats.atk + stats.mag; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
     const cm = combo > 0 ? ` COMBO x${combo + 1} !` : "";
     const g = grid.map((r) => [...r]); matches.forEach(({ x, y }) => { g[y][x] = -1; });
     setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
@@ -352,7 +367,7 @@ function GameContent() {
         }
         if (nm.length > 0) { setTimeout(() => processMatches(filled, nm, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true }; }
         // Enemy turn
-        const ed = Math.ceil(p.enemy.hp / 5); const sh = cc.find((c) => c.n === "Bouclier") ? 1 : 0; const rd = Math.max(1, ed - sh);
+        const ed = Math.ceil(p.enemy.hp / 5); const sh = cc.find((c) => c.n === "Bouclier") ? 1 : 0; const rd = Math.max(1, ed - sh - stats.def);
         const atks = ["charge", "frappe", "mord", "griffe", "souffle"]; setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${atks[Math.floor(Math.random() * atks.length)]} !`);
         setTimeout(() => { setPlayerShaking(true); sounds.hit(); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => { if (!c) return c; const np = c.playerHp - rd; setHp(Math.max(0, np)); setEnemyTurnMsg("");
@@ -363,7 +378,7 @@ function GameContent() {
     }, 300);
   };
 
-  const endCombat = () => { setCombat((prev) => { if (prev?.lost) setHp(Math.max(5, maxHp - 5)); return null; }); setEnemyTurnMsg(""); };
+  const endCombat = () => { setCombat((prev) => { if (prev?.lost) setHp(Math.max(5, maxHp - 5)); return null; }); setEnemyTurnMsg(""); sounds.stopMusic(); sounds.playExploreMusic(); };
 
   // Craft/Shop/etc
   const addSlot = (id: string, idx: number) => { if (craftSlots.length < 3 && !craftSlots.find((s) => s.idx === idx)) setCraftSlots((p) => [...p, { id, idx }]); };
@@ -409,6 +424,7 @@ function GameContent() {
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
         <button onClick={() => { setMuted(sounds.toggleMute()); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{muted ? "🔇" : "🔊"}</button>
+        <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setMmap(!mmap)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>🗺️</button>
       </div>
       <div style={{ width: "100%", maxWidth: 420, height: 4, background: "#333" }}><div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #F4D03F, #E67E22)", transition: "width 0.3s" }} /></div>
@@ -588,6 +604,139 @@ function GameContent() {
         </div>
       </div>}
 
+      {/* CAMP PANEL */}
+      {campPanel && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+        <div style={{ ...UI.panel, padding: 14, maxWidth: 360, width: "100%", color: "#3D2B1F", maxHeight: "85vh", overflow: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: "bold" }}>⛺ Camp de Base</span>
+            <button style={UI.close} onClick={() => setCampPanel("")}>✕</button>
+          </div>
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {(["rest", "chest", "craft"] as const).map((tab) => (
+              <button key={tab} onClick={() => setCampPanel(tab)} style={{ flex: 1, padding: "6px 4px", fontSize: 11, fontWeight: "bold", background: campPanel === tab ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F" }}>
+                {tab === "rest" ? "🛏️ Repos" : tab === "chest" ? "📦 Coffre" : "🔨 Établi"}
+              </button>
+            ))}
+          </div>
+          {/* REST */}
+          {campPanel === "rest" && <div style={{ textAlign: "center", padding: 20 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>❤️</div>
+            <div style={{ fontSize: 14, fontWeight: "bold" }}>PV restaurés !</div>
+            <div style={{ fontSize: 12 }}>{hp}/{maxHp}</div>
+          </div>}
+          {/* CHEST */}
+          {campPanel === "chest" && <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>🎒 Sac ({countBagItems(inv)}/{BAG_LIMIT})</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 3 }}>
+                  {inv.map((id, i) => <button key={`s${i}`} onClick={() => { if (chest.length < 40) { setChest((c) => [...c, id]); setInv((p) => { const n = [...p]; n.splice(i, 1); return n; }); } }} style={{ ...(itemSprite(id, 28) || {}), border: "1px solid #D4C5A9", borderRadius: 4, cursor: "pointer", background: "#FFF8E7" }} />)}
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>📦 Coffre ({chest.length}/40)</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 3 }}>
+                  {chest.map((id, i) => <button key={`c${i}`} onClick={() => { if (!isBagFull(inv)) { setInv((p) => [...p, id]); setChest((c) => { const n = [...c]; n.splice(i, 1); return n; }); } }} style={{ ...(itemSprite(id, 28) || {}), border: "1px solid #8B7355", borderRadius: 4, cursor: "pointer", background: "#E8D5A3" }} />)}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 10, textAlign: "center", opacity: 0.6 }}>Tap un item pour le transférer</div>
+          </div>}
+          {/* CRAFT — workbench */}
+          {campPanel === "craft" && <div>
+            <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 6 }}>🔧 Outils</div>
+            {Object.entries(TOOLS).map(([tid, tool]) => {
+              const owned = tools.includes(tid);
+              const canCraft = !owned && tool.r.every((r) => inv.includes(r));
+              return <div key={tid} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, marginBottom: 4, background: owned ? "#7A9E3F22" : canCraft ? "#F4D03F22" : "#FFF8E7", borderRadius: 6, border: `1px solid ${owned ? "#7A9E3F" : "#D4C5A9"}` }}>
+                <span style={{ fontSize: 20, width: 28 }}>{tool.e}</span>
+                <div style={{ flex: 1, fontSize: 11 }}>
+                  <div style={{ fontWeight: "bold" }}>{tool.n} {owned && "✅"}</div>
+                  <div style={{ color: "#8B7355" }}>{tool.r.map((r) => `${RES[r]?.e}${RES[r]?.n}`).join(" + ")}</div>
+                  {tool.u && <div style={{ fontSize: 10, color: "#2E86AB" }}>→ Débloque {tool.u}</div>}
+                </div>
+                {canCraft && <button onClick={() => { setTools((p) => [...p, tid]); tool.r.forEach((r) => { const i = inv.indexOf(r); if (i >= 0) setInv((p) => { const n = [...p]; n.splice(i, 1); return n; }); }); sounds.craft(); notify(`✨ ${tool.e} ${tool.n} !`); }} style={UI.btn("#7A9E3F", "#FFF", true)}>Forger</button>}
+              </div>;
+            })}
+            <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 8, marginBottom: 6 }}>🃏 Cartes combat</div>
+            {CARD_RECIPES.map((rec, i) => {
+              const canCraft = rec.r.every((r) => inv.includes(r));
+              return <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, marginBottom: 4, background: canCraft ? "#F4D03F22" : "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
+                <span style={{ fontSize: 18, width: 28 }}>{rec.c.e}</span>
+                <div style={{ flex: 1, fontSize: 11 }}>
+                  <div style={{ fontWeight: "bold" }}>{rec.c.n}</div>
+                  <div style={{ color: "#8B7355" }}>{rec.r.map((r) => `${RES[r]?.e}`).join("+")} → {rec.c.d}</div>
+                </div>
+                {canCraft && <button onClick={() => { setCards((p) => [...p, { ...rec.c }]); rec.r.forEach((r) => { const i = inv.indexOf(r); if (i >= 0) setInv((p) => { const n = [...p]; n.splice(i, 1); return n; }); }); sounds.craft(); notify(`✨ ${rec.c.e} !`); }} style={UI.btn("#E8A317", "#3D2B1F", true)}>Forger</button>}
+              </div>;
+            })}
+          </div>}
+        </div>
+      </div>}
+
+      {/* CHARACTER PANEL */}
+      {charPanel && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+        <div style={{ ...UI.panel, padding: 14, maxWidth: 320, width: "100%", color: "#3D2B1F" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 15, fontWeight: "bold" }}>👤 {pName}</span>
+            <button style={UI.close} onClick={() => setCharPanel(false)}>✕</button>
+          </div>
+          <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", "down", spriteFrame, 64), margin: "0 auto 8px" }} />
+          <div style={{ fontSize: 13, textAlign: "center", marginBottom: 8 }}>Nv.{lvl} · ❤️{hp}/{maxHp} · XP {xp}/{lvl * 50}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
+            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>⚔️ ATK</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.atk}</div>
+            </div>
+            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>🛡️ DEF</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.def}</div>
+            </div>
+            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>✨ MAG</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.mag}</div>
+            </div>
+            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>💚 VIT</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.vit}</div>
+            </div>
+          </div>
+          {tools.length > 0 && <div style={{ fontSize: 11, marginBottom: 4 }}><strong>🔧</strong> {tools.map((t) => `${TOOLS[t].e}${TOOLS[t].n}`).join(", ")}</div>}
+          {cards.length > 0 && <div style={{ fontSize: 11 }}><strong>🃏</strong> {cards.map((c) => `${c.e}${c.n}`).join(", ")}</div>}
+          <div style={{ fontSize: 11, marginTop: 6 }}><strong>🏆</strong> Boss vaincus: {bosses.length}/5</div>
+        </div>
+      </div>}
+
+      {/* LEVEL UP CHOICE */}
+      {levelUpChoice && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{ ...UI.panel, padding: 16, maxWidth: 300, color: "#3D2B1F", textAlign: "center" }}>
+          <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>⬆️ Niveau {lvl} !</div>
+          <div style={{ fontSize: 12, marginBottom: 12 }}>Choisis un bonus :</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button style={UI.btn("#D94F4F", "#FFF")} onClick={() => { setStats((s) => ({ ...s, atk: s.atk + 1 })); setLevelUpChoice(false); }}>⚔️ ATK +1</button>
+            <button style={UI.btn("#4A90D9", "#FFF")} onClick={() => { setStats((s) => ({ ...s, def: s.def + 1 })); setLevelUpChoice(false); }}>🛡️ DEF +1</button>
+            <button style={UI.btn("#9B7EDE", "#FFF")} onClick={() => { setStats((s) => ({ ...s, mag: s.mag + 1 })); setLevelUpChoice(false); }}>✨ MAG +1</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* TUTORIAL */}
+      {tutoStep >= 0 && <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 90, ...UI.panel, padding: "10px 16px", maxWidth: 320, color: "#3D2B1F", fontSize: 12, textAlign: "center" }}>
+        {[
+          "👋 Bienvenue ! D-pad pour vous déplacer.",
+          "🌿 Marchez sur les items pour récolter.",
+          "⚠️ Les ennemis patrouillent ! Ils vous chassent si vous êtes trop près.",
+          "💎 Combats en match-3 : alignez 3 gemmes !",
+          "🏠 Retournez au camp pour crafter, stocker et vous soigner.",
+          "🔧 Forgez des outils pour débloquer de nouvelles zones !",
+          "🗝️ Objectif : forgez la Clé Ancienne et battez le Mistral !",
+        ][tutoStep]}
+        <div style={{ marginTop: 6 }}>
+          <button style={{ ...UI.btn("#7A9E3F", "#FFF", true), marginRight: 8 }} onClick={() => {
+            if (tutoStep < 6) setTutoStep(tutoStep + 1);
+            else { setTutoStep(-1); localStorage.setItem("restanques_tuto", "done"); }
+          }}>{tutoStep < 6 ? "Suivant →" : "C'est parti !"}</button>
+          <button style={{ ...UI.btn("#8B7355", "#E8D5A3", true) }} onClick={() => { setTutoStep(-1); localStorage.setItem("restanques_tuto", "done"); }}>Passer</button>
+        </div>
+      </div>}
+
       {/* ═══ MAP ═══ */}
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, border: "4px solid #5C4033", margin: "4px 0", borderRadius: 8, boxShadow: "inset 0 0 10px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)", overflow: "hidden" }}>
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
@@ -652,10 +801,10 @@ function GameContent() {
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1, maxWidth: 200 }}>
-          <button style={{ ...UI.btn("#E8A317", "#3D2B1F", true), textAlign: "center", padding: "9px 4px" }} onClick={() => { setCraftSlots([]); setCraftMsg(""); setCraft(true); }}>🏺 Craft</button>
-          <button style={{ ...UI.btn(bagFull ? "#D94F4F" : "#2E86AB", "#FFF", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setBag(true)}>🎒 {bagFull ? "PLEIN" : "Sac"}</button>
+          <button style={{ ...UI.btn("#E8A317", "#3D2B1F", true), textAlign: "center", padding: "9px 4px" }} onClick={() => { const inCamp = Math.abs(pos.x - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(pos.y - CAMP_POS.y) <= CAMP_RADIUS; if (inCamp) setCampPanel("rest"); else notify("🏠 Retourne au camp !"); }}>🏠 Camp</button>
+          <button style={{ ...UI.btn(bagFull ? "#D94F4F" : "#2E86AB", "#FFF", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setBag(true)}>🎒 Sac</button>
+          <button style={{ ...UI.btn("#9B7EDE", "#FFF", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setCharPanel(true)}>👤 Perso</button>
           <button style={{ ...UI.btn("#F4D03F", "#3D2B1F", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setQuestPanel(true)}>📋 Quêtes</button>
-          <button style={{ ...UI.btn("#8B7355", "#E8D5A3", true), textAlign: "center", padding: "9px 4px" }} onClick={() => { window.location.href = "/"; }}>🏠 Menu</button>
         </div>
       </div>
       </div>{/* close z-1 wrapper */}

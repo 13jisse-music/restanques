@@ -74,23 +74,27 @@ export const QUESTS_DEF = [
 ];
 
 export const BIOME_ZONES: Record<string, { cx: number; cy: number; r: number }> = {
-  garrigue: { cx: 12, cy: 12, r: 10 },
-  calanques: { cx: 38, cy: 12, r: 9 },
-  mines: { cx: 12, cy: 38, r: 9 },
-  mer: { cx: 38, cy: 38, r: 10 },
-  restanques: { cx: 25, cy: 25, r: 6 },
+  garrigue:   { cx: 50,  cy: 50,  r: 35 },
+  calanques:  { cx: 150, cy: 50,  r: 30 },
+  mines:      { cx: 50,  cy: 150, r: 30 },
+  mer:        { cx: 150, cy: 150, r: 35 },
+  restanques: { cx: 100, cy: 100, r: 20 },
 };
 
 export const VILLAGES = [
-  { x: 8, y: 8, name: "Hameau du Thym", items: [{ sell: "pain", cost: ["branche"] }, { sell: "potion", cost: ["lavande", "herbe"] }] },
-  { x: 42, y: 8, name: "Port des Embruns", items: [{ sell: "potion", cost: ["sel", "coquillage"] }, { sell: "pain", cost: ["pierre"] }] },
-  { x: 8, y: 42, name: "Forge d'Ocre", items: [{ sell: "potion", cost: ["fer"] }, { sell: "pain", cost: ["ocre"] }] },
-  { x: 42, y: 42, name: "Cabane du Pêcheur", items: [{ sell: "pain", cost: ["poisson"] }, { sell: "potion", cost: ["corail"] }] },
+  { x: 35, y: 35, name: "Hameau du Thym", items: [{ sell: "pain", cost: ["branche"] }, { sell: "potion", cost: ["lavande", "herbe"] }] },
+  { x: 65, y: 35, name: "Bastide du Romarin", items: [{ sell: "potion", cost: ["branche", "herbe"] }, { sell: "pain", cost: ["lavande"] }] },
+  { x: 165, y: 35, name: "Port des Embruns", items: [{ sell: "potion", cost: ["sel", "coquillage"] }, { sell: "pain", cost: ["pierre"] }] },
+  { x: 135, y: 65, name: "Cabanon des Vagues", items: [{ sell: "pain", cost: ["coquillage"] }, { sell: "potion", cost: ["pierre", "sel"] }] },
+  { x: 35, y: 165, name: "Forge d'Ocre", items: [{ sell: "potion", cost: ["fer"] }, { sell: "pain", cost: ["ocre"] }] },
+  { x: 65, y: 135, name: "Taverne du Mineur", items: [{ sell: "pain", cost: ["fer"] }, { sell: "potion", cost: ["ocre", "cristal"] }] },
+  { x: 165, y: 165, name: "Cabane du Pêcheur", items: [{ sell: "pain", cost: ["poisson"] }, { sell: "potion", cost: ["corail"] }] },
+  { x: 135, y: 135, name: "Phare du Corail", items: [{ sell: "potion", cost: ["perle"] }, { sell: "pain", cost: ["poisson"] }] },
 ];
 
-export const MW = 50;
-export const MH = 50;
-// CELL est calculé dynamiquement dans le composant (24 mobile, 32 desktop)
+export const MW = 200;
+export const MH = 200;
+// CELL est calculé dynamiquement dans le composant
 
 export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   g: { bg: "#8FBE4A", w: 1, c: "" },
@@ -115,7 +119,15 @@ export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   camp: { bg: "#8FBE4A", w: 1, c: "⛺" },
 };
 
-export const CAMP_POS = { x: 12, y: 8 };
+export const CAMP_POS = { x: 50, y: 46 };
+export const CAMP_RADIUS = 2; // safe zone 5×5 around camp
+
+export interface PlayerStats {
+  atk: number;
+  def: number;
+  mag: number;
+  vit: number;
+}
 export const BAG_LIMIT = 20;
 
 export function countBagItems(inv: string[]): number {

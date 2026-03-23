@@ -67,21 +67,27 @@ export function genWorld(seed: number): GameWorld {
       else cx += cx < x2 ? 1 : -1;
     }
   };
-  drawP(Z.garrigue.cx, Z.garrigue.cy, 25, 19);
-  drawP(Z.calanques.cx, Z.calanques.cy, 25, 19);
-  drawP(Z.mines.cx, Z.mines.cy, 25, 31);
-  drawP(Z.mer.cx, Z.mer.cy, 25, 31);
-  drawP(25, 19, 25, 25);
-  drawP(25, 25, 25, 31);
+  // Paths — connect biomes through center
+  drawP(Z.garrigue.cx, Z.garrigue.cy, 100, 80);
+  drawP(Z.calanques.cx, Z.calanques.cy, 100, 80);
+  drawP(Z.mines.cx, Z.mines.cy, 100, 120);
+  drawP(Z.mer.cx, Z.mer.cy, 100, 120);
+  drawP(100, 80, 100, 100);
+  drawP(100, 100, 100, 120);
+  // Extra paths between adjacent biomes
+  drawP(Z.garrigue.cx + 20, Z.garrigue.cy, Z.calanques.cx - 20, Z.calanques.cy);
+  drawP(Z.garrigue.cx, Z.garrigue.cy + 20, Z.mines.cx, Z.mines.cy - 20);
+  drawP(Z.calanques.cx, Z.calanques.cy + 20, Z.mer.cx, Z.mer.cy - 20);
+  drawP(Z.mines.cx + 20, Z.mines.cy, Z.mer.cx - 20, Z.mer.cy);
 
   // Gates
   const addGate = (x: number, y: number, b: string) => {
     S(x, y, "gt");
     gates.push({ x, y, b });
   };
-  addGate(25, 18, "calanques");
-  addGate(20, 25, "mines");
-  addGate(30, 25, "mer");
+  addGate(100, 78, "calanques");
+  addGate(80, 100, "mines");
+  addGate(120, 100, "mer");
   addGate(Z.restanques.cx, Z.restanques.cy - Z.restanques.r, "restanques");
   addGate(Z.restanques.cx, Z.restanques.cy + Z.restanques.r, "restanques");
 
@@ -111,11 +117,11 @@ export function genWorld(seed: number): GameWorld {
       }
     }
   };
-  addNodes("garrigue", Z.garrigue, ["branche", "herbe", "lavande"], 15);
-  addNodes("calanques", Z.calanques, ["pierre", "coquillage", "sel"], 12);
-  addNodes("mines", Z.mines, ["fer", "ocre", "cristal"], 10);
-  addNodes("mer", Z.mer, ["poisson", "perle", "corail"], 10);
-  addNodes("restanques", Z.restanques, ["cristal", "perle", "ocre"], 5);
+  addNodes("garrigue", Z.garrigue, ["branche", "herbe", "lavande"], 45);
+  addNodes("calanques", Z.calanques, ["pierre", "coquillage", "sel"], 35);
+  addNodes("mines", Z.mines, ["fer", "ocre", "cristal"], 30);
+  addNodes("mer", Z.mer, ["poisson", "perle", "corail"], 30);
+  addNodes("restanques", Z.restanques, ["cristal", "perle", "ocre"], 15);
 
   // Boss nodes
   Object.entries(Z).forEach(([b, z]) => {
