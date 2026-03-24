@@ -15,6 +15,10 @@ import {
   itemSprite, GEM_STYLES,
   type Direction,
 } from "../lib/sprites";
+import { Joystick } from "./components/Joystick";
+import { StorySequence } from "./components/StorySequence";
+import { DayNightOverlay } from "./components/DayNightOverlay";
+import { STORY, INTRO_IMAGES } from "../data/story";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -109,8 +113,13 @@ function GameContent() {
   const [chest, setChest] = useState<string[]>([]);
   const [campPanel, setCampPanel] = useState<"" | "rest" | "chest" | "craft">("");
   const [charPanel, setCharPanel] = useState(false);
-  const [tutoStep, setTutoStep] = useState(-1); // -1 = not showing
+  const [tutoStep, setTutoStep] = useState(-1);
   const [levelUpChoice, setLevelUpChoice] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  const [deathScreen, setDeathScreen] = useState(false);
+  const [fatigueUntil, setFatigueUntil] = useState(0);
+  const [mysteryPos, setMysteryPos] = useState<{ x: number; y: number } | null>(null);
+  const [currentBiome, setCurrentBiome] = useState("garrigue");
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,9 +160,10 @@ function GameContent() {
       if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); }
       else { const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single(); if (np) setPlayerId(np.id); }
       setStory("🏔️ Un magnifique duché provençal s'élevait sur les terrasses de pierre...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Deux aventuriers partent restaurer les Restanques.\n\n🌿 Explorez la Garrigue. ⛺ Le camp 🔥 restaure vos PV !");
-      // Tutorial + music
-      if (!localStorage.getItem("restanques_tuto")) { setTimeout(() => setTutoStep(0), 2000); }
-      setTimeout(() => sounds.playExploreMusic(), 1000);
+      // Intro + tutorial + music
+      if (!ep?.intro_seen) { setShowIntro(true); }
+      else if (!localStorage.getItem("restanques_tuto")) { setTimeout(() => setTutoStep(0), 2000); }
+      setTimeout(() => sounds.playBiomeMusic("garrigue"), 1000);
     }
     init();
   }, [pName, pEmoji]);
@@ -289,6 +299,37 @@ function GameContent() {
 
   useEffect(() => { checkEnemyCollision(); }, [pos, enemyPositions, checkEnemyCollision]);
 
+  // ─── MYSTERY CHARACTER ───
+  useEffect(() => {
+    if (!world) return;
+    const iv = setInterval(() => {
+      if (Math.random() < 0.15) { // ~15% chance every 6s = ~once per 40s
+        const mx = pos.x + Math.floor(Math.random() * 10) - 5;
+        const my = pos.y + Math.floor(Math.random() * 8) - 4;
+        if (mx >= 0 && mx < MW && my >= 0 && my < MH) {
+          setMysteryPos({ x: mx, y: my });
+          sounds.mystery();
+          setTimeout(() => setMysteryPos(null), 3000);
+        }
+      }
+    }, 6000);
+    return () => clearInterval(iv);
+  }, [world, pos]);
+
+  // ─── BIOME DETECTION for music ───
+  useEffect(() => {
+    if (!world) return;
+    let best = "garrigue", bd = 999;
+    for (const [n, z] of Object.entries(world.Z)) {
+      const d = Math.sqrt((pos.x - z.cx) ** 2 + (pos.y - z.cy) ** 2);
+      if (d < z.r + 2 && d < bd) { bd = d; best = n; }
+    }
+    if (best !== currentBiome) {
+      setCurrentBiome(best);
+      if (!combat) sounds.playBiomeMusic(best);
+    }
+  }, [pos, world]);
+
   // ─── MOVEMENT ───
   const tryMove = useCallback((dx: number, dy: number) => {
     if (!world || story || dialog || combat || craft || bag || shop || questPanel) return;
@@ -371,7 +412,20 @@ function GameContent() {
     }, 300);
   };
 
-  const endCombat = () => { setCombat((prev) => { if (prev?.lost) setHp(Math.max(5, maxHp - 5)); return null; }); setEnemyTurnMsg(""); sounds.stopMusic(); sounds.playExploreMusic(); };
+  const endCombat = () => {
+    setCombat((prev) => {
+      if (prev?.lost) {
+        setHp(Math.floor(maxHp * 0.5));
+        setDeathScreen(true);
+        setFatigueUntil(Date.now() + 120000); // 2 min fatigue
+        setTimeout(() => { setDeathScreen(false); setPos({ x: CAMP_POS.x, y: CAMP_POS.y }); }, 2500);
+      }
+      return null;
+    });
+    setEnemyTurnMsg("");
+    sounds.stopMusic();
+    sounds.playBiomeMusic(currentBiome);
+  };
 
   // Craft/Shop/etc
   const addSlot = (id: string, idx: number) => { if (craftSlots.length < 3 && !craftSlots.find((s) => s.idx === idx)) setCraftSlots((p) => [...p, { id, idx }]); };
@@ -409,6 +463,26 @@ function GameContent() {
         @keyframes enemyAtk{0%{transform:scale(1)}40%{transform:scale(1.3) translateY(-8px)}100%{transform:scale(1)}}
       `}</style>
 
+      {/* INTRO SEQUENCE */}
+      {showIntro && <StorySequence
+        slides={STORY.intro.map((text, i) => ({ text, image: INTRO_IMAGES[i] }))}
+        onComplete={() => {
+          setShowIntro(false);
+          if (playerId) supabase.from("players").update({ intro_seen: true }).eq("id", playerId);
+          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 1000);
+        }}
+      />}
+
+      {/* DEATH SCREEN */}
+      {deathScreen && <div style={{ position: "fixed", inset: 0, zIndex: 150, background: "rgba(80,0,0,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace" }}>
+        <div style={{ fontSize: 64, marginBottom: 12 }}>💀</div>
+        <div style={{ fontSize: 20, fontWeight: "bold", color: "#FF6666" }}>Défaite...</div>
+        <div style={{ fontSize: 12, color: "#D4C5A9", marginTop: 8 }}>Retour au camp...</div>
+      </div>}
+
+      {/* DAY/NIGHT */}
+      <DayNightOverlay />
+
       {/* TOP BAR */}
       <div style={{ display: "flex", width: "100%", maxWidth: 420, justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "linear-gradient(#5C4033, #3D2B1F)", fontSize: 11, borderBottom: "2px solid #F4D03F", flexWrap: "wrap", gap: 2 }}>
         <span style={{ textShadow: "0 0 4px #F4D03F" }}>{pEmoji} Nv.{lvl}</span>
@@ -417,6 +491,7 @@ function GameContent() {
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
         <button onClick={() => { setMuted(sounds.toggleMute()); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{muted ? "🔇" : "🔊"}</button>
+        {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵 Fatigue</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setMmap(!mmap)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>🗺️</button>
       </div>
@@ -777,27 +852,21 @@ function GameContent() {
                             : tile === "fl" ? <span style={{ fontSize: fs - 4 }}>🌸</span>
                               : tile === "lv" ? <span style={{ fontSize: fs - 4 }}>💜</span>
                                 : tile === "r" ? <span style={{ fontSize: fs - 2, opacity: 0.7 }}>🪨</span>
-                                  : null}
+                                  : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerMapSprite("idle", "down", 0, CELL, false), filter: "brightness(0.15)", opacity: 0.5, animation: "float 2s ease infinite" }} />
+                                    : null}
           </div>;
         })).flat()}
       </div>
 
-      {/* CONTROLS */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%", maxWidth: 420, justifyContent: "space-between", padding: "4px 8px" }}>
-        <div style={{ display: "grid", gridTemplateAreas: `". u ." "l . r" ". d ."`, gap: 2 }}>
-          {([["u", 0, -1, "▲"], ["l", -1, 0, "◀"], ["r", 1, 0, "▶"], ["d", 0, 1, "▼"]] as [string, number, number, string][]).map(([a, dx, dy, ch]) =>
-            <button key={a} style={{ gridArea: a, width: 44, height: 44, borderRadius: 10, background: "linear-gradient(145deg, #7A9E3F, #5A7E2F)", color: "#FFF", border: "3px solid #3D5E1A", fontSize: 18, fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "2px 2px 0 #2A4E10, inset 1px 1px 0 rgba(255,255,255,0.2)" }}
-              onMouseDown={() => holdMove(dx, dy)} onMouseUp={stopMove} onMouseLeave={stopMove}
-              onTouchStart={(e) => { e.preventDefault(); holdMove(dx, dy); }} onTouchEnd={(e) => { e.preventDefault(); stopMove(); }}
-            >{ch}</button>
-          )}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1, maxWidth: 200 }}>
-          <button style={{ ...UI.btn("#E8A317", "#3D2B1F", true), textAlign: "center", padding: "9px 4px" }} onClick={() => { const inCamp = Math.abs(pos.x - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(pos.y - CAMP_POS.y) <= CAMP_RADIUS; if (inCamp) setCampPanel("rest"); else notify("🏠 Retourne au camp !"); }}>🏠 Camp</button>
-          <button style={{ ...UI.btn(bagFull ? "#D94F4F" : "#2E86AB", "#FFF", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setBag(true)}>🎒 Sac</button>
-          <button style={{ ...UI.btn("#9B7EDE", "#FFF", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setCharPanel(true)}>👤 Perso</button>
-          <button style={{ ...UI.btn("#F4D03F", "#3D2B1F", true), textAlign: "center", padding: "9px 4px" }} onClick={() => setQuestPanel(true)}>📋 Quêtes</button>
-        </div>
+      {/* JOYSTICK (mobile) */}
+      <Joystick onMove={(dx, dy) => tryMove(dx, dy)} onStop={() => { setWalking(false); }} />
+
+      {/* ACTION BUTTONS (bottom right) */}
+      <div style={{ position: "fixed", bottom: 16, right: 10, zIndex: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(232,163,23,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => { const inCamp = Math.abs(pos.x - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(pos.y - CAMP_POS.y) <= CAMP_RADIUS; if (inCamp) setCampPanel("rest"); else notify("🏠 Au camp !"); }}>🏠</button>
+        <button style={{ width: 52, height: 44, borderRadius: 8, background: bagFull ? "rgba(217,79,79,0.8)" : "rgba(46,134,171,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setBag(true)}>🎒</button>
+        <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(155,126,222,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setCharPanel(true)}>👤</button>
+        <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(244,208,63,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setQuestPanel(true)}>📋</button>
       </div>
       </div>{/* close z-1 wrapper */}
     </div>

@@ -31,7 +31,7 @@ export default function Home() {
 
   return (
     <div style={{
-      width: "100%", height: "100vh", position: "relative", overflow: "hidden",
+      width: "100%", minHeight: "100vh", position: "relative", overflowX: "hidden", overflowY: "auto",
       background: "#1A1410",
       opacity: fading ? 0 : 1, transition: "opacity 0.5s ease",
     }}>
@@ -53,7 +53,7 @@ export default function Home() {
       <div style={{
         position: "absolute", bottom: 0, left: 0, right: 0,
         display: "flex", flexDirection: "column", alignItems: "center",
-        padding: "20px 16px 32px",
+        padding: "20px 16px 80px",
         gap: "10px",
         opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
         transition: "all 1s ease 0.5s",

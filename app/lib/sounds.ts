@@ -55,44 +55,55 @@ class GameSounds {
     this.musicGains = [];
   }
 
-  playExploreMusic() {
+  playBiomeMusic(biome: string) {
     if (!this.ctx || this.muted) return;
     this.stopMusic();
-    // Drone La + Mi
-    const makeDrone = (freq: number, vol: number) => {
-      const o = this.ctx!.createOscillator();
-      const g = this.ctx!.createGain();
+    const drone = (freq: number, vol: number) => {
+      const o = this.ctx!.createOscillator(); const g = this.ctx!.createGain();
       o.connect(g); g.connect(this.ctx!.destination);
       o.type = "sine"; o.frequency.value = freq; g.gain.value = vol * this.volume;
-      o.start();
-      this.musicOscs.push(o); this.musicGains.push(g);
+      o.start(); this.musicOscs.push(o); this.musicGains.push(g);
     };
-    makeDrone(220, 0.03);
-    makeDrone(330, 0.02);
-    // Arpège
-    const notes = [440, 523, 659, 523, 440, 392, 440, 523];
+    const biomeConfig: Record<string, { drones: [number, number][]; notes: number[]; type: OscillatorType; speed: number; vol: number }> = {
+      garrigue:   { drones: [[220, 0.03], [330, 0.02]], notes: [440, 523, 659, 523, 440, 392, 440, 523], type: "triangle", speed: 800, vol: 0.04 },
+      calanques:  { drones: [[165, 0.02], [247, 0.02]], notes: [659, 784, 880, 784, 659, 587, 523, 587], type: "sine", speed: 1000, vol: 0.03 },
+      mines:      { drones: [[110, 0.04], [165, 0.02]], notes: [220, 262, 220, 196, 220, 262, 294, 262], type: "triangle", speed: 900, vol: 0.03 },
+      mer:        { drones: [[147, 0.03], [220, 0.02]], notes: [523, 659, 784, 880, 784, 659, 523, 440], type: "sine", speed: 1100, vol: 0.03 },
+      restanques: { drones: [[110, 0.04], [220, 0.03]], notes: [330, 392, 440, 523, 440, 392, 330, 294], type: "sawtooth", speed: 600, vol: 0.04 },
+    };
+    const cfg = biomeConfig[biome] || biomeConfig.garrigue;
+    cfg.drones.forEach(([f, v]) => drone(f, v));
     let ni = 0;
     this.musicInterval = setInterval(() => {
       if (!this.ctx || this.muted) return;
-      this.osc(notes[ni % notes.length], "triangle", 0.04, 0.8);
+      this.osc(cfg.notes[ni % cfg.notes.length], cfg.type, cfg.vol, cfg.speed / 1000 * 0.9);
       ni++;
-    }, 800);
+    }, cfg.speed);
   }
 
-  playCombatMusic() {
+  playExploreMusic() { this.playBiomeMusic("garrigue"); }
+
+  playCombatMusic(boss = false) {
     if (!this.ctx || this.muted) return;
     this.stopMusic();
     const notes = [165, 196, 165, 220, 165, 196, 165, 147];
+    const speed = boss ? 150 : 300;
     let b = 0;
+    if (boss) {
+      const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+      o.connect(g); g.connect(this.ctx.destination);
+      o.type = "sine"; o.frequency.value = 55; g.gain.value = 0.06;
+      o.start(); this.musicOscs.push(o); this.musicGains.push(g);
+    }
     this.musicInterval = setInterval(() => {
       if (!this.ctx || this.muted) return;
       this.osc(notes[b % notes.length], "sawtooth", 0.05, 0.25);
-      if (b % 2 === 0) {
-        this.osc(120, "sine", 0.08, 0.12);
-      }
+      if (b % 2 === 0) this.osc(120, "sine", 0.08, 0.12);
       b++;
-    }, 300);
+    }, speed);
   }
+
+  mystery() { this.osc(82, "sine", 0.08, 1.5); }
 }
 
 export const sounds = new GameSounds();
