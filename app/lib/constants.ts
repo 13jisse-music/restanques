@@ -92,8 +92,8 @@ export const VILLAGES = [
   { x: 135, y: 135, name: "Phare du Corail", items: [{ sell: "potion", cost: ["perle"] }, { sell: "pain", cost: ["poisson"] }] },
 ];
 
-export const MW = 200;
-export const MH = 200;
+export const MW = 100;
+export const MH = 100;
 // CELL est calculé dynamiquement dans le composant
 
 export const TILES: Record<string, { bg: string; w: number; c: string }> = {

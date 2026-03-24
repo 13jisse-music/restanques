@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabase";
-import { genWorld } from "../lib/world";
+import { genWorld, genBiome } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
   COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP,
@@ -28,6 +28,14 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 // ═══ TILE COLORS by biome — rich CSS rendering ═══
+const BIOME_RES_LOOT: Record<string, string[]> = {
+  garrigue: ["herbe", "branche", "lavande"],
+  calanques: ["coquillage", "sel", "poisson"],
+  mines: ["pierre", "fer", "ocre"],
+  mer: ["corail", "perle", "poisson"],
+  restanques: ["cristal", "fer", "ocre"],
+};
+
 const TILE_COLORS: Record<string, { bg: string; border?: string; pattern?: string }> = {
   g:  { bg: "#7BB33A" },
   tg: { bg: "#5E9A22" },
@@ -134,6 +142,8 @@ function GameContent() {
   const [fatigueUntil, setFatigueUntil] = useState(0);
   const [mysteryPos, setMysteryPos] = useState<{ x: number; y: number } | null>(null);
   const [currentBiome, setCurrentBiome] = useState("garrigue");
+  const [biomeTransition, setBiomeTransition] = useState(false);
+  const biomeCacheRef = useRef<Record<string, GameWorld>>({});
   const [showGuide, setShowGuide] = useState(false);
   const [guideHint, setGuideHint] = useState(false);
   const [storySequence, setStorySequence] = useState<{ key: string; slides: { image?: string; text: string }[] } | null>(null);
@@ -171,7 +181,20 @@ function GameContent() {
     setXp((prev) => {
       const next = prev + amount;
       const needed = lvl * 50;
-      if (next >= needed) { setLvl((l) => l + 1); setMaxHp((h) => h + 3); setHp((h) => Math.min(h + 5, maxHp + 3)); notify(`⬆️ Niveau ${lvl + 1} !`); sounds.levelUp(); setLevelUpChoice(true); return next - needed; }
+      if (next >= needed) {
+        setLvl((l) => l + 1); setMaxHp((h) => h + 3); setHp((h) => Math.min(h + 5, maxHp + 3)); sounds.levelUp();
+        // Auto stat increase based on class
+        setStats((s) => {
+          const ns = { ...s };
+          if (playerClass.id === "aventurier") { ns.atk += 1; if (Math.random() < 0.5) ns.def += 1; if (Math.random() < 0.25) ns.vit += 1; }
+          else if (playerClass.id === "artisane") { ns.mag += 1; if (Math.random() < 0.5) ns.def += 1; if (Math.random() < 0.25) ns.vit += 1; }
+          else { ns.vit += 1; if (Math.random() < 0.5) ns.atk += 1; if (Math.random() < 0.25) ns.mag += 1; }
+          const gains = Object.entries(ns).filter(([k, v]) => v > s[k as keyof typeof s]).map(([k, v]) => `${k.toUpperCase()}+${v - s[k as keyof typeof s]}`).join(", ");
+          notify(`⬆️ Niveau ${lvl + 1} ! ${gains}`);
+          return ns;
+        });
+        return next - needed;
+      }
       return next;
     });
   }, [lvl, maxHp]);
@@ -184,10 +207,22 @@ function GameContent() {
       if (!session) { const seed = Math.floor(Math.random() * 999999); const { data } = await supabase.from("game_sessions").insert({ seed, active: true }).select().single(); session = data; }
       if (!session) return;
       setSessionId(session.id);
-      const w = genWorld(session.seed); setWorld(w); worldRef.current = w; setPos(w.spawn);
+      // Load world — use garrigue initially, will be updated after player load
+      const w = genBiome(session.seed, "garrigue");
+      biomeCacheRef.current["garrigue"] = w;
+      setWorld(w); worldRef.current = w; setPos(w.spawn);
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) { for (const idx of session.collected_nodes) { if (w.nodes[idx]) w.nodes[idx].done = true; } }
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
-      if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped); }
+      if (ep) {
+        setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped);
+        // Restore biome
+        const savedBiome = ep.current_biome || "garrigue";
+        if (savedBiome !== "garrigue") {
+          const bw = genBiome(session.seed + ["garrigue","calanques","mines","mer","restanques"].indexOf(savedBiome), savedBiome);
+          biomeCacheRef.current[savedBiome] = bw;
+          setWorld(bw); worldRef.current = bw; setCurrentBiome(savedBiome);
+        }
+      }
       else { const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single(); if (np) setPlayerId(np.id); }
       // Intro sequence OR tutorial (never both at once)
       if (!ep?.intro_seen) {
@@ -349,19 +384,7 @@ function GameContent() {
     return () => clearInterval(iv);
   }, [world, pos]);
 
-  // ─── BIOME DETECTION for music ───
-  useEffect(() => {
-    if (!world) return;
-    let best = "garrigue", bd = 999;
-    for (const [n, z] of Object.entries(world.Z)) {
-      const d = Math.sqrt((pos.x - z.cx) ** 2 + (pos.y - z.cy) ** 2);
-      if (d < z.r + 2 && d < bd) { bd = d; best = n; }
-    }
-    if (best !== currentBiome) {
-      setCurrentBiome(best);
-      if (!combat) sounds.playBiomeMusic(best);
-    }
-  }, [pos, world]);
+  // Biome music is now handled by biome transitions (no auto-detect needed)
 
   // ─── MOVEMENT ───
   const tryMove = useCallback((dx: number, dy: number) => {
@@ -375,9 +398,42 @@ function GameContent() {
     const tile = world.m[ny][nx]; const tt = TILES[tile];
     const gate = world.gates.find((g) => g.x === nx && g.y === ny);
     if (gate) {
-      const bio = gate.b; const needMap: Record<string, string> = { calanques: "baton", mines: "pioche", mer: "filet", restanques: "cle" }; const need = needMap[bio];
+      const bio = gate.b;
+      const needMap: Record<string, string> = { calanques: "baton", mines: "pioche", mer: "filet", restanques: "cle" };
+      const need = needMap[bio];
       if (need && !tools.includes(need)) { notify(`🚪 Il faut ${TOOLS[need].e} ${TOOLS[need].n}`); sounds.locked(); return; }
-      if (!unlocked.includes(bio)) { setUnlocked((p) => [...p, bio]); sounds.unlock(); const msgs: Record<string, string> = { calanques: "🏖️ Les Calanques !", mines: "⛏️ Les Mines d'Ocre !", mer: "🌊 La Méditerranée !", restanques: "⛰️ Les Restanques !" }; if (msgs[bio]) setStory(msgs[bio]); }
+      // BIOME TRANSITION
+      setBiomeTransition(true);
+      setTimeout(() => {
+        const sessionSeed = parseInt(sessionId?.substring(0, 8) || "12345", 16) || 12345;
+        const biomeSeeds: Record<string, number> = { garrigue: sessionSeed, calanques: sessionSeed + 1, mines: sessionSeed + 2, mer: sessionSeed + 3, restanques: sessionSeed + 4 };
+        let newWorld = biomeCacheRef.current[bio];
+        if (!newWorld) { newWorld = genBiome(biomeSeeds[bio], bio); biomeCacheRef.current[bio] = newWorld; }
+        setWorld(newWorld); worldRef.current = newWorld;
+        setCurrentBiome(bio);
+        // Place player at opposite edge
+        const entryMap: Record<string, { x: number; y: number }> = { N: { x: 50, y: 95 }, S: { x: 50, y: 5 }, E: { x: 5, y: 50 }, W: { x: 95, y: 50 } };
+        // Find which side we came from
+        const portal = world.gates.find((g) => g.x === nx && g.y === ny);
+        let entry = newWorld.spawn;
+        if (portal) {
+          // We came from a portal on the current map, enter at the opposite side of the target
+          if (nx <= 5) entry = entryMap.E; // we were at west edge → enter east
+          else if (nx >= 95) entry = entryMap.W;
+          else if (ny <= 5) entry = entryMap.S;
+          else if (ny >= 95) entry = entryMap.N;
+        }
+        setPos(entry);
+        setEnemyPositions({});
+        if (!unlocked.includes(bio)) { setUnlocked((p) => [...p, bio]); sounds.unlock(); }
+        sounds.playMusic(bio);
+        // Trigger biome intro story if first time
+        const storyKey = bio + "_intro";
+        if (STORY[storyKey] && !unlocked.includes(bio)) { setTimeout(() => triggerStory(storyKey), 500); }
+        supabase.from("players").update({ current_biome: bio }).eq("id", playerId);
+        setBiomeTransition(false);
+      }, 600);
+      return;
     }
     if (!tt?.w && tile !== "gt") return;
     setPos({ x: nx, y: ny });
@@ -623,8 +679,21 @@ function GameContent() {
       setCombat((p) => {
         if (!p) return p; const newEHp = Math.max(0, p.enemyHp - td);
         if (newEHp <= 0) {
-          p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]); if (p.node.res) setInv((prev) => [...prev, p.node.res!]);
-          const lr = Object.entries(RES).filter(([, v]) => v.b === p.node.biome).map(([k]) => k); if (lr.length > 0) setInv((prev) => [...prev, lr[Math.floor(Math.random() * lr.length)]]);
+          p.node.done = true;
+          if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]);
+          if (p.node.res) setInv((prev) => [...prev, p.node.res!]);
+          // LOOT — biome-specific drops
+          const biomeRes = BIOME_RES_LOOT[p.node.biome] || ["herbe"];
+          const lootItems: string[] = [];
+          const multiplier = p.node.boss ? 3 : 1;
+          for (let li = 0; li < multiplier; li++) {
+            if (Math.random() < 0.8) lootItems.push(biomeRes[0]);
+            if (Math.random() < 0.5) lootItems.push(biomeRes[Math.floor(Math.random() * biomeRes.length)]);
+            if (Math.random() < 0.2) lootItems.push(biomeRes[biomeRes.length - 1]);
+          }
+          if (p.node.boss && Math.random() < 0.8) lootItems.push(Math.random() < 0.5 ? "pain" : "potion");
+          if (!isBagFull(inv)) { lootItems.forEach((l) => setInv((prev) => [...prev, l])); }
+          const lootText = lootItems.length > 0 ? `\nButin : ${lootItems.map((l) => RES[l]?.e || l).join(" ")}` : "";
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
           // Story transition — ONLY for boss, ONLY if not already seen
           if (p.node.boss && !bosses.includes(p.node.biome)) {
@@ -635,7 +704,7 @@ function GameContent() {
               else triggerStory(biome + "_end");
             }, 1500);
           }
-          return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE ! 🎉`, won: true, animating: false };
+          return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE !${lootText}`, won: true, animating: false };
         }
         if (nm.length > 0) { setTimeout(() => processMatches(filled, nm, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true }; }
         // Enemy turn — skip if Bouclier was used this turn
@@ -703,6 +772,9 @@ function GameContent() {
         @keyframes enemyAtk{0%{transform:scale(1)}40%{transform:scale(1.3) translateY(-8px)}100%{transform:scale(1)}}
       `}</style>
 
+      {/* BIOME TRANSITION — black fade */}
+      {biomeTransition && <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#F4D03F", fontFamily: "'Crimson Text', Georgia, serif", fontSize: 20 }}>Changement de biome...</div>}
+
       {/* INTRO SEQUENCE */}
       {showIntro && <StorySequence
         slides={STORY.intro.map((text, i) => ({ text, image: INTRO_IMAGES[i] }))}
@@ -727,7 +799,9 @@ function GameContent() {
           setStorySequence(null);
           // After ending → show NG+ option
           if (key === "ending") {
-            setStory("🏆 FÉLICITATIONS !\n\nVous avez terminé Restanques !\n\n🌙 New Game+ bientôt disponible...\n\nMerci d'avoir joué !");
+            setStory("🏆 FÉLICITATIONS !\n\nVous avez terminé Restanques !\n\n🌙 La classe Ombre est débloquée !\n\n⚔️ New Game+ disponible au menu !");
+            // Mark NG+ available
+            if (playerId) supabase.from("players").update({ ng_plus: (stats.vit || 0) > 0 ? 1 : 1 }).eq("id", playerId);
           }
           // After biome_end → trigger next biome intro
           if (key === "garrigue_end") setTimeout(() => triggerStory("calanques_intro"), 500);
@@ -749,7 +823,7 @@ function GameContent() {
 
       {/* TOP BAR — overlay */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "rgba(61,43,31,0.75)", fontSize: 11, borderBottom: "1px solid rgba(244,208,63,0.4)", backdropFilter: "blur(4px)", gap: 4 }}>
-        <span style={{ textShadow: "0 0 4px #F4D03F" }}>{pEmoji} Nv.{lvl}</span>
+        <span style={{ textShadow: "0 0 4px #F4D03F" }}>{pEmoji} Nv.{lvl} · {currentBiome}</span>
         <span style={{ color: "#FF6666" }}>❤️{hp}/{maxHp}</span>
         <span style={{ color: bagFull ? "#FF6666" : "#D4C5A9" }}>🎒{bagCount}/{BAG_LIMIT}</span>
         <span>🏆{bosses.length}/5</span>
