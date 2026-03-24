@@ -20,7 +20,7 @@ import { StorySequence } from "./components/StorySequence";
 import { DayNightOverlay } from "./components/DayNightOverlay";
 import { Minimap } from "./components/Minimap";
 import { GameGuide } from "./components/GameGuide";
-import { STORY, INTRO_IMAGES } from "../data/story";
+import { STORY, INTRO_IMAGES, STORY_IMAGES } from "../data/story";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -131,6 +131,7 @@ function GameContent() {
   const [currentBiome, setCurrentBiome] = useState("garrigue");
   const [showGuide, setShowGuide] = useState(false);
   const [guideHint, setGuideHint] = useState(false);
+  const [storySequence, setStorySequence] = useState<{ key: string; slides: { image?: string; text: string }[] } | null>(null);
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,6 +384,15 @@ function GameContent() {
   const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
 
   // ─── CAST SPELL ───
+  // ─── TRIGGER STORY SEQUENCE ───
+  const triggerStory = useCallback((key: string) => {
+    const texts = STORY[key];
+    const images = STORY_IMAGES[key] || [];
+    if (!texts || texts.length === 0) return;
+    const slides = texts.map((text, i) => ({ text, image: images[i] }));
+    setStorySequence({ key, slides });
+  }, []);
+
   // Total stats = base + equipment bonuses
   const totalStats = useMemo(() => {
     const s = { ...stats };
@@ -480,7 +490,15 @@ function GameContent() {
           p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]); if (p.node.res) setInv((prev) => [...prev, p.node.res!]);
           const lr = Object.entries(RES).filter(([, v]) => v.b === p.node.biome).map(([k]) => k); if (lr.length > 0) setInv((prev) => [...prev, lr[Math.floor(Math.random() * lr.length)]]);
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
-          if (p.node.boss && p.node.biome === "restanques") setTimeout(() => { setCombat(null); setStory("🏆 LE MISTRAL EST VAINCU !\n\n🏔️ Les Restanques reprennent vie !\n👑 Souverains de Provence !\n🎸🎨 FÉLICITATIONS !"); }, 1500);
+          // Story transition after boss
+          if (p.node.boss) {
+            const biome = p.node.biome;
+            setTimeout(() => {
+              setCombat(null);
+              if (biome === "restanques") { triggerStory("ending"); }
+              else { triggerStory(biome + "_end"); }
+            }, 1500);
+          }
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE ! 🎉`, won: true, animating: false };
         }
         if (nm.length > 0) { setTimeout(() => processMatches(filled, nm, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true }; }
@@ -561,6 +579,24 @@ function GameContent() {
           if (!localStorage.getItem("restanques_guide_hint")) {
             setTimeout(() => { setGuideHint(true); setTimeout(() => setGuideHint(false), 5000); localStorage.setItem("restanques_guide_hint", "done"); }, 1000);
           }
+        }}
+      />}
+
+      {/* STORY TRANSITION (boss defeated, biome change, ending) */}
+      {storySequence && <StorySequence
+        slides={storySequence.slides}
+        onComplete={() => {
+          const key = storySequence.key;
+          setStorySequence(null);
+          // After ending → show NG+ option
+          if (key === "ending") {
+            setStory("🏆 FÉLICITATIONS !\n\nVous avez terminé Restanques !\n\n🌙 New Game+ bientôt disponible...\n\nMerci d'avoir joué !");
+          }
+          // After biome_end → trigger next biome intro
+          if (key === "garrigue_end") setTimeout(() => triggerStory("calanques_intro"), 500);
+          if (key === "calanques_end") setTimeout(() => triggerStory("mines_intro"), 500);
+          if (key === "mines_end") setTimeout(() => triggerStory("mer_intro"), 500);
+          if (key === "mer_end") setTimeout(() => triggerStory("restanques_intro"), 500);
         }}
       />}
 
