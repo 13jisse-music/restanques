@@ -122,6 +122,8 @@ function GameContent() {
   const [levelUpChoice, setLevelUpChoice] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [deathScreen, setDeathScreen] = useState(false);
+  const [usedSpells, setUsedSpells] = useState<Set<string>>(new Set());
+  const [spellBonus, setSpellBonus] = useState(0); // bonus dégâts temporaire (Marée)
   const [fatigueUntil, setFatigueUntil] = useState(0);
   const [mysteryPos, setMysteryPos] = useState<{ x: number; y: number } | null>(null);
   const [currentBiome, setCurrentBiome] = useState("garrigue");
@@ -376,7 +378,61 @@ function GameContent() {
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft" || e.key === "a") tryMove(-1, 0); if (e.key === "ArrowRight" || e.key === "d") tryMove(1, 0); if (e.key === "ArrowUp" || e.key === "w") tryMove(0, -1); if (e.key === "ArrowDown" || e.key === "s") tryMove(0, 1); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [tryMove]);
 
   // ═══ COMBAT ═══
-  const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); sounds.playCombatMusic(); };
+  const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
+
+  // ─── CAST SPELL ───
+  const castSpell = (card: CombatCard) => {
+    if (!combat || combat.won || combat.lost || combat.animating || usedSpells.has(card.n)) return;
+    setUsedSpells((s) => new Set(s).add(card.n));
+    sounds.combatSpell();
+
+    setCombat((p) => {
+      if (!p) return p;
+      switch (card.n) {
+        case "Brume": {
+          // Efface toutes les gemmes d'une couleur aléatoire
+          const gemType = Math.floor(Math.random() * 6);
+          const g = p.grid.map((r) => r.map((c) => c === gemType ? -1 : c));
+          const count = p.grid.flat().filter((c) => c === gemType).length;
+          const dmg = count + stats.atk;
+          const newEHp = Math.max(0, p.enemyHp - dmg);
+          setTimeout(() => {
+            setCombat((c) => c ? { ...c, grid: g.map((r) => r.map((c2) => c2 === -1 ? Math.floor(Math.random() * 6) : c2)), animating: false } : c);
+          }, 300);
+          return { ...p, enemyHp: newEHp, msg: `🌫️ Brume ! -${dmg} dégâts`, animating: true };
+        }
+        case "Bouclier":
+          // Annule le prochain tour ennemi (on met animating = false sans tour ennemi)
+          return { ...p, msg: "🛡️ Bouclier activé ! Tour ennemi annulé." };
+        case "Éclat": {
+          const dmg = stats.atk + stats.mag + 3;
+          const newEHp = Math.max(0, p.enemyHp - dmg);
+          setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
+          if (newEHp <= 0) {
+            p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]);
+            gainXp(p.node.boss ? 50 : 15); sounds.victory();
+            return { ...p, enemyHp: 0, msg: `✨ Éclat ! -${dmg} VICTOIRE ! 🎉`, won: true };
+          }
+          return { ...p, enemyHp: newEHp, msg: `✨ Éclat ! -${dmg} dégâts` };
+        }
+        case "Festin":
+          const newPHp = Math.min(maxHp, p.playerHp + 5);
+          setHp(newPHp);
+          return { ...p, playerHp: newPHp, msg: "🍽️ Festin ! +5 PV" };
+        case "Marée":
+          setSpellBonus(5);
+          return { ...p, msg: "🌊 Marée ! +5 dégâts au prochain match" };
+        case "Séisme": {
+          // Mélange toute la grille
+          let newGrid: number[][];
+          do { newGrid = Array.from({ length: 7 }, () => Array.from({ length: 6 }, () => Math.floor(Math.random() * 6))); } while (findMatches(newGrid).length > 0);
+          return { ...p, grid: newGrid, msg: "💥 Séisme ! Grille mélangée !" };
+        }
+        default:
+          return { ...p, msg: `${card.e} ${card.n} !` };
+      }
+    });
+  };
 
   const selectGem = (x: number, y: number) => {
     setCombat((prev) => {
@@ -393,7 +449,8 @@ function GameContent() {
   };
 
   const processMatches = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
-    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + stats.atk + stats.mag; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
+    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + stats.atk + stats.mag + spellBonus; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
+    if (spellBonus > 0) setSpellBonus(0); // Marée consumed
     const cm = combo > 0 ? ` COMBO x${combo + 1} !` : "";
     const g = grid.map((r) => [...r]); matches.forEach(({ x, y }) => { g[y][x] = -1; });
     setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
@@ -410,8 +467,12 @@ function GameContent() {
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE ! 🎉`, won: true, animating: false };
         }
         if (nm.length > 0) { setTimeout(() => processMatches(filled, nm, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true }; }
-        // Enemy turn
-        const ed = Math.ceil(p.enemy.hp / 5); const sh = cc.find((c) => c.n === "Bouclier") ? 1 : 0; const rd = Math.max(1, ed - sh - stats.def);
+        // Enemy turn — skip if Bouclier was used this turn
+        if (usedSpells.has("Bouclier")) {
+          setUsedSpells((s) => { const ns = new Set(s); ns.delete("Bouclier"); return ns; }); // consume shield
+          return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: 0, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} 🛡️ Tour ennemi bloqué !`, animating: false };
+        }
+        const ed = Math.ceil(p.enemy.hp / 5); const rd = Math.max(1, ed - stats.def);
         const atks = ["charge", "frappe", "mord", "griffe", "souffle"]; setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${atks[Math.floor(Math.random() * atks.length)]} !`);
         setTimeout(() => { setPlayerShaking(true); sounds.hit(); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => { if (!c) return c; const np = c.playerHp - rd; setHp(Math.max(0, np)); setEnemyTurnMsg("");
@@ -580,7 +641,19 @@ function GameContent() {
             }))}
           </div>
 
-          {cards.length > 0 && !combat.won && !combat.lost && <div style={{ fontSize: 10, textAlign: "center", marginTop: 4, opacity: 0.7 }}>🃏 {cards.map((c) => c.e).join(" ")}</div>}
+          {/* SPELL BUTTONS */}
+          {cards.length > 0 && !combat.won && !combat.lost && !combat.animating && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginTop: 6 }}>
+            {cards.map((c, i) => {
+              const used = usedSpells.has(c.n);
+              return <button key={i} disabled={used} onClick={() => castSpell(c)} style={{
+                padding: "4px 8px", fontSize: 11, fontWeight: "bold",
+                background: used ? "#888" : `linear-gradient(145deg, ${c.color || "#8B7355"}, ${c.color || "#5C4033"}CC)`,
+                color: "#FFF", border: "1px solid #3D2B1F", borderRadius: 6,
+                cursor: used ? "default" : "pointer", opacity: used ? 0.4 : 1,
+                fontFamily: "'Courier New',monospace",
+              }}>{c.e} {c.n}</button>;
+            })}
+          </div>}
           {!combat.won && !combat.lost && inv.includes("potion") && <button style={{ ...UI.btn("#9B7EDE", "#FFF", true), width: "100%", marginTop: 6, textAlign: "center" }} onClick={() => { const i = inv.indexOf("potion"); if (i >= 0) { setInv((p) => { const n = [...p]; n.splice(i, 1); return n; }); setCombat((p) => p ? { ...p, playerHp: Math.min(maxHp, p.playerHp + 8), msg: "🧪 +8 PV !" } : p); setHp((h) => Math.min(maxHp, h + 8)); } }}>🧪 Potion</button>}
           {(combat.won || combat.lost) && <button style={{ ...UI.btn(combat.won ? "#7A9E3F" : "#8B7355"), width: "100%", marginTop: 8, textAlign: "center" }} onClick={endCombat}>{combat.won ? "🎉 Victoire !" : "😤 Retenter"}</button>}
         </div>
