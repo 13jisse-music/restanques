@@ -107,6 +107,7 @@ function GameContent() {
   const [quickMsg, setQuickMsg] = useState("");
   const [rageActive, setRageActive] = useState(false);
   const [rageTurns, setRageTurns] = useState(0);
+  const [traps, setTraps] = useState<{ x: number; y: number }[]>([]);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -1025,6 +1026,7 @@ function GameContent() {
         combat={combat} pName={pName} pEmoji={pEmoji} pColor={pColor} maxHp={maxHp}
         playerShaking={playerShaking} enemyShaking={enemyShaking} enemyTurnMsg={enemyTurnMsg}
         cards={cards} usedSpells={usedSpells} inv={inv}
+        rageActive={rageActive} timeOfDay={timeOfDay}
         onSelectGem={selectGem} onCastSpell={castSpell} onEndCombat={endCombat}
         onUsePotion={() => {
           const i = inv.indexOf("potion");
@@ -1462,6 +1464,18 @@ function GameContent() {
         fontFamily: "'Courier New',monospace",
         boxShadow: torchActive ? "0 0 10px rgba(255,150,50,0.5)" : "none",
       }}>🔦{torchActive ? "✓" : `×${torches}`}</button>}
+      {/* TRAP BUTTON (Aventurier only) */}
+      {(playerClass.id || playerClass) === "aventurier" && inv.filter(i => i === "pierre").length >= 3 && <button onClick={() => {
+        let r = 0; setInv(p => p.filter(i => { if (i === "pierre" && r < 3) { r++; return false; } return true; }));
+        setTraps(t => [...t, { x: pos.x, y: pos.y }]);
+        notify("🪤 Piège posé ! Les monstres seront stun 5s.");
+        sounds.craft();
+      }} style={{
+        position: "fixed", bottom: 110, right: 10, zIndex: 10,
+        width: 56, height: 36, borderRadius: 8,
+        background: "rgba(139,115,85,0.7)", color: "#FFF",
+        border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer",
+      }}>🪤 Piège</button>}
       {/* Settings menu */}
       {settingsOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>
