@@ -438,6 +438,10 @@ function GameContent() {
           if (newEHp <= 0) {
             p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]);
             gainXp(p.node.boss ? 50 : 15); sounds.victory();
+            if (p.node.boss) {
+              const biome = p.node.biome;
+              setTimeout(() => { setCombat(null); if (biome === "restanques") triggerStory("ending"); else triggerStory(biome + "_end"); }, 1500);
+            }
             return { ...p, enemyHp: 0, msg: `✨ Éclat ! -${dmg} VICTOIRE ! 🎉`, won: true };
           }
           return { ...p, enemyHp: newEHp, msg: `✨ Éclat ! -${dmg} dégâts` };
@@ -490,13 +494,13 @@ function GameContent() {
           p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]); if (p.node.res) setInv((prev) => [...prev, p.node.res!]);
           const lr = Object.entries(RES).filter(([, v]) => v.b === p.node.biome).map(([k]) => k); if (lr.length > 0) setInv((prev) => [...prev, lr[Math.floor(Math.random() * lr.length)]]);
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
-          // Story transition after boss
-          if (p.node.boss) {
+          // Story transition — ONLY for boss, ONLY if not already seen
+          if (p.node.boss && !bosses.includes(p.node.biome)) {
             const biome = p.node.biome;
             setTimeout(() => {
               setCombat(null);
-              if (biome === "restanques") { triggerStory("ending"); }
-              else { triggerStory(biome + "_end"); }
+              if (biome === "restanques") triggerStory("ending");
+              else triggerStory(biome + "_end");
             }, 1500);
           }
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE ! 🎉`, won: true, animating: false };
