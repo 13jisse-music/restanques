@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { RES, TOOLS, CARD_RECIPES, EQUIPMENTS, BAG_LIMIT, countBagItems, isBagFull, GARDEN_SEEDS, RECIPES_CUISINE, FUSION_RESULTS, TORCH_RECIPE, type CombatCard, type EquipSlot, type GardenPlot } from "../../lib/constants";
 import { itemSprite } from "../../lib/sprites";
 import { sounds } from "../../lib/sounds";
+import { CraftPuzzle } from "./CraftPuzzle";
 
 const UI_BTN = (c: string, tc = "#FFF8E7", sm = false): React.CSSProperties => ({
   background: `linear-gradient(145deg, ${c}, ${c}CC)`, color: tc,
@@ -40,6 +42,8 @@ interface CampPanelProps {
 export function CampPanel(props: CampPanelProps) {
   const { tab, hp, maxHp, inv, chest, tools, cards, equipped, ownedEquip, onSetTab, onClose, onSetInv, onSetChest, onSetTools, onSetCards, onSetEquipped, onSetOwnedEquip, onNotify, playerClass, garden, onSetGarden, torches, onSetTorches } = props;
   const isArtisan = playerClass === "artisane";
+  const isOmbre = playerClass === "ombre";
+  const [puzzleRecipe, setPuzzleRecipe] = useState<{ name: string; emoji: string; ingredients: { id: string; emoji: string; qty: number }[]; recipeIdx: number } | null>(null);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
@@ -110,8 +114,14 @@ export function CampPanel(props: CampPanelProps) {
               <span style={{ fontSize: 18, width: 28 }}>{rec.c.e}</span>
               <div style={{ flex: 1, fontSize: 11 }}><div style={{ fontWeight: "bold" }}>{rec.c.n}</div><div style={{ color: "#8B7355" }}>{rec.r.map((r) => `${RES[r]?.e}`).join("+")} → {rec.c.d}</div>{spellLocked && <div style={{ fontSize: 9, color: "#D94F4F" }}>🎨 Artisane uniquement</div>}</div>
               {canCraft && !spellLocked && <button onClick={() => {
-                if (playerClass === "ombre" && Math.random() < 0.2) { onNotify("💥 Échec !"); sounds.combatHit(); return; }
-                onSetCards((p) => [...p, { ...rec.c }]); rec.r.forEach((r) => { const idx = inv.indexOf(r); if (idx >= 0) onSetInv((p) => { const n = [...p]; n.splice(idx, 1); return n; }); }); sounds.craft(); onNotify(`✨ ${rec.c.e} !`);
+                // Open puzzle for craft
+                const ings: { id: string; emoji: string; qty: number }[] = [];
+                const countMap: Record<string, number> = {};
+                rec.r.forEach(r => { countMap[r] = (countMap[r] || 0) + 1; });
+                Object.entries(countMap).forEach(([id, qty]) => {
+                  ings.push({ id, emoji: RES[id]?.e || "?", qty });
+                });
+                setPuzzleRecipe({ name: rec.c.n, emoji: rec.c.e, ingredients: ings, recipeIdx: i });
               }} style={UI_BTN("#E8A317", "#3D2B1F", true)}>Forger</button>}
             </div>;
           })}
@@ -236,6 +246,28 @@ export function CampPanel(props: CampPanelProps) {
           </div>
         </div>}
       </div>
+
+      {/* CRAFT PUZZLE OVERLAY */}
+      {puzzleRecipe && <CraftPuzzle
+        recipeName={puzzleRecipe.name}
+        recipeEmoji={puzzleRecipe.emoji}
+        ingredients={puzzleRecipe.ingredients}
+        gridSize={isArtisan ? 4 : 3}
+        failChance={isArtisan ? 0 : isOmbre ? 0.1 : 0.2}
+        onSuccess={(bonus) => {
+          const rec = CARD_RECIPES[puzzleRecipe.recipeIdx];
+          if (!rec) { setPuzzleRecipe(null); return; }
+          // Remove ingredients from inventory
+          rec.r.forEach((r) => { const idx = inv.indexOf(r); if (idx >= 0) onSetInv((p) => { const n = [...p]; n.splice(idx, 1); return n; }); });
+          // Add cards based on bonus
+          const count = bonus === "triple" ? 3 : bonus === "double" ? 2 : 1;
+          for (let i = 0; i < count; i++) onSetCards((p) => [...p, { ...rec.c }]);
+          const bonusText = bonus === "triple" ? " ×3 Perfection !" : bonus === "double" ? " ×2 Bonus !" : "";
+          onNotify(`✨ ${rec.c.e} ${rec.c.n}${bonusText}`);
+          setPuzzleRecipe(null);
+        }}
+        onCancel={() => setPuzzleRecipe(null)}
+      />}
     </div>
   );
 }
