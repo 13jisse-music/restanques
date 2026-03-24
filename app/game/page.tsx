@@ -713,6 +713,7 @@ function GameContent() {
           const lootText = lootItems.length > 0 ? `\nButin : ${lootItems.map((l) => RES[l]?.e || l).join(" ")}` : "";
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
           // Story transition — STRICTLY boss only, never for normal mobs
+          console.log("COMBAT WIN:", { boss: p.node.boss, biome: p.node.biome, res: p.node.res, bossesLen: bosses.length });
           if (p.node.boss === true) {
             const biome = p.node.biome;
             // Check bosses via current state (not stale closure)
