@@ -15,12 +15,12 @@ export default function Home() {
 
   useEffect(() => { setTimeout(() => setVisible(true), 300); }, []);
 
-  const play = (player: string) => {
+  const play = (player: string, cls = "aventurier") => {
     const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
     if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     setFading(true);
-    setTimeout(() => router.push(`/game?player=${player}`), 500);
+    setTimeout(() => router.push(`/game?player=${player}&class=${cls}`), 500);
   };
 
   const resetGame = async () => {
@@ -72,7 +72,7 @@ export default function Home() {
       }}>
         {/* Jisse */}
         <button
-          onClick={() => play("jisse")}
+          onClick={() => play("jisse", "aventurier")}
           style={{
             ...btnBase,
             background: "linear-gradient(135deg, #7A9E3F, #5A7E2F)",
@@ -85,7 +85,7 @@ export default function Home() {
 
         {/* Mélanie */}
         <button
-          onClick={() => play("melanie")}
+          onClick={() => play("melanie", "artisane")}
           style={{
             ...btnBase,
             background: "linear-gradient(135deg, #C77DA5, #A05A82)",
