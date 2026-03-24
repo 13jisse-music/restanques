@@ -22,6 +22,7 @@ import { CampPanel } from "./components/CampPanel";
 import { InventoryPanel } from "./components/InventoryPanel";
 import { TopBar } from "./components/TopBar";
 import { PvpArena } from "./components/PvpArena";
+import { CoopBossFight } from "./components/CoopBossFight";
 import { StorySequence } from "./components/StorySequence";
 import { DayNightOverlay } from "./components/DayNightOverlay";
 import { Minimap } from "./components/Minimap";
@@ -176,6 +177,7 @@ function GameContent() {
   const [savedWorldPos, setSavedWorldPos] = useState<{ x: number; y: number } | null>(null);
   const [dungeonPrompt, setDungeonPrompt] = useState<{ seed: number; biome: string } | null>(null);
   const [fortressPrompt, setFortressPrompt] = useState<string | null>(null); // biome id
+  const [bossFight, setBossFight] = useState<string | null>(null); // biome id for coop boss
   const [timeOfDay, setTimeOfDay] = useState(0.2); // 0-1 cycle // quest IDs accepted
   const [completedQuests, setCompletedQuests] = useState<string[]>([]); // quest IDs done
   const [talkingNpc, setTalkingNpc] = useState<NpcData | null>(null);
@@ -1109,6 +1111,39 @@ function GameContent() {
         torches={torches} onSetTorches={setTorches}
       />}
 
+      {/* COOP BOSS FIGHT */}
+      {bossFight && sessionId && playerId && GUARDS[bossFight] && <CoopBossFight
+        sessionId={sessionId} playerId={playerId} biome={bossFight}
+        bossName={GUARDS[bossFight].n} bossEmoji={GUARDS[bossFight].e}
+        bossHp={GUARDS[bossFight].hp} bossAtk={GUARDS[bossFight].atk}
+        pName={pName} pEmoji={pEmoji} pColor={pColor}
+        hp={hp} maxHp={maxHp} totalAtk={totalStats.atk} totalDef={totalStats.def}
+        cards={cards}
+        onVictory={() => {
+          setBossFight(null);
+          const biome = bossFight;
+          // Mark boss as beaten
+          const bossNode = world?.nodes.find((n) => n.boss === true && n.biome === biome);
+          if (bossNode) bossNode.done = true;
+          setBosses((prev) => {
+            if (!prev.includes(biome)) {
+              setTimeout(() => { if (biome === "restanques") triggerStory("ending"); else { triggerStory(biome + "_end"); setTimeout(() => notify("🚪 Portail vers le prochain biome accessible !"), 3000); } }, 1000);
+              return [...prev, biome];
+            }
+            return prev;
+          });
+          gainXp(80); sounds.playMusic(currentBiome);
+        }}
+        onDefeat={() => {
+          setBossFight(null);
+          setHp(Math.floor(maxHp * 0.5));
+          setPos({ x: CAMP_POS.x, y: CAMP_POS.y });
+          setFatigueUntil(Date.now() + 120000);
+          sounds.playMusic(currentBiome);
+          notify("😵 Fatigue — ATK réduit pendant 2:00");
+        }}
+      />}
+
       {/* PVP ARENA */}
       {pvpActive && sessionId && playerId && <PvpArena
         sessionId={sessionId} playerId={playerId}
@@ -1167,8 +1202,7 @@ function GameContent() {
             <button style={UI.btn("#D94F4F", "#FFF")} onClick={() => {
               const biome = fortressPrompt;
               setFortressPrompt(null);
-              const boss = world?.nodes.find((n) => n.boss === true && n.biome === biome);
-              if (boss) startCombat(boss);
+              setBossFight(biome);
             }}>⚔️ Combattre</button>
             <button style={UI.btn("#8B7355", "#FFF")} onClick={() => setFortressPrompt(null)}>🚶 Pas encore</button>
           </div>
