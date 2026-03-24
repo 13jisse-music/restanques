@@ -97,6 +97,16 @@ function GameContent() {
   const CELL = Math.floor(Math.min(W / 9, H / 13));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pvpActive, setPvpActive] = useState(false);
+  const [torches, setTorches] = useState(0);
+  const [torchActive, setTorchActive] = useState(false);
+  const [torchEnd, setTorchEnd] = useState(0);
+  const [garden, setGarden] = useState<{ seed: string | null; plantedAt: number; growTime: number }[]>(
+    Array.from({ length: 16 }, () => ({ seed: null, plantedAt: 0, growTime: 0 }))
+  );
+  const [buffs, setBuffs] = useState<{ stat: string; value: number; until: number }[]>([]);
+  const [quickMsg, setQuickMsg] = useState("");
+  const [rageActive, setRageActive] = useState(false);
+  const [rageTurns, setRageTurns] = useState(0);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -483,7 +493,7 @@ function GameContent() {
     }
     // Dungeon entrance check
     const dungeonEntry = DUNGEON_ENTRANCES.find((d) => d.x === nx && d.y === ny);
-    if (dungeonEntry) { setDungeonPrompt(dungeonEntry); return; }
+    if (dungeonEntry) { setDungeonPrompt({ ...dungeonEntry, seed: dungeonEntry.seed + nx * 1000 + ny }); return; }
   }, [world, pos, story, dialog, combat, craft, bag, shop, questPanel, tools, unlocked, inv, maxHp]);
 
   const holdMove = (dx: number, dy: number) => { tryMove(dx, dy); moveRef.current = setInterval(() => tryMove(dx, dy), 160); };
@@ -731,8 +741,14 @@ function GameContent() {
     const comboMult = combo === 0 ? 1 : combo === 1 ? 1.5 : 2;
     const dmg = matches.length + matchBonus + totalStats.atk + totalStats.mag + spellBonus;
     const bd = cc.reduce((a, c) => a + (c.pow || 0), 0);
-    const td = Math.floor((dmg + Math.floor(bd / 2)) * playerClass.combatBonus * comboMult);
+    const rageMult = rageActive ? 1.5 : 1;
+    const td = Math.floor((dmg + Math.floor(bd / 2)) * playerClass.combatBonus * comboMult * rageMult);
     if (spellBonus > 0) setSpellBonus(0); // Marée consumed
+    // Aventurier rage: combo ×3+ activates rage for 2 turns
+    if (combo >= 2 && (playerClass.id || playerClass) === "aventurier" && !rageActive) {
+      setRageActive(true); setRageTurns(2);
+    }
+    if (rageActive) { setRageTurns(t => { if (t <= 1) { setRageActive(false); return 0; } return t - 1; }); }
     const cm = combo > 0 ? ` COMBO x${combo + 1} !` : "";
     const g = grid.map((r) => [...r]); matches.forEach(({ x, y }) => { g[y][x] = -1; });
     setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
@@ -1067,6 +1083,8 @@ function GameContent() {
         onSetTab={(t) => setCampPanel(t as "" | "rest" | "chest" | "craft" | "equip")} onClose={() => setCampPanel("")}
         onSetInv={setInv} onSetChest={setChest} onSetTools={setTools} onSetCards={setCards}
         onSetEquipped={setEquipped} onSetOwnedEquip={setOwnedEquip} onNotify={notify}
+        playerClass={playerClass.id || "aventurier"} garden={garden} onSetGarden={setGarden}
+        torches={torches} onSetTorches={setTorches}
       />}
 
       {/* PVP ARENA */}
@@ -1278,12 +1296,28 @@ function GameContent() {
           const inCampZone = Math.abs(wx - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(wy - CAMP_POS.y) <= CAMP_RADIUS;
           const fs = Math.floor(CELL * 0.5);
 
+          // Night visibility
+          const distToPlayer = Math.abs(wx - pos.x) + Math.abs(wy - pos.y);
+          const isNight = timeOfDay >= 0.55 && timeOfDay < 0.9;
+          const isDusk = timeOfDay >= 0.45 && timeOfDay < 0.55;
+          const nightRadius = torchActive ? 7 : 3;
+          const duskRadius = 8;
+          let nightOpacity = 1;
+          if (isNight && !inCampZone) {
+            if (distToPlayer > nightRadius) nightOpacity = 0.05;
+            else if (distToPlayer > nightRadius - 2) nightOpacity = 0.3;
+            else nightOpacity = 0.85;
+          } else if (isDusk && !inCampZone) {
+            if (distToPlayer > duskRadius) nightOpacity = 0.4;
+          }
+
           return <div key={`${vx}${vy}`} style={{
             width: CELL, height: CELL, background: tc.bg, backgroundImage: tc.pattern,
             filter: inCampZone ? "brightness(1.15)" : undefined,
+            opacity: nightOpacity,
             display: "flex", alignItems: "center", justifyContent: "center",
             position: "relative", fontSize: fs, overflow: "hidden",
-            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
+            boxShadow: isP ? `inset 0 0 0 2px #F4D03F${torchActive && isNight ? ", 0 0 12px rgba(255,150,50,0.4)" : ""}` : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
           }} onClick={() => {
             const dx = wx - pos.x, dy = wy - pos.y;
             if (Math.abs(dx) + Math.abs(dy) !== 1) return;
@@ -1377,6 +1411,37 @@ function GameContent() {
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(155,126,222,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setCharPanel(true)}>👤</button>
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(244,208,63,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setQuestPanel(true)}>📋</button>
       </div>
+      {/* QUICK MESSAGES */}
+      <div style={{ position: "fixed", top: 38, left: 0, right: 0, zIndex: 9, display: "flex", justifyContent: "center", gap: 4, padding: "2px 4px" }}>
+        {[["❤️", "Aide!"], ["👋", "Ici!"], ["⚔️", "Boss!"], ["🏡", "Camp!"]].map(([emoji, label]) => (
+          <button key={label} onClick={() => {
+            setQuickMsg(`${emoji} ${label}`);
+            // Save to Supabase for other player to see
+            if (playerId) supabase.from("players").update({ quick_msg: `${emoji} ${label}` }).eq("id", playerId);
+            setTimeout(() => { setQuickMsg(""); if (playerId) supabase.from("players").update({ quick_msg: "" }).eq("id", playerId); }, 3000);
+          }} style={{ padding: "2px 6px", borderRadius: 6, background: "rgba(61,43,31,0.6)", border: "1px solid rgba(244,208,63,0.3)", color: "#F4D03F", fontSize: 9, cursor: "pointer" }}>
+            {emoji}
+          </button>
+        ))}
+      </div>
+      {quickMsg && <div style={{ position: "fixed", top: 54, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(61,43,31,0.9)", border: "2px solid #F4D03F", borderRadius: 10, padding: "6px 16px", color: "#F4D03F", fontSize: 14, fontWeight: "bold" }}>{quickMsg}</div>}
+
+      {/* TORCH BUTTON (night only) */}
+      {(timeOfDay >= 0.45 && timeOfDay < 0.9) && <button onClick={() => {
+        if (torchActive) return;
+        if (torches <= 0) { notify("🔦 Pas de torche ! Craftez-en au camp (🪵×2 + 🌿×1)"); return; }
+        setTorches(t => t - 1); setTorchActive(true); setTorchEnd(Date.now() + 180000);
+        notify("🔦 Torche allumée ! (3 min)");
+        setTimeout(() => { setTorchActive(false); notify("🔦 La torche s'est éteinte..."); }, 180000);
+      }} style={{
+        position: "fixed", bottom: 70, right: 10, zIndex: 10,
+        width: 56, height: 36, borderRadius: 8,
+        background: torchActive ? "rgba(255,150,50,0.9)" : "rgba(100,80,50,0.7)",
+        color: "#FFF", border: `2px solid ${torchActive ? "#F4D03F" : "#5C4033"}`,
+        fontSize: 10, fontWeight: "bold", cursor: "pointer",
+        fontFamily: "'Courier New',monospace",
+        boxShadow: torchActive ? "0 0 10px rgba(255,150,50,0.5)" : "none",
+      }}>🔦{torchActive ? "✓" : `×${torches}`}</button>}
       {/* Settings menu */}
       {settingsOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>

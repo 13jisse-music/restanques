@@ -1,6 +1,6 @@
 "use client";
 
-import { RES, TOOLS, CARD_RECIPES, EQUIPMENTS, BAG_LIMIT, countBagItems, isBagFull, type CombatCard, type EquipSlot } from "../../lib/constants";
+import { RES, TOOLS, CARD_RECIPES, EQUIPMENTS, BAG_LIMIT, countBagItems, isBagFull, GARDEN_SEEDS, RECIPES_CUISINE, FUSION_RESULTS, TORCH_RECIPE, type CombatCard, type EquipSlot, type GardenPlot } from "../../lib/constants";
 import { itemSprite } from "../../lib/sprites";
 import { sounds } from "../../lib/sounds";
 
@@ -29,10 +29,17 @@ interface CampPanelProps {
   onSetEquipped: (fn: (p: Record<EquipSlot, string | null>) => Record<EquipSlot, string | null>) => void;
   onSetOwnedEquip: (fn: (p: string[]) => string[]) => void;
   onNotify: (msg: string) => void;
+  // Garden, cuisine, fusion, torches
+  playerClass: string;
+  garden: GardenPlot[];
+  onSetGarden: (fn: (p: GardenPlot[]) => GardenPlot[]) => void;
+  torches: number;
+  onSetTorches: (fn: (t: number) => number) => void;
 }
 
 export function CampPanel(props: CampPanelProps) {
-  const { tab, hp, maxHp, inv, chest, tools, cards, equipped, ownedEquip, onSetTab, onClose, onSetInv, onSetChest, onSetTools, onSetCards, onSetEquipped, onSetOwnedEquip, onNotify } = props;
+  const { tab, hp, maxHp, inv, chest, tools, cards, equipped, ownedEquip, onSetTab, onClose, onSetInv, onSetChest, onSetTools, onSetCards, onSetEquipped, onSetOwnedEquip, onNotify, playerClass, garden, onSetGarden, torches, onSetTorches } = props;
+  const isArtisan = playerClass === "artisane";
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
@@ -43,9 +50,9 @@ export function CampPanel(props: CampPanelProps) {
         </div>
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-          {(["rest", "chest", "craft", "equip"] as const).map((t) => (
-            <button key={t} onClick={() => onSetTab(t)} style={{ flex: 1, padding: "6px 3px", fontSize: 10, fontWeight: "bold", background: tab === t ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F" }}>
-              {t === "rest" ? "🛏️" : t === "chest" ? "📦" : t === "craft" ? "🔨" : "⚔️"}
+          {(["rest", "chest", "craft", "equip", "garden", "cuisine", "fusion"] as string[]).map((t) => (
+            <button key={t} onClick={() => onSetTab(t)} style={{ flex: 1, padding: "4px 2px", fontSize: 9, fontWeight: "bold", background: tab === t ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F", minWidth: 0 }}>
+              {t === "rest" ? "🛏️" : t === "chest" ? "📦" : t === "craft" ? "🔨" : t === "equip" ? "⚔️" : t === "garden" ? "🌱" : t === "cuisine" ? "🍳" : "🔮"}
             </button>
           ))}
         </div>
@@ -123,6 +130,96 @@ export function CampPanel(props: CampPanelProps) {
                     : <span style={{ fontSize: 9, color: "#8B7355" }}>Manque</span>}
             </div>;
           })}
+        </div>}
+        {/* GARDEN */}
+        {tab === "garden" && <div>
+          <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 6 }}>🌱 Jardin {!isArtisan && <span style={{ fontSize: 10, color: "#E67E22" }}>(pousse 2× plus lent)</span>}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4, marginBottom: 8 }}>
+            {garden.map((plot, i) => {
+              const ready = plot.seed && Date.now() >= plot.plantedAt + (plot.growTime * 1000 * (isArtisan ? 1 : 2));
+              const growing = plot.seed && !ready;
+              const remaining = growing ? Math.max(0, Math.ceil((plot.plantedAt + plot.growTime * 1000 * (isArtisan ? 1 : 2) - Date.now()) / 1000)) : 0;
+              const mins = Math.floor(remaining / 60), secs = remaining % 60;
+              return <button key={i} onClick={() => {
+                if (ready && plot.seed) {
+                  const seed = GARDEN_SEEDS[plot.seed];
+                  if (seed) { onSetInv(p => [...p, seed.yields]); onSetGarden(g => { const n = [...g]; n[i] = { seed: null, plantedAt: 0, growTime: 0 }; return n; }); sounds.collect(); onNotify(`🌿 ${seed.name} récolté !`); }
+                }
+              }} style={{ padding: 4, height: 48, background: ready ? "#7A9E3F33" : growing ? "#F4D03F22" : "#FFF8E7", border: `1px solid ${ready ? "#7A9E3F" : "#D4C5A9"}`, borderRadius: 6, textAlign: "center", fontSize: 10, cursor: ready ? "pointer" : "default" }}>
+                {ready ? <div><span style={{ fontSize: 16 }}>✅</span><div style={{ fontSize: 8, color: "#7A9E3F" }}>Prêt!</div></div>
+                  : growing ? <div><span style={{ fontSize: 14 }}>🌱</span><div style={{ fontSize: 8, color: "#E67E22" }}>{mins}:{secs.toString().padStart(2, "0")}</div></div>
+                    : <span style={{ fontSize: 12, color: "#8B7355" }}>vide</span>}
+              </button>;
+            })}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>Planter :</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {Object.entries(GARDEN_SEEDS).map(([seedId, seed]) => {
+              const has = inv.includes(seedId);
+              const emptyPlot = garden.findIndex(p => !p.seed);
+              return <button key={seedId} disabled={!has || emptyPlot < 0} onClick={() => {
+                if (has && emptyPlot >= 0) {
+                  onSetInv(p => { const n = [...p]; const i = n.indexOf(seedId); if (i >= 0) n.splice(i, 1); return n; });
+                  onSetGarden(g => { const n = [...g]; n[emptyPlot] = { seed: seedId, plantedAt: Date.now(), growTime: seed.growTime }; return n; });
+                  sounds.collect(); onNotify(`🌱 ${seed.name} planté !`);
+                }
+              }} style={{ padding: "4px 8px", borderRadius: 6, background: has ? "#7A9E3F22" : "#eee", border: "1px solid #D4C5A9", fontSize: 10, cursor: has ? "pointer" : "default", opacity: has ? 1 : 0.4 }}>
+                {seed.emoji} {seed.name.split(" ")[0]}
+              </button>;
+            })}
+          </div>
+        </div>}
+        {/* CUISINE */}
+        {tab === "cuisine" && <div>
+          <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 6 }}>🍳 Cuisine {!isArtisan && <span style={{ fontSize: 10, color: "#D94F4F" }}>🔒 Artisane uniquement</span>}</div>
+          {!isArtisan ? <div style={{ padding: 16, textAlign: "center", color: "#8B7355", fontSize: 12 }}>Seule l&apos;Artisane peut cuisiner. Demandez à votre partenaire !</div>
+            : RECIPES_CUISINE.map((rec, i) => {
+              const canCook = Object.entries(rec.recipe).every(([r, n]) => inv.filter(i => i === r).length >= n);
+              return <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, marginBottom: 4, background: canCook ? "#7A9E3F22" : "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
+                <span style={{ fontSize: 18 }}>{rec.emoji}</span>
+                <div style={{ flex: 1, fontSize: 10 }}><div style={{ fontWeight: "bold", fontSize: 11 }}>{rec.name}</div><div style={{ color: "#8B7355" }}>{Object.entries(rec.recipe).map(([r, n]) => `${r}×${n}`).join(" + ")}</div><div style={{ color: "#2E86AB", fontSize: 9 }}>{rec.desc}</div></div>
+                {canCook && <button onClick={() => {
+                  Object.entries(rec.recipe).forEach(([r, n]) => { for (let j = 0; j < n; j++) { const idx = inv.indexOf(r); if (idx >= 0) onSetInv(p => { const x = [...p]; x.splice(idx, 1); return x; }); } });
+                  if (rec.buff.stat === "hp") { /* heal handled in page */ }
+                  onSetInv(p => [...p, rec.name]); sounds.craft(); onNotify(`🍳 ${rec.emoji} ${rec.name} !`);
+                }} style={UI_BTN("#7A9E3F", "#FFF", true)}>Cuisiner</button>}
+              </div>;
+            })}
+        </div>}
+        {/* FUSION */}
+        {tab === "fusion" && <div>
+          <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 6 }}>🔮 Fusion {isArtisan ? <span style={{ fontSize: 10, color: "#7A9E3F" }}>0% échec !</span> : <span style={{ fontSize: 10, color: "#E67E22" }}>30% échec</span>}</div>
+          <div style={{ fontSize: 10, color: "#8B7355", marginBottom: 8 }}>Fusionnez 2 items identiques pour créer un item amélioré.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {Object.entries(FUSION_RESULTS).map(([itemId, result]) => {
+              const count = inv.filter(i => i === itemId).length;
+              const canFuse = count >= 2;
+              return <div key={itemId} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, background: canFuse ? "#9B7EDE22" : "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
+                <span style={{ fontSize: 14 }}>{RES[itemId]?.e}×2 →</span>
+                <div style={{ flex: 1, fontSize: 10 }}><span style={{ fontWeight: "bold" }}>{result.emoji} {result.name}</span> <span style={{ color: "#8B7355" }}>(vous avez ×{count})</span></div>
+                {canFuse && <button onClick={() => {
+                  // Remove 2 items
+                  let removed = 0;
+                  onSetInv(p => p.filter(i => { if (i === itemId && removed < 2) { removed++; return false; } return true; }));
+                  // Chance of failure for non-artisan
+                  if (!isArtisan && Math.random() < 0.3) { onNotify("💥 Fusion échouée ! 1 item perdu..."); sounds.combatHit(); return; }
+                  const bonus = isArtisan && Math.random() < 0.2;
+                  onSetInv(p => [...p, result.value, ...(bonus ? [result.value] : [])]);
+                  sounds.craft(); onNotify(`🔮 ${result.emoji} ${result.name} !${bonus ? " ×2 bonus Artisane !" : ""}`);
+                }} style={UI_BTN("#9B7EDE", "#FFF", true)}>Fusionner</button>}
+              </div>;
+            })}
+          </div>
+          {/* TORCH CRAFT */}
+          <div style={{ marginTop: 10, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 18 }}>🔦</span>
+            <div style={{ flex: 1, fontSize: 10 }}><div style={{ fontWeight: "bold" }}>Torche (×{torches})</div><div style={{ color: "#8B7355" }}>🪵×2 + 🌿×1 → éclaire la nuit 3 min</div></div>
+            {inv.filter(i => i === "branche").length >= 2 && inv.includes("herbe") && <button onClick={() => {
+              let r = 0; onSetInv(p => p.filter(i => { if (i === "branche" && r < 2) { r++; return false; } return true; }));
+              onSetInv(p => { const n = [...p]; const i = n.indexOf("herbe"); if (i >= 0) n.splice(i, 1); return n; });
+              onSetTorches(t => t + 1); sounds.craft(); onNotify("🔦 Torche craftée !");
+            }} style={UI_BTN("#E67E22", "#FFF", true)}>Crafter</button>}
+          </div>
         </div>}
       </div>
     </div>
