@@ -12,6 +12,7 @@ class GameSounds {
   private vol = 1; // 0, 0.5, 1
   private currentMusic = "";
   private audioEl: HTMLAudioElement | null = null;
+  storyActive = false;
   private mp3Available: Set<string> = new Set(); // tracks which MP3s exist
   private mp3Checked: Set<string> = new Set();
 
@@ -33,7 +34,7 @@ class GameSounds {
   isMuted() { return this.muted; }
 
   private o(freq: number, type: OscillatorType, vol: number, dur: number, delay = 0, freqEnd?: number) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || this.muted || this.storyActive) return;
     const osc = this.ctx.createOscillator(); const g = this.ctx.createGain();
     osc.connect(g); g.connect(this.ctx.destination);
     osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);

@@ -3,7 +3,7 @@
 // Chaque biome a ses propres tiles, nodes, villages, portails
 // ═══════════════════════════════════════════════════════════
 
-import { MW, MH, TILES, GUARDS, VILLAGES, CAMP_POS, type GameNode, type Gate, type Village, type GameWorld } from './constants';
+import { MW, MH, TILES, GUARDS, BIOME_MOBS, FORTRESSES, VILLAGES, CAMP_POS, type GameNode, type Gate, type Village, type GameWorld } from './constants';
 
 function makeRng(seed: number) {
   let s = seed | 0;
@@ -126,8 +126,9 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     drawPath(50, 50, v.x, v.y);
   }
 
-  // Resource nodes (30-50 per biome)
+  // Resource nodes (30-50 per biome) — with varied mob guards
   const res = BIOME_RES[biomeId] || ["branche"];
+  const mobs = BIOME_MOBS[biomeId] || BIOME_MOBS.garrigue;
   const nodeCount = 30 + Math.floor(rng() * 20);
   for (let i = 0; i < nodeCount; i++) {
     let tries = 0;
@@ -136,16 +137,27 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
       const y = 5 + Math.floor(rng() * 90);
       if (TILES[m[y][x]]?.w && !nodes.find((n) => n.x === x && n.y === y)) {
         const r = res[Math.floor(rng() * res.length)];
-        const guard = rng() < 0.35;
-        nodes.push({ x, y, biome: biomeId, res: r, guard: guard ? GUARDS[biomeId] : null, done: false });
+        const hasGuard = rng() < 0.35;
+        let guard = null;
+        if (hasGuard) {
+          const mob = mobs[Math.floor(rng() * mobs.length)];
+          guard = { n: mob.n, e: mob.e, hp: 4 + mob.lv * 2, d: `${mob.e} ${mob.n} attaque !` };
+        }
+        nodes.push({ x, y, biome: biomeId, res: r, guard, done: false });
         break;
       }
       tries++;
     }
   }
 
-  // Boss at center
-  nodes.push({ x: 50, y: 50, biome: biomeId, res: null, guard: GUARDS[biomeId], boss: true, done: false });
+  // Boss in FORTRESS (not at center, not patrolling)
+  const fort = FORTRESSES[biomeId];
+  if (fort) {
+    // Mark fortress tiles
+    for (let fy = -1; fy <= 1; fy++) for (let fx = -1; fx <= 1; fx++) { S(fort.x + fx, fort.y + fy, tiles.path); }
+    drawPath(50, 50, fort.x, fort.y);
+    nodes.push({ x: fort.x, y: fort.y, biome: biomeId, res: null, guard: GUARDS[biomeId], boss: true, done: false });
+  }
 
   // Camp (only in garrigue)
   const spawn = biomeId === "garrigue" ? { x: CAMP_POS.x, y: CAMP_POS.y } : { x: 50, y: 50 };

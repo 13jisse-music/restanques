@@ -9,7 +9,12 @@ export function StorySequence({ slides, onComplete, musicId = "story" }: { slide
   const [textVisible, setTextVisible] = useState(false);
   const [imgFailed, setImgFailed] = useState<Set<number>>(new Set());
 
-  useEffect(() => { setTimeout(() => setTextVisible(true), 300); sounds.playMusic(musicId); }, [musicId]);
+  useEffect(() => {
+    setTimeout(() => setTextVisible(true), 300);
+    sounds.storyActive = true;
+    sounds.playMusic(musicId);
+    return () => { sounds.storyActive = false; };
+  }, [musicId]);
 
   const next = () => {
     setTextVisible(false);

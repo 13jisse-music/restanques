@@ -55,6 +55,24 @@ export const CARD_RECIPES = [
   { r: ["fer", "pierre"], c: { n: "Séisme", d: "Mélange grille", e: "💥", color: COLORS.mine, pow: 0 } },
 ];
 
+// Monstres normaux par biome (patrouille)
+export const BIOME_MOBS: Record<string, { n: string; e: string; lv: number }[]> = {
+  garrigue:   [{ n: "Rat", e: "🐀", lv: 1 }, { n: "Lapin", e: "🐇", lv: 2 }, { n: "Abeille", e: "🐝", lv: 3 }, { n: "Renard", e: "🦊", lv: 4 }],
+  calanques:  [{ n: "Crabe", e: "🦀", lv: 5 }, { n: "Goéland", e: "🐦", lv: 6 }, { n: "Méduse", e: "🪼", lv: 7 }, { n: "Bernard", e: "🐚", lv: 8 }],
+  mines:      [{ n: "Chauve-souris", e: "🦇", lv: 10 }, { n: "Scorpion", e: "🦂", lv: 11 }, { n: "Golem", e: "🪨", lv: 12 }, { n: "Araignée", e: "🕷️", lv: 13 }],
+  mer:        [{ n: "Poisson-globe", e: "🐡", lv: 15 }, { n: "Requin", e: "🦈", lv: 16 }, { n: "Anguille", e: "⚡", lv: 17 }, { n: "Poulpe", e: "🐙", lv: 18 }],
+  restanques: [{ n: "Spectre", e: "👻", lv: 20 }, { n: "Golem ancien", e: "🗿", lv: 21 }, { n: "Gardien", e: "⚔️", lv: 22 }, { n: "Tourbillon", e: "🌪️", lv: 23 }],
+};
+
+// Forteresses boss (positions fixes, pas de patrouille)
+export const FORTRESSES: Record<string, { x: number; y: number; name: string }> = {
+  garrigue:   { x: 85, y: 85, name: "Tanière du Sanglier" },
+  calanques:  { x: 15, y: 85, name: "Nid de la Mouette" },
+  mines:      { x: 85, y: 15, name: "Caverne de la Tarasque" },
+  mer:        { x: 15, y: 15, name: "Abysse de la Pieuvre" },
+  restanques: { x: 50, y: 50, name: "Trône du Mistral" },
+};
+
 export const GUARDS: Record<string, { n: string; e: string; hp: number; d: string }> = {
   garrigue: { n: "Sanglier", e: "🐗", hp: 8, d: "Grrr ! Mes collines !" },
   calanques: { n: "Mouette", e: "🦅", hp: 12, d: "CRIII ! Mes falaises !" },

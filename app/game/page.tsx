@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { genWorld, genBiome } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
-  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP,
+  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP, FORTRESSES, BIOME_MOBS,
   TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats, type EquipSlot,
 } from "../lib/constants";
@@ -156,7 +156,9 @@ function GameContent() {
   const [dungeonMobsAlive, setDungeonMobsAlive] = useState<Set<number>>(new Set());
   const [dungeonChestOpened, setDungeonChestOpened] = useState<Set<number>>(new Set()); // seed set
   const [savedWorldPos, setSavedWorldPos] = useState<{ x: number; y: number } | null>(null);
-  const [dungeonPrompt, setDungeonPrompt] = useState<{ seed: number; biome: string } | null>(null); // quest IDs accepted
+  const [dungeonPrompt, setDungeonPrompt] = useState<{ seed: number; biome: string } | null>(null);
+  const [fortressPrompt, setFortressPrompt] = useState<string | null>(null); // biome id
+  const [timeOfDay, setTimeOfDay] = useState(0.2); // 0-1 cycle // quest IDs accepted
   const [completedQuests, setCompletedQuests] = useState<string[]>([]); // quest IDs done
   const [talkingNpc, setTalkingNpc] = useState<NpcData | null>(null);
   const [npcDialogText, setNpcDialogText] = useState("");
@@ -273,6 +275,15 @@ function GameContent() {
     }));
   }, [inv, tools, bosses, gainXp]);
   useEffect(() => { if (world) checkQuests(); }, [inv, tools, bosses, checkQuests, world]);
+
+  // ─── DAY/NIGHT CLOCK ───
+  useEffect(() => {
+    const start = Date.now();
+    const iv = setInterval(() => setTimeOfDay(((Date.now() - start) % 600000) / 600000), 5000);
+    return () => clearInterval(iv);
+  }, []);
+  const dayIcon = timeOfDay < 0.15 || timeOfDay >= 0.9 ? "🌅" : timeOfDay < 0.45 ? "☀️" : timeOfDay < 0.55 ? "🌇" : "🌙";
+  const dayLabel = timeOfDay < 0.15 || timeOfDay >= 0.9 ? "Aube" : timeOfDay < 0.45 ? "Jour" : timeOfDay < 0.55 ? "Crépuscule" : "Nuit";
 
   // ─── SPRITE ANIMATION TICK ───
   useEffect(() => {
@@ -442,6 +453,11 @@ function GameContent() {
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
     if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1); if (vil && !shop) setShop(vil);
+    // Fortress boss check
+    const fort = FORTRESSES[currentBiome];
+    if (fort && Math.abs(nx - fort.x) <= 1 && Math.abs(ny - fort.y) <= 1 && !bosses.includes(currentBiome)) {
+      setFortressPrompt(currentBiome); return;
+    }
     // Dungeon entrance check
     const dungeonEntry = DUNGEON_ENTRANCES.find((d) => d.x === nx && d.y === ny);
     if (dungeonEntry) { setDungeonPrompt(dungeonEntry); return; }
@@ -713,7 +729,6 @@ function GameContent() {
           const lootText = lootItems.length > 0 ? `\nButin : ${lootItems.map((l) => RES[l]?.e || l).join(" ")}` : "";
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
           // Story transition — STRICTLY boss only, never for normal mobs
-          console.log("COMBAT WIN:", { boss: p.node.boss, biome: p.node.biome, res: p.node.res, bossesLen: bosses.length });
           if (p.node.boss === true) {
             const biome = p.node.biome;
             // Check bosses via current state (not stale closure)
@@ -897,7 +912,8 @@ function GameContent() {
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
         <button onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); sounds.uiClick(); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{sounds.getVolIcon()}</button>
-        {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵 Fatigue</span>}
+        <span style={{ fontSize: 10, color: timeOfDay < 0.45 ? "#FFD700" : timeOfDay < 0.55 ? "#FF8844" : "#6688CC" }}>{dayIcon} {dayLabel}</span>
+        {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
       </div>
@@ -1269,6 +1285,25 @@ function GameContent() {
         </div>
       </div>}
 
+      {/* FORTRESS BOSS PROMPT */}
+      {fortressPrompt && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...UI.panel, padding: 20, maxWidth: 300, color: "#3D2B1F", textAlign: "center" }}>
+          <div style={{ fontSize: 50, marginBottom: 8 }}>{GUARDS[fortressPrompt]?.e}</div>
+          <div style={{ fontSize: 16, fontWeight: "bold", color: "#D94F4F", marginBottom: 4 }}>{FORTRESSES[fortressPrompt]?.name}</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{GUARDS[fortressPrompt]?.n} (Nv.{fortressPrompt === "restanques" ? 25 : fortressPrompt === "mer" ? 20 : fortressPrompt === "mines" ? 15 : fortressPrompt === "calanques" ? 10 : 5})</div>
+          <div style={{ fontSize: 12, fontStyle: "italic", color: "#8B7355", marginBottom: 14 }}>&quot;{GUARDS[fortressPrompt]?.d}&quot;</div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button style={UI.btn("#D94F4F", "#FFF")} onClick={() => {
+              const biome = fortressPrompt;
+              setFortressPrompt(null);
+              const boss = world?.nodes.find((n) => n.boss === true && n.biome === biome);
+              if (boss) startCombat(boss);
+            }}>⚔️ Combattre</button>
+            <button style={UI.btn("#8B7355", "#FFF")} onClick={() => setFortressPrompt(null)}>🚶 Pas encore</button>
+          </div>
+        </div>
+      </div>}
+
       {/* DUNGEON PROMPT */}
       {dungeonPrompt && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...UI.panel, padding: 20, maxWidth: 280, color: "#3D2B1F", textAlign: "center" }}>
@@ -1417,7 +1452,10 @@ function GameContent() {
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  : isCamp ? <div style={{ width: CELL * 1.2, height: CELL * 1.2, borderRadius: "50%", background: "radial-gradient(circle, #FF6600, #FF3300, #CC0000, transparent)", boxShadow: "0 0 15px rgba(255,100,0,0.6), 0 0 30px rgba(255,50,0,0.3)", animation: "fireFlicker 0.5s infinite alternate", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.5) }}>🔥</div>
+                  : isCamp ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                      <span style={{ fontSize: Math.floor(CELL * 0.9) }}>🏡</span>
+                      <div style={{ position: "absolute", bottom: -2, right: -2, width: CELL * 0.5, height: CELL * 0.5, borderRadius: "50%", background: "radial-gradient(circle, #FF8800, #FF4400, transparent)", boxShadow: "0 0 8px rgba(255,100,0,0.5)", animation: "fireFlicker 0.6s infinite alternate" }} />
+                    </div>
                     : staticNode && staticNode.res ? (() => {
                         const nIdx = world.nodes.indexOf(staticNode);
                         const maxHp = NODE_HP[staticNode.res!] || 3;
@@ -1439,7 +1477,8 @@ function GameContent() {
                             : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>🌸</span>
                               : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>💜</span>
                                 : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.45), opacity: 0.7 }}>🪨</span>
-                                  : DUNGEON_ENTRANCES.find((d) => d.x === wx && d.y === wy) ? <span style={{ fontSize: Math.floor(CELL * 0.6), filter: "drop-shadow(0 0 4px #9B7EDE)" }}>🕳️</span>
+                                  : (() => { const f = FORTRESSES[currentBiome]; return f && Math.abs(wx - f.x) <= 1 && Math.abs(wy - f.y) <= 1 && !bosses.includes(currentBiome); })() ? (wx === FORTRESSES[currentBiome].x && wy === FORTRESSES[currentBiome].y ? <span style={{ fontSize: Math.floor(CELL * 1.3), filter: "drop-shadow(0 0 8px #D94F4F)", animation: "float 2s ease infinite" }}>🏰</span> : null)
+                                    : DUNGEON_ENTRANCES.find((d) => d.x === wx && d.y === wy) ? <span style={{ fontSize: Math.floor(CELL * 0.6), filter: "drop-shadow(0 0 4px #9B7EDE)" }}>🕳️</span>
                                     : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerMapSprite("idle", "down", 0, CELL, false), filter: "brightness(0.15)", opacity: 0.5, animation: "float 2s ease infinite" }} />
                                     : null}
           </div>;
