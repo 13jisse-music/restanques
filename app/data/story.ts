@@ -1,4 +1,4 @@
-export const STORY = {
+export const STORY: Record<string, string[]> = {
   intro: [
     "Il était une fois, un magnifique duché provençal bâti sur les terrasses de pierre des collines...",
     "Mais le Mistral, esprit du vent jaloux, déchaîna sa fureur et balaya tout sur son passage...",
@@ -24,3 +24,18 @@ export const STORY = {
 
 export const INTRO_IMAGES = ["/story/intro1.png", "/story/intro2.png", "/story/intro3.png", "/story/intro4.png"];
 export const ENDING_IMAGES = ["/story/ending1.png", "/story/ending2.png", "/story/ending3.png", "/story/ending4.png"];
+
+// Images for biome transitions
+export const STORY_IMAGES: Record<string, string[]> = {
+  intro: INTRO_IMAGES,
+  garrigue_end: ["/story/story_garrigue_end.png"],
+  calanques_intro: ["/story/story_calanques_intro.png"],
+  calanques_end: ["/story/story_calanques_end.png"],
+  mines_intro: ["/story/story_mines_intro.png"],
+  mines_end: ["/story/story_mines_end.png"],
+  mer_intro: ["/story/story_mer_intro.png"],
+  mer_end: ["/story/story_mer_end.png"],
+  restanques_intro: ["/story/story_restanques_intro.png"],
+  mistral_battle: ["/story/story_mistral_battle.png"],
+  ending: ENDING_IMAGES,
+};
