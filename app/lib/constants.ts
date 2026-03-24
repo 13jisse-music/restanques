@@ -130,6 +130,13 @@ export interface PlayerStats {
 }
 export const BAG_LIMIT = 20;
 
+// Node harvest HP by resource type
+export const NODE_HP: Record<string, number> = {
+  herbe: 2, lavande: 2, branche: 3, coquillage: 2, sel: 3,
+  pierre: 5, fer: 6, ocre: 5, poisson: 3, perle: 4, corail: 4,
+  cristal: 8,
+};
+
 // ─── EQUIPMENT ───
 export type EquipSlot = "arme" | "armure" | "amulette" | "bottes";
 

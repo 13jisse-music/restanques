@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { genWorld } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
-  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS,
+  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP,
   TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats, type EquipSlot,
 } from "../lib/constants";
@@ -75,7 +75,7 @@ function GameContent() {
   // Fullscreen CELL — carte remplit tout l'écran
   const W = typeof window !== "undefined" ? window.innerWidth : 360;
   const H = typeof window !== "undefined" ? window.innerHeight : 700;
-  const CELL = Math.floor(Math.min(W / 11, H / 15));
+  const CELL = Math.floor(Math.min(W / 9, H / 13));
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
@@ -132,6 +132,8 @@ function GameContent() {
   const [showGuide, setShowGuide] = useState(false);
   const [guideHint, setGuideHint] = useState(false);
   const [storySequence, setStorySequence] = useState<{ key: string; slides: { image?: string; text: string }[] } | null>(null);
+  const [nodeHpMap, setNodeHpMap] = useState<Record<number, number>>({}); // nodeIndex → remaining HP
+  const [harvestParticles, setHarvestParticles] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -366,14 +368,8 @@ function GameContent() {
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
     if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1); if (vil && !shop) setShop(vil);
-    const node = world.nodes.find((n) => n.x === nx && n.y === ny && !n.done);
-    if (node) {
-      if (node.guard) { setDialog(node); }
-      else if (node.res) {
-        if (node.res !== "pain" && node.res !== "potion" && isBagFull(inv)) { notify("🎒 Sac plein !"); return; }
-        setInv((p) => [...p, node.res!]); node.done = true; notify(`${RES[node.res].e} +1 ${RES[node.res].n}`); sounds.collect();
-      }
-    }
+    // Guard collision check (mob on same tile) handled by checkEnemyCollision
+    // Resource nodes are harvested by TAP (tapHarvest), not by walking over them
   }, [world, pos, story, dialog, combat, craft, bag, shop, questPanel, tools, unlocked, inv, maxHp]);
 
   const holdMove = (dx: number, dy: number) => { tryMove(dx, dy); moveRef.current = setInterval(() => tryMove(dx, dy), 160); };
@@ -384,6 +380,56 @@ function GameContent() {
   const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
 
   // ─── CAST SPELL ───
+  // ─── TAP HARVEST ───
+  const tapHarvest = useCallback((wx: number, wy: number) => {
+    if (!world || combat || dialog) return;
+    const dist = Math.abs(wx - pos.x) + Math.abs(wy - pos.y);
+    if (dist !== 1) return; // must be adjacent
+
+    const nodeIdx = world.nodes.findIndex((n) => n.x === wx && n.y === wy && !n.done && !n.guard);
+    if (nodeIdx < 0) return;
+    const node = world.nodes[nodeIdx];
+    if (!node.res) return;
+
+    // Initialize HP if not set
+    const maxHp = NODE_HP[node.res] || 3;
+    const currentHp = nodeHpMap[nodeIdx] ?? maxHp;
+
+    // Damage: 1 base, +1 if matching tool
+    let dmg = 1;
+    if ((node.res === "branche" || node.res === "herbe" || node.res === "lavande") && tools.includes("serpe")) dmg = 2;
+    if ((node.res === "pierre" || node.res === "fer" || node.res === "ocre" || node.res === "cristal") && tools.includes("pioche")) dmg = 2;
+    if ((node.res === "coquillage" || node.res === "poisson" || node.res === "perle" || node.res === "corail") && tools.includes("filet")) dmg = 2;
+
+    const newHp = currentHp - dmg;
+
+    // Sound
+    if (node.res === "branche" || node.res === "herbe" || node.res === "lavande") sounds.harvestHerb();
+    else if (node.res === "pierre" || node.res === "fer" || node.res === "ocre" || node.res === "cristal") sounds.harvestStone();
+    else sounds.harvestWood();
+
+    // Particles
+    const pColor = RES[node.res]?.c || "#888";
+    const pid = Date.now();
+    setHarvestParticles((p) => [...p, { id: pid, x: wx, y: wy, color: pColor }]);
+    setTimeout(() => setHarvestParticles((p) => p.filter((pp) => pp.id !== pid)), 600);
+
+    if (newHp <= 0) {
+      // Node destroyed — collect resource
+      if (!isBagFull(inv)) {
+        setInv((p) => [...p, node.res!]);
+        node.done = true;
+        setNodeHpMap((m) => { const n = { ...m }; delete n[nodeIdx]; return n; });
+        sounds.harvestDone();
+        notify(`${RES[node.res].e} +1 ${RES[node.res].n}`);
+      } else {
+        notify("🎒 Sac plein !");
+      }
+    } else {
+      setNodeHpMap((m) => ({ ...m, [nodeIdx]: newHp }));
+    }
+  }, [world, pos, combat, dialog, nodeHpMap, tools, inv]);
+
   // ─── TRIGGER STORY SEQUENCE ───
   const triggerStory = useCallback((key: string) => {
     const texts = STORY[key];
@@ -631,7 +677,7 @@ function GameContent() {
       {notif && <div style={{ position: "fixed", top: 52, left: "50%", transform: "translateX(-50%)", ...UI.panel, padding: "8px 18px", fontSize: 13, fontWeight: "bold", zIndex: 50, color: "#3D2B1F", whiteSpace: "nowrap", border: "2px solid #8B7355" }}>{notif}</div>}
 
       {/* MINIMAP — canvas, always visible */}
-      <Minimap world={world} playerPos={pos} otherPlayer={otherPlayer} enemyPositions={enemyPositions} visible={true} />
+      <Minimap world={world} playerPos={pos} otherPlayer={otherPlayer} enemyPositions={enemyPositions} visible={inv.includes("boussole") || ownedEquip.includes("boussole")} />
 
       {/* STORY / DIALOG / COMBAT / SHOP / CRAFT / BAG / QUESTS overlays */}
       {story && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -1021,14 +1067,27 @@ function GameContent() {
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vilIdx = world.villages.findIndex((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
+          const inCampZone = Math.abs(wx - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(wy - CAMP_POS.y) <= CAMP_RADIUS;
           const fs = Math.floor(CELL * 0.5);
 
           return <div key={`${vx}${vy}`} style={{
             width: CELL, height: CELL, background: tc.bg, backgroundImage: tc.pattern,
+            filter: inCampZone ? "brightness(1.15)" : undefined,
             display: "flex", alignItems: "center", justifyContent: "center",
             position: "relative", fontSize: fs, overflow: "hidden",
             boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
-          }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
+          }} onClick={() => {
+            const dx = wx - pos.x, dy = wy - pos.y;
+            if (Math.abs(dx) + Math.abs(dy) !== 1) return;
+            // Check if tapping a resource node → harvest instead of move
+            const tapNode = world.nodes.find((n) => n.x === wx && n.y === wy && !n.done && !n.guard && n.res);
+            if (tapNode) { tapHarvest(wx, wy); return; }
+            // Check if tapping a mob → dialog
+            const tapMob = Object.entries(enemyPositions).find(([, ep]) => ep.x === wx && ep.y === wy);
+            if (tapMob) { const mNode = world.nodes[Number(tapMob[0])]; if (mNode && mNode.guard) setDialog(mNode); return; }
+            // Otherwise move
+            tryMove(dx, dy);
+          }}>
             {/* PLAYER — Pixel Crawler Body_A */}
             {isP ? <div style={{ ...playerMapSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
               : isOther ? <div style={{ ...playerMapSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
@@ -1037,7 +1096,17 @@ function GameContent() {
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
                   : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                    : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL * 0.8) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                    : staticNode && staticNode.res ? (() => {
+                        const nIdx = world.nodes.indexOf(staticNode);
+                        const maxHp = NODE_HP[staticNode.res!] || 3;
+                        const curHp = nodeHpMap[nIdx] ?? maxHp;
+                        const isAdj = Math.abs(wx - pos.x) + Math.abs(wy - pos.y) === 1;
+                        const damaged = curHp < maxHp;
+                        return <div style={{ position: "relative" }}>
+                          <div style={{ ...(itemSprite(staticNode.res!, CELL * 0.8) || {}), animation: isAdj ? "float 1s ease infinite" : "float 3s ease infinite", filter: damaged ? "brightness(0.6)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))", border: isAdj ? "2px solid rgba(244,208,63,0.6)" : "none", borderRadius: 4 }} />
+                          {damaged && <div style={{ position: "absolute", bottom: -2, left: "10%", width: "80%", height: 3, background: "#333", borderRadius: 2 }}><div style={{ width: `${(curHp / maxHp) * 100}%`, height: "100%", background: "#7A9E3F", borderRadius: 2 }} /></div>}
+                        </div>;
+                      })()
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
                           : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.65), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
@@ -1051,7 +1120,7 @@ function GameContent() {
       </div>
 
       {/* JOYSTICK (mobile) */}
-      <Joystick onMove={(dx, dy) => tryMove(dx, dy)} onStop={() => { setWalking(false); }} />
+      <Joystick onMove={(dx, dy) => tryMove(dx, dy)} onStop={() => { setWalking(false); }} moveInterval={equipped.bottes === "bottes_vent" ? 150 : equipped.bottes === "sandales" ? 200 : 250} />
 
       {/* ACTION BUTTONS (bottom right) */}
       <div style={{ position: "fixed", bottom: 16, right: 10, zIndex: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>

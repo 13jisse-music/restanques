@@ -4,17 +4,17 @@ import { useRef, useCallback } from "react";
 interface DPadProps {
   onMove: (dx: number, dy: number) => void;
   onStop: () => void;
+  moveInterval?: number; // ms between steps (default 250, bottes change this)
 }
 
-// D-pad classique en overlay semi-transparent (remplace le joystick qui buggait)
-export function Joystick({ onMove, onStop }: DPadProps) {
+export function Joystick({ onMove, onStop, moveInterval = 250 }: DPadProps) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startMove = useCallback((dx: number, dy: number) => {
     onMove(dx, dy);
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => onMove(dx, dy), 250);
-  }, [onMove]);
+    intervalRef.current = setInterval(() => onMove(dx, dy), moveInterval);
+  }, [onMove, moveInterval]);
 
   const stop = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
