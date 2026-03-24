@@ -21,6 +21,7 @@ import { DayNightOverlay } from "./components/DayNightOverlay";
 import { Minimap } from "./components/Minimap";
 import { GameGuide } from "./components/GameGuide";
 import { STORY, INTRO_IMAGES, STORY_IMAGES } from "../data/story";
+import { NPCS, type NpcData } from "../data/npcs";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -132,7 +133,12 @@ function GameContent() {
   const [showGuide, setShowGuide] = useState(false);
   const [guideHint, setGuideHint] = useState(false);
   const [storySequence, setStorySequence] = useState<{ key: string; slides: { image?: string; text: string }[] } | null>(null);
-  const [nodeHpMap, setNodeHpMap] = useState<Record<number, number>>({}); // nodeIndex → remaining HP
+  const [nodeHpMap, setNodeHpMap] = useState<Record<number, number>>({});
+  const [activeQuests, setActiveQuests] = useState<string[]>([]); // quest IDs accepted
+  const [completedQuests, setCompletedQuests] = useState<string[]>([]); // quest IDs done
+  const [talkingNpc, setTalkingNpc] = useState<NpcData | null>(null);
+  const [npcDialogText, setNpcDialogText] = useState("");
+  const [npcDialogFull, setNpcDialogFull] = useState("");
   const [harvestParticles, setHarvestParticles] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
@@ -380,6 +386,55 @@ function GameContent() {
   const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
 
   // ─── CAST SPELL ───
+  // ─── NPC INTERACTION ───
+  const talkToNpc = useCallback((npc: NpcData) => {
+    sounds.npcTalk();
+    setTalkingNpc(npc);
+    const q = npc.quest;
+    let text = "";
+    if (completedQuests.includes(q.id)) {
+      text = npc.dialogs.after;
+    } else if (activeQuests.includes(q.id)) {
+      // Check if quest can be completed
+      let canComplete = false;
+      if (q.type === "collect" && q.need) {
+        canComplete = Object.entries(q.need).every(([item, cnt]) => inv.filter((i) => i === item).length >= cnt);
+      }
+      if (q.type === "boss" && q.needBoss) {
+        canComplete = bosses.includes(q.needBoss);
+      }
+      if (canComplete) {
+        text = npc.dialogs.complete;
+        // Complete quest
+        if (q.need) { Object.entries(q.need).forEach(([item, cnt]) => { for (let i = 0; i < cnt; i++) { const idx = inv.indexOf(item); if (idx >= 0) setInv((p) => { const n = [...p]; n.splice(idx, 1); return n; }); } }); }
+        // Give reward
+        if (q.reward.type === "item") { setInv((p) => [...p, q.reward.id]); }
+        if (q.reward.type === "equip") { setOwnedEquip((p) => [...p, q.reward.id]); setEquipped((e) => { const eq = EQUIPMENTS.find((x) => x.id === q.reward.id); return eq ? { ...e, [eq.slot]: eq.id } : e; }); }
+        if (q.reward.type === "tool") { setTools((p) => [...p, q.reward.id]); }
+        setCompletedQuests((p) => [...p, q.id]);
+        sounds.questComplete();
+        notify(`${q.reward.emoji} ${q.reward.name} obtenu !`);
+      } else {
+        text = npc.dialogs.hint;
+      }
+    } else {
+      // First time — greeting then quest
+      text = npc.dialogs.greeting + "\n\n" + npc.dialogs.quest;
+      setActiveQuests((p) => [...p, q.id]);
+      sounds.questAccept();
+    }
+    // Typewriter effect
+    setNpcDialogText("");
+    setNpcDialogFull(text);
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      setNpcDialogText(text.substring(0, i));
+      if (i % 3 === 0) sounds.npcTalk();
+      if (i >= text.length) clearInterval(iv);
+    }, 30);
+  }, [inv, bosses, activeQuests, completedQuests]);
+
   // ─── TAP HARVEST ───
   const tapHarvest = useCallback((wx: number, wy: number) => {
     if (!world || combat || dialog) return;
@@ -1047,6 +1102,27 @@ function GameContent() {
         </div>
       </div>}
 
+      {/* NPC DIALOG */}
+      {talkingNpc && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 12px 80px" }}>
+        <div style={{ ...UI.panel, padding: 16, maxWidth: 340, width: "100%", color: "#3D2B1F" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <div style={{ ...npcSprite(["knight", "rogue", "wizzard"].indexOf(talkingNpc.sprite), spriteFrame, 48), flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: "bold" }}>{talkingNpc.emoji} {talkingNpc.name}</div>
+              {activeQuests.includes(talkingNpc.quest.id) && !completedQuests.includes(talkingNpc.quest.id) && <div style={{ fontSize: 10, color: "#E67E22" }}>📋 Quête active</div>}
+              {completedQuests.includes(talkingNpc.quest.id) && <div style={{ fontSize: 10, color: "#7A9E3F" }}>✅ Quête terminée</div>}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-line", minHeight: 60 }}>{npcDialogText}<span style={{ opacity: npcDialogText.length < npcDialogFull.length ? 1 : 0, animation: "float 1s ease infinite" }}>▌</span></div>
+          <button onClick={() => {
+            if (npcDialogText.length < npcDialogFull.length) { setNpcDialogText(npcDialogFull); }
+            else { setTalkingNpc(null); }
+          }} style={{ ...UI.btn("#7A9E3F", "#FFF", true), width: "100%", marginTop: 10 }}>
+            {npcDialogText.length < npcDialogFull.length ? "Tout lire ▶" : "Fermer"}
+          </button>
+        </div>
+      </div>}
+
       {/* GUIDE HINT — first time */}
       {guideHint && <div onClick={() => setGuideHint(false)} style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", zIndex: 20, background: "rgba(245,236,215,0.95)", border: "2px solid #5C4033", borderRadius: 10, padding: "10px 16px", maxWidth: 300, textAlign: "center", fontSize: 13, color: "#3D2B1F", fontFamily: "'Courier New',monospace", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
         📖 Première fois ? Consultez le <strong>Guide</strong> dans ⚙️ Options !
@@ -1085,6 +1161,9 @@ function GameContent() {
             // Check if tapping a mob → dialog
             const tapMob = Object.entries(enemyPositions).find(([, ep]) => ep.x === wx && ep.y === wy);
             if (tapMob) { const mNode = world.nodes[Number(tapMob[0])]; if (mNode && mNode.guard) setDialog(mNode); return; }
+            // Check if tapping a NPC → dialogue
+            const tapNpc = NPCS.find((n) => n.x === wx && n.y === wy);
+            if (tapNpc) { talkToNpc(tapNpc); return; }
             // Otherwise move
             tryMove(dx, dy);
           }}>
@@ -1108,7 +1187,11 @@ function GameContent() {
                         </div>;
                       })()
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
-                        : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                        : NPCS.find((n) => n.x === wx && n.y === wy) ? (() => { const npc = NPCS.find((n) => n.x === wx && n.y === wy)!; return <div style={{ position: "relative" }}>
+                            <div style={{ ...npcSprite(["knight", "rogue", "wizzard"].indexOf(npc.sprite), spriteFrame, CELL), filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
+                            {!completedQuests.includes(npc.quest.id) && <span style={{ position: "absolute", top: -6, right: -2, fontSize: 12, animation: "float 1s ease infinite" }}>❗</span>}
+                          </div>; })()
+                          : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
                           : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.65), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
                             : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>🌸</span>
                               : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>💜</span>
