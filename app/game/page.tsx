@@ -70,8 +70,11 @@ function GameContent() {
   const pEmoji = playerParam === "melanie" ? "🎨" : "🎸";
   const pColor = playerParam === "melanie" ? "#E88EAD" : "#E67E22";
 
-  // Responsive CELL size
-  const CELL = typeof window !== "undefined" && window.innerWidth < 500 ? 24 : 32;
+  // Fullscreen CELL — carte remplit tout l'écran
+  const W = typeof window !== "undefined" ? window.innerWidth : 360;
+  const H = typeof window !== "undefined" ? window.innerHeight : 700;
+  const CELL = Math.floor(Math.min(W / 15, H / 20));
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -444,16 +447,13 @@ function GameContent() {
   if (!world) return <div style={{ width: "100%", height: "100vh", background: "#1A1410", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace", color: "#F4D03F" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 48 }}>⛰️</div>Chargement...</div></div>;
 
   const bagCount = countBagItems(inv); const bagFull = bagCount >= BAG_LIMIT;
-  const vw = Math.min(13, Math.floor((typeof window !== "undefined" ? window.innerWidth - 12 : 360) / CELL));
-  const vh = Math.min(10, Math.floor(((typeof window !== "undefined" ? window.innerHeight : 700) - 240) / CELL));
+  const vw = Math.floor(W / CELL);
+  const vh = Math.floor(H / CELL);
   const camX = Math.max(0, Math.min(MW - vw, pos.x - Math.floor(vw / 2)));
   const camY = Math.max(0, Math.min(MH - vh, pos.y - Math.floor(vh / 2)));
 
   return (
-    <div onClick={initSound} style={{ width: "100%", height: "100vh", background: "#1A1410", fontFamily: "'Courier New',monospace", color: "#FFF8E7", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", position: "relative" }}>
-      {/* Fond poster flouté */}
-      <div style={{ position: "absolute", inset: 0, backgroundImage: "url(/splash.png)", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(20px) brightness(0.3)", zIndex: 0 }} />
-      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", width: "100%", height: "100%" }}>
+    <div onClick={initSound} style={{ position: "fixed", inset: 0, background: "#1A1410", fontFamily: "'Courier New',monospace", color: "#FFF8E7", overflow: "hidden", touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}>
       <style>{`
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
         @keyframes playerHit{0%,100%{transform:translateX(0)}25%{transform:translateX(4px);filter:brightness(1.5)}50%{transform:translateX(-4px)}75%{transform:translateX(2px)}}
@@ -483,8 +483,8 @@ function GameContent() {
       {/* DAY/NIGHT */}
       <DayNightOverlay />
 
-      {/* TOP BAR */}
-      <div style={{ display: "flex", width: "100%", maxWidth: 420, justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "linear-gradient(#5C4033, #3D2B1F)", fontSize: 11, borderBottom: "2px solid #F4D03F", flexWrap: "wrap", gap: 2 }}>
+      {/* TOP BAR — overlay */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "rgba(61,43,31,0.75)", fontSize: 11, borderBottom: "1px solid rgba(244,208,63,0.4)", backdropFilter: "blur(4px)", gap: 4 }}>
         <span style={{ textShadow: "0 0 4px #F4D03F" }}>{pEmoji} Nv.{lvl}</span>
         <span style={{ color: "#FF6666" }}>❤️{hp}/{maxHp}</span>
         <span style={{ color: bagFull ? "#FF6666" : "#D4C5A9" }}>🎒{bagCount}/{BAG_LIMIT}</span>
@@ -494,8 +494,9 @@ function GameContent() {
         {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵 Fatigue</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setMmap(!mmap)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>🗺️</button>
+        <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
       </div>
-      <div style={{ width: "100%", maxWidth: 420, height: 4, background: "#333" }}><div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #F4D03F, #E67E22)", transition: "width 0.3s" }} /></div>
+      <div style={{ position: "fixed", top: 32, left: 0, right: 0, zIndex: 10, height: 3, background: "rgba(0,0,0,0.3)" }}><div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #F4D03F, #E67E22)", transition: "width 0.3s" }} /></div>
 
       {notif && <div style={{ position: "fixed", top: 52, left: "50%", transform: "translateX(-50%)", ...UI.panel, padding: "8px 18px", fontSize: 13, fontWeight: "bold", zIndex: 50, color: "#3D2B1F", whiteSpace: "nowrap", border: "2px solid #8B7355" }}>{notif}</div>}
 
@@ -815,7 +816,7 @@ function GameContent() {
       </div>}
 
       {/* ═══ MAP ═══ */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, border: "4px solid #5C4033", margin: "4px 0", borderRadius: 8, boxShadow: "inset 0 0 10px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+      <div style={{ position: "fixed", top: 0, left: 0, display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, zIndex: 0 }}>
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
           const wx = camX + vx, wy = camY + vy;
           const tile = world.m[wy]?.[wx] || "g";
@@ -868,7 +869,16 @@ function GameContent() {
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(155,126,222,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setCharPanel(true)}>👤</button>
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(244,208,63,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setQuestPanel(true)}>📋</button>
       </div>
-      </div>{/* close z-1 wrapper */}
+      {/* Settings menu */}
+      {settingsOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 12 }}>⚙️ Options</div>
+          <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
+          <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setMuted(sounds.toggleMute()); }}>🔊 Son : {muted ? "OFF" : "ON"}</button>
+          <button style={{ ...UI.btn("#F4D03F", "#3D2B1F"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setTutoStep(0); }}>❓ Aide</button>
+          <button style={UI.close} onClick={() => setSettingsOpen(false)}>✕ Fermer</button>
+        </div>
+      </div>}
     </div>
   );
 }

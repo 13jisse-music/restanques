@@ -13,6 +13,11 @@ export default function Home() {
   useEffect(() => { setTimeout(() => setVisible(true), 100); }, []);
 
   const play = (player: string) => {
+    // Fullscreen
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    try { (screen.orientation as unknown as { lock: (s: string) => Promise<void> })?.lock?.("portrait").catch(() => {}); } catch {}
     setFading(true);
     setTimeout(() => router.push(`/game?player=${player}`), 500);
   };
@@ -53,7 +58,8 @@ export default function Home() {
       <div style={{
         position: "absolute", bottom: 0, left: 0, right: 0,
         display: "flex", flexDirection: "column", alignItems: "center",
-        padding: "20px 16px 80px",
+        padding: "20px 20px 60px",
+        width: "100%",
         gap: "10px",
         opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
         transition: "all 1s ease 0.5s",

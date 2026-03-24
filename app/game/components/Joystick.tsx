@@ -1,82 +1,50 @@
 "use client";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useCallback } from "react";
 
-interface JoystickProps {
+interface DPadProps {
   onMove: (dx: number, dy: number) => void;
   onStop: () => void;
 }
 
-export function Joystick({ onMove, onStop }: JoystickProps) {
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const centerRef = useRef<{ x: number; y: number } | null>(null);
+// D-pad classique en overlay semi-transparent (remplace le joystick qui buggait)
+export function Joystick({ onMove, onStop }: DPadProps) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastDirRef = useRef<{ dx: number; dy: number } | null>(null);
 
   const startMove = useCallback((dx: number, dy: number) => {
-    lastDirRef.current = { dx, dy };
     onMove(dx, dy);
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => {
-      if (lastDirRef.current) onMove(lastDirRef.current.dx, lastDirRef.current.dy);
-    }, 180);
+    intervalRef.current = setInterval(() => onMove(dx, dy), 250);
   }, [onMove]);
 
   const stop = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    lastDirRef.current = null;
-    setOffset({ x: 0, y: 0 });
     onStop();
   }, [onStop]);
 
-  const handleTouch = useCallback((e: React.TouchEvent, isStart = false) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) { stop(); return; }
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    if (isStart) centerRef.current = { x: cx, y: cy };
-    const center = centerRef.current || { x: cx, y: cy };
-    const dx = touch.clientX - center.x;
-    const dy = touch.clientY - center.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const maxOff = 30;
-    const clampedX = Math.max(-maxOff, Math.min(maxOff, dx));
-    const clampedY = Math.max(-maxOff, Math.min(maxOff, dy));
-    setOffset({ x: clampedX, y: clampedY });
+  const btnStyle = {
+    width: 48, height: 48, borderRadius: 10,
+    background: "rgba(255,255,255,0.15)",
+    border: "2px solid rgba(255,255,255,0.25)",
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 20, fontWeight: "bold" as const,
+    display: "flex", alignItems: "center" as const, justifyContent: "center" as const,
+    cursor: "pointer", touchAction: "none" as const,
+    backdropFilter: "blur(4px)",
+  };
 
-    if (dist < 12) return; // dead zone
-    // Determine direction
-    if (Math.abs(dx) > Math.abs(dy)) {
-      const dir = dx > 0 ? { dx: 1, dy: 0 } : { dx: -1, dy: 0 };
-      if (!lastDirRef.current || lastDirRef.current.dx !== dir.dx || lastDirRef.current.dy !== dir.dy) startMove(dir.dx, dir.dy);
-    } else {
-      const dir = dy > 0 ? { dx: 0, dy: 1 } : { dx: 0, dy: -1 };
-      if (!lastDirRef.current || lastDirRef.current.dx !== dir.dx || lastDirRef.current.dy !== dir.dy) startMove(dir.dx, dir.dy);
-    }
-  }, [startMove, stop]);
+  const dirs: [string, number, number, string][] = [
+    ["u", 0, -1, "▲"], ["l", -1, 0, "◀"], ["r", 1, 0, "▶"], ["d", 0, 1, "▼"],
+  ];
 
   return (
-    <div
-      onTouchStart={(e) => handleTouch(e, true)}
-      onTouchMove={(e) => handleTouch(e)}
-      onTouchEnd={(e) => { e.preventDefault(); stop(); }}
-      style={{
-        position: "fixed", bottom: 16, left: 16, zIndex: 10,
-        width: 110, height: 110, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(255,255,255,0.1), rgba(255,255,255,0.03))",
-        border: "2px solid rgba(255,255,255,0.12)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        touchAction: "none",
-      }}
-    >
-      <div style={{
-        width: 40, height: 40, borderRadius: "50%",
-        background: "rgba(255,255,255,0.3)",
-        border: "2px solid rgba(255,255,255,0.45)",
-        transform: `translate(${offset.x}px, ${offset.y}px)`,
-        transition: offset.x === 0 && offset.y === 0 ? "transform 0.15s" : "none",
-      }} />
+    <div style={{ position: "fixed", bottom: 16, left: 12, zIndex: 10, display: "grid", gridTemplateAreas: `". u ." "l . r" ". d ."`, gap: 3 }}>
+      {dirs.map(([a, dx, dy, ch]) => (
+        <button key={a} style={{ ...btnStyle, gridArea: a }}
+          onMouseDown={() => startMove(dx, dy)} onMouseUp={stop} onMouseLeave={stop}
+          onTouchStart={(e) => { e.preventDefault(); startMove(dx, dy); }}
+          onTouchEnd={(e) => { e.preventDefault(); stop(); }}
+        >{ch}</button>
+      ))}
     </div>
   );
 }
