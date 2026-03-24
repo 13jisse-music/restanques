@@ -83,37 +83,9 @@ export function natureSprite(variant: number, size: number): React.CSSProperties
   return fromSheet("/sprites/game/nature.png", 4, variant % 4, 0, 64, size);
 }
 
-// ─── TILES SOL (tiles.png — 6 cols × 5 rows × 64px) ───
-// Row 0: herbe verte, herbe foncée, herbe fleurie, chemin, lavande, pierre
-// Row 1: sable, sable foncé, eau claire, eau profonde, mine sombre, pierre grise
-// Row 2: bois, mine orange, eau turquoise, eau nuit, roche mine, lave
-// Row 3: mousse, lavande sol, nuit, ocre, cristal sol, restanque
-// Row 4: (bonus tiles)
-const TILE_MAP: Record<string, [number, number]> = {
-  g:    [0, 0],  // herbe verte
-  tg:   [1, 0],  // herbe foncée
-  fl:   [2, 0],  // herbe fleurie
-  p:    [3, 0],  // chemin terre
-  lv:   [4, 0],  // lavande
-  rs:   [5, 0],  // pierre claire
-  s:    [0, 1],  // sable
-  dk:   [1, 1],  // sable foncé (dock)
-  w:    [2, 1],  // eau claire
-  dw:   [3, 1],  // eau profonde
-  mf:   [4, 1],  // mine sol
-  rw:   [5, 1],  // mur restanque
-  mw:   [0, 2],  // mur mine (bois/planches)
-  cf:   [2, 2],  // fond marin turquoise
-  cl:   [4, 2],  // falaise
-  camp: [0, 0],  // herbe (feu par-dessus)
-  vi:   [3, 0],  // village (chemin)
-  gt:   [3, 0],  // porte (chemin)
-};
-
-export function tileSpriteStyle(tileCode: string, size: number): React.CSSProperties | null {
-  const pos = TILE_MAP[tileCode];
-  if (!pos) return null;
-  return fromSheet("/sprites/game/tiles.png", 6, pos[0], pos[1], 64, size);
+// Tiles sol → CSS pur, pas de sprites (les tiles ChatGPT ne sont pas seamless)
+export function tileSpriteStyle(_tileCode: string, _size: number): React.CSSProperties | null {
+  return null; // Always return null → fallback to CSS colors
 }
 
 // ─── BUILDINGS (buildings.png — 3 cols × 2 rows × 96px) ───
