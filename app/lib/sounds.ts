@@ -11,6 +11,9 @@ class GameSounds {
   private musicGains: GainNode[] = [];
   private vol = 1; // 0, 0.5, 1
   private currentMusic = "";
+  private audioEl: HTMLAudioElement | null = null;
+  private mp3Available: Set<string> = new Set(); // tracks which MP3s exist
+  private mp3Checked: Set<string> = new Set();
 
   init() {
     if (this.initialized) return;
@@ -19,7 +22,13 @@ class GameSounds {
     this.initialized = true;
   }
 
-  cycleVolume(): number { this.vol = this.vol === 1 ? 0.5 : this.vol === 0.5 ? 0 : 1; if (this.vol === 0) this.muted = true; else this.muted = false; return this.vol; }
+  cycleVolume(): number {
+    this.vol = this.vol === 1 ? 0.5 : this.vol === 0.5 ? 0 : 1;
+    if (this.vol === 0) { this.muted = true; this.stopMusic(); }
+    else { this.muted = false; }
+    if (this.audioEl) this.audioEl.volume = this.vol * 0.5;
+    return this.vol;
+  }
   getVolIcon(): string { return this.vol === 1 ? "🔊" : this.vol === 0.5 ? "🔉" : "🔇"; }
   isMuted() { return this.muted; }
 
@@ -90,6 +99,16 @@ class GameSounds {
 
   // ─── MUSIQUES ───
   stopMusic() {
+    // Fade out MP3 if playing
+    if (this.audioEl) {
+      const a = this.audioEl;
+      const fadeOut = setInterval(() => {
+        if (a.volume > 0.05) a.volume = Math.max(0, a.volume - 0.1);
+        else { a.pause(); a.src = ""; clearInterval(fadeOut); }
+      }, 50);
+      this.audioEl = null;
+    }
+    // Stop Web Audio
     if (this.musicInterval) { clearInterval(this.musicInterval); this.musicInterval = null; }
     this.musicOscs.forEach(o => { try { o.stop(); } catch {} });
     this.musicOscs = []; this.musicGains.forEach(g => { try { g.disconnect(); } catch {} }); this.musicGains = [];
@@ -104,10 +123,58 @@ class GameSounds {
     o.start(); this.musicOscs.push(o); this.musicGains.push(g);
   }
 
+  private tryPlayMp3(id: string): boolean {
+    if (typeof window === "undefined") return false;
+    const path = `/music/${id}.mp3`;
+
+    // If we already know this MP3 doesn't exist, skip
+    if (this.mp3Checked.has(id) && !this.mp3Available.has(id)) return false;
+
+    // If we know it exists, play it
+    if (this.mp3Available.has(id)) {
+      this.audioEl = new Audio(path);
+      this.audioEl.loop = true;
+      this.audioEl.volume = this.vol * 0.5; // MP3s are louder than Web Audio
+      this.audioEl.play().catch(() => {}); // ignore autoplay errors
+      return true;
+    }
+
+    // First time — check if file exists
+    if (!this.mp3Checked.has(id)) {
+      this.mp3Checked.add(id);
+      const audio = new Audio(path);
+      audio.addEventListener("canplaythrough", () => {
+        this.mp3Available.add(id);
+        // If we're still on this music, switch to MP3
+        if (this.currentMusic === id) {
+          // Stop Web Audio fallback
+          if (this.musicInterval) { clearInterval(this.musicInterval); this.musicInterval = null; }
+          this.musicOscs.forEach(o => { try { o.stop(); } catch {} });
+          this.musicOscs = []; this.musicGains = [];
+          // Play MP3
+          this.audioEl = audio;
+          audio.loop = true;
+          audio.volume = this.vol * 0.5;
+          audio.play().catch(() => {});
+        }
+      }, { once: true });
+      audio.addEventListener("error", () => { /* MP3 doesn't exist, Web Audio fallback stays */ }, { once: true });
+      audio.load();
+    }
+
+    return false; // Not available yet, use Web Audio
+  }
+
   playMusic(id: string) {
-    if (!this.ctx || this.muted || this.currentMusic === id) return;
+    if (this.muted || this.currentMusic === id) return;
     this.stopMusic();
     this.currentMusic = id;
+
+    // Try MP3 first
+    if (this.tryPlayMp3(id)) return;
+
+    // Fallback: Web Audio
+    if (!this.ctx) return;
 
     const configs: Record<string, { drones: [number, number][]; notes: number[]; type: OscillatorType; speed: number; vol: number; extras?: () => void }> = {
       garrigue:   { drones: [[220, 0.03], [330, 0.02]], notes: [440, 523, 659, 523, 440, 392], type: "triangle", speed: 800, vol: 0.05 },
