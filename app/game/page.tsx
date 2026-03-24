@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { genWorld, genBiome } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
-  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP, FORTRESSES, BIOME_MOBS,
+  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP, FORTRESSES, BIOME_MOBS, FORTRESS_KEYS,
   TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats, type EquipSlot,
 } from "../lib/constants";
@@ -453,9 +453,14 @@ function GameContent() {
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
     if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1); if (vil && !shop) setShop(vil);
-    // Fortress boss check
+    // Fortress boss check — needs key
     const fort = FORTRESSES[currentBiome];
     if (fort && Math.abs(nx - fort.x) <= 1 && Math.abs(ny - fort.y) <= 1 && !bosses.includes(currentBiome)) {
+      const keyNeeded = FORTRESS_KEYS[currentBiome];
+      if (keyNeeded && !inv.includes(keyNeeded) && !tools.includes(keyNeeded)) {
+        notify(`🔒 Il vous faut la ${keyNeeded === "cle" ? "Clé Ancienne" : "clé"} ! Parlez aux PNJs.`);
+        sounds.locked(); return;
+      }
       setFortressPrompt(currentBiome); return;
     }
     // Dungeon entrance check
@@ -739,11 +744,15 @@ function GameContent() {
             // Check bosses via current state (not stale closure)
             setBosses((prevBosses) => {
               if (!prevBosses.includes(biome)) {
-                // First time beating this boss → trigger story
+                // First time beating this boss → trigger story + post-boss nav
                 setTimeout(() => {
                   setCombat(null);
                   if (biome === "restanques") triggerStory("ending");
-                  else triggerStory(biome + "_end");
+                  else {
+                    triggerStory(biome + "_end");
+                    // After story → show direction to portal
+                    setTimeout(() => notify("🚪 Le portail vers le prochain biome est accessible !"), 3000);
+                  }
                 }, 1500);
                 return [...prevBosses, biome];
               }
@@ -917,7 +926,10 @@ function GameContent() {
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
         <button onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); sounds.uiClick(); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{sounds.getVolIcon()}</button>
-        <span style={{ fontSize: 10, color: timeOfDay < 0.45 ? "#FFD700" : timeOfDay < 0.55 ? "#FF8844" : "#6688CC" }}>{dayIcon} {dayLabel}</span>
+        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(to right, #FFD700 50%, #1A1A4E 50%)", border: "2px solid rgba(255,255,255,0.3)", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          <div style={{ position: "absolute", width: 2, height: 12, background: "#FFF", top: 0, left: "50%", transformOrigin: "bottom center", transform: `translateX(-50%) rotate(${timeOfDay * 360}deg)` }} />
+          <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 8 }}>{dayIcon}</span>
+        </div>
         {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
@@ -1079,16 +1091,21 @@ function GameContent() {
           <div style={{ fontSize: 12, marginBottom: 8, color: bagFull ? "#D94F4F" : "#3D2B1F", fontWeight: "bold" }}>📦 Ressources: {bagCount}/{BAG_LIMIT} {bagFull ? "— PLEIN !" : ""}</div>
           {tools.length > 0 && <div style={{ marginBottom: 8, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}><strong style={{ fontSize: 12 }}>🔧 Outils</strong>{tools.map((t) => <div key={t} style={{ fontSize: 12, padding: "2px 0" }}>{TOOLS[t].e} {TOOLS[t].n} <span style={{ fontSize: 10, color: "#8B7355" }}>— {TOOLS[t].d}</span></div>)}</div>}
           {cards.length > 0 && <div style={{ marginBottom: 8, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}><strong style={{ fontSize: 12 }}>🃏 Cartes</strong>{cards.map((c, i) => <div key={i} style={{ fontSize: 12, padding: "2px 0" }}>{c.e} {c.n} <span style={{ fontSize: 10, color: "#8B7355" }}>— {c.d}</span></div>)}</div>}
-          <strong style={{ fontSize: 12 }}>📦 Items <span style={{ fontSize: 10, fontWeight: "normal", color: "#8B7355" }}>(tap = jeter ×1)</span></strong>
+          <strong style={{ fontSize: 12 }}>📦 Items</strong>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 6 }}>
             {grouped.map((g) => (
-              <button key={g.id} onClick={() => dropItem(g.indices[g.indices.length - 1])} style={{
+              <button key={g.id} onClick={() => {
+                // Use consumables directly
+                if (g.id === "potion") { setInv((p) => { const n = [...p]; const i = n.indexOf("potion"); if (i >= 0) n.splice(i, 1); return n; }); setHp((h) => Math.min(maxHp, h + 10)); notify("🧪 +10 PV !"); return; }
+                if (g.id === "pain") { setInv((p) => { const n = [...p]; const i = n.indexOf("pain"); if (i >= 0) n.splice(i, 1); return n; }); setHp((h) => Math.min(maxHp, h + 5)); notify("🍞 +5 PV !"); return; }
+                dropItem(g.indices[g.indices.length - 1]);
+              }} style={{
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                padding: 6, background: RES[g.id]?.c + "18", border: `2px solid ${RES[g.id]?.c || "#888"}`,
-                borderRadius: 8, cursor: "pointer", position: "relative", minHeight: 50,
+                padding: 4, background: RES[g.id]?.c + "18", border: `2px solid ${RES[g.id]?.c || "#888"}`,
+                borderRadius: 8, cursor: "pointer", position: "relative", minHeight: 56,
               }}>
-                <div style={{ ...(itemSprite(g.id, 32) || {}), flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: "bold", color: "#3D2B1F" }}>×{g.count}</span>
+                <span style={{ fontSize: 24 }}>{RES[g.id]?.e || "❓"}</span>
+                <span style={{ fontSize: 10, fontWeight: "bold", position: "absolute", bottom: 2, right: 4, background: "rgba(0,0,0,0.5)", color: "#FFF", padding: "0 3px", borderRadius: 3 }}>×{g.count}</span>
                 <span style={{ fontSize: 8, color: "#8B7355" }}>{RES[g.id]?.n}</span>
               </button>
             ))}
@@ -1219,44 +1236,68 @@ function GameContent() {
       </div>}
 
       {/* CHARACTER PANEL */}
-      {charPanel && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
-        <div style={{ ...UI.panel, padding: 14, maxWidth: 320, width: "100%", color: "#3D2B1F" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 15, fontWeight: "bold" }}>👤 {pName}</span>
+      {charPanel && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
+        <div style={{ ...UI.panel, padding: 12, maxWidth: 340, width: "100%", color: "#3D2B1F", maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: "bold" }}>{playerClass.emoji} {pName}</span>
             <button style={UI.close} onClick={() => setCharPanel(false)}>✕</button>
           </div>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: pColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, border: "3px solid #3D2B1F", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", margin: "0 auto 8px" }}>{pEmoji}</div>
-          <div style={{ fontSize: 11, textAlign: "center", color: "#8B7355", marginBottom: 4 }}>{playerClass.emoji} {playerClass.name} — {playerClass.description}</div>
-          <div style={{ fontSize: 13, textAlign: "center", marginBottom: 4 }}>Nv.{lvl} · ❤️{hp}/{maxHp} · XP {xp}/{lvl * 50}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center", marginBottom: 8 }}>
-            {playerClass.perks.map((p, i) => <span key={i} style={{ fontSize: 9, background: "#7A9E3F22", padding: "2px 6px", borderRadius: 4, color: "#3D5E1A" }}>✦ {p}</span>)}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
-            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>⚔️ ATK</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.atk}</div>
-            </div>
-            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>🛡️ DEF</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.def}</div>
-            </div>
-            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>✨ MAG</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.mag}</div>
-            </div>
-            <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>💚 VIT</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.vit}</div>
+          {/* Portrait + class */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+            <div style={{ ...playerCircle(pEmoji, pColor, pColor + "99", 52) }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: "bold" }}>{playerClass.name} Nv.{lvl}</div>
+              <div style={{ fontSize: 11, color: "#8B7355" }}>❤️ {hp}/{maxHp} · XP {xp}/{lvl * 50}</div>
+              <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+                {playerClass.perks.map((p, i) => <span key={i} style={{ fontSize: 8, background: "#7A9E3F22", padding: "1px 4px", borderRadius: 3, color: "#3D5E1A" }}>✦ {p}</span>)}
+              </div>
             </div>
           </div>
-          {tools.length > 0 && <div style={{ marginTop: 6, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
-            <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 2 }}>🔧 Équipement</div>
-            {tools.map((t) => {
-              const bonus = t === "serpe" ? "ATK +2" : t === "pioche" ? "ATK +1" : t === "baton" ? "DEF +1" : "";
-              return <div key={t} style={{ fontSize: 11 }}>{TOOLS[t].e} {TOOLS[t].n} {bonus && <span style={{ color: "#7A9E3F", fontWeight: "bold" }}>({bonus})</span>}</div>;
+          {/* Stats — base + equip = total */}
+          <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>═ STATS ═</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+            {(["atk", "def", "mag", "vit"] as const).map((s) => {
+              const base = stats[s]; const total = totalStats[s]; const bonus = total - base;
+              const icons = { atk: "⚔️", def: "🛡️", mag: "✨", vit: "💚" };
+              return <div key={s} style={{ background: "#FFF8E7", padding: 4, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
+                <div style={{ fontSize: 9, color: "#8B7355" }}>{icons[s]} {s.toUpperCase()}</div>
+                <div style={{ fontSize: 14, fontWeight: "bold" }}>{total} {bonus > 0 && <span style={{ fontSize: 9, color: "#7A9E3F" }}>(+{bonus})</span>}</div>
+              </div>;
             })}
-          </div>}
-          {cards.length > 0 && <div style={{ marginTop: 4, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
-            <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 2 }}>🃏 Sorts</div>
-            {cards.map((c, i) => <div key={i} style={{ fontSize: 11 }}>{c.e} {c.n} — {c.d}</div>)}
-          </div>}
-          <div style={{ fontSize: 11, marginTop: 6 }}><strong>🏆</strong> Boss vaincus: {bosses.length}/5</div>
+          </div>
+          {/* Equipment — 4 slots */}
+          <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>═ ÉQUIPEMENT ═</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+            {(["arme", "armure", "amulette", "bottes"] as const).map((slot) => {
+              const eqId = equipped[slot]; const eq = eqId ? EQUIPMENTS.find((e) => e.id === eqId) : null;
+              return <div key={slot} style={{ background: eq ? "#7A9E3F15" : "#FFF8E7", padding: 6, borderRadius: 6, border: `2px solid ${eq ? "#7A9E3F55" : "#D4C5A9"}`, textAlign: "center", minHeight: 56 }}>
+                <div style={{ fontSize: 8, color: "#8B7355", textTransform: "uppercase" }}>{slot}</div>
+                {eq ? <>
+                  <div style={{ fontSize: 20 }}>{eq.emoji}</div>
+                  <div style={{ fontSize: 9, fontWeight: "bold" }}>{eq.name}</div>
+                  <div style={{ fontSize: 8, color: "#7A9E3F" }}>{Object.entries(eq.stats).map(([k, v]) => `${k.toUpperCase()}+${v}`).join(" ")}</div>
+                </> : <div style={{ fontSize: 10, color: "#8B7355", marginTop: 8 }}>— vide —</div>}
+              </div>;
+            })}
+          </div>
+          {/* Sorts — 3 slots */}
+          <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>═ SORTS ({cards.length}) ═</div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+            {[0, 1, 2].map((i) => {
+              const c = cards[i];
+              return <div key={i} style={{ flex: 1, background: c ? "#9B7EDE15" : "#FFF8E7", padding: 4, borderRadius: 6, border: `1px solid ${c ? "#9B7EDE55" : "#D4C5A9"}`, textAlign: "center", minHeight: 40 }}>
+                {c ? <><div style={{ fontSize: 18 }}>{c.e}</div><div style={{ fontSize: 8 }}>{c.n}</div></> : <div style={{ fontSize: 10, color: "#8B7355", marginTop: 8 }}>vide</div>}
+              </div>;
+            })}
+          </div>
+          {/* Outils */}
+          <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 4 }}>═ OUTILS ═</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+            {Object.entries(TOOLS).map(([tid, tool]) => (
+              <span key={tid} style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: tools.includes(tid) ? "#7A9E3F22" : "#88888822", color: tools.includes(tid) ? "#3D5E1A" : "#888" }}>{tool.e} {tools.includes(tid) ? "✅" : "❌"}</span>
+            ))}
+          </div>
+          <div style={{ fontSize: 11 }}>🏆 Boss: {bosses.length}/5 · 📋 Quêtes: {completedQuests.length}/{NPCS.length}</div>
         </div>
       </div>}
 

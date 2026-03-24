@@ -84,9 +84,9 @@ export const NPCS: NpcData[] = [
     id: "roustan", name: "Capitaine Roustan", emoji: "⚓", sprite: "knight",
     biome: "calanques", x: 140, y: 60,
     quest: {
-      id: "q_mouette", description: "Vaincre la Mouette Géante pour le Capitaine",
-      type: "boss", needBoss: "calanques",
-      reward: { type: "equip", id: "amulette_herbes", name: "Amulette d'herbes", emoji: "📿" },
+      id: "q_cle_nid", description: "Apporter 4 Sel et 3 Pierre au Capitaine",
+      type: "collect", need: { sel: 4, pierre: 3 },
+      reward: { type: "item", id: "cle_nid", name: "Clé du Nid", emoji: "🗝️" },
     },
     dialogs: {
       greeting: "Capitaine Roustan, marin d'eau douce et d'eau salée. À votre service !",
@@ -101,9 +101,9 @@ export const NPCS: NpcData[] = [
     id: "marcel", name: "Marcel le Mineur", emoji: "⛏️", sprite: "knight",
     biome: "mines", x: 45, y: 160,
     quest: {
-      id: "q_epee_fer", description: "Apporter 5 Fers et 3 Ocres à Marcel",
+      id: "q_cle_caverne", description: "Apporter 5 Fers et 3 Ocres à Marcel",
       type: "collect", need: { fer: 5, ocre: 3 },
-      reward: { type: "equip", id: "epee_fer", name: "Épée de fer", emoji: "⚔️" },
+      reward: { type: "item", id: "cle_caverne", name: "Clé de la Caverne", emoji: "🗝️" },
     },
     dialogs: {
       greeting: "Marcel. Mineur depuis 40 ans. Ces tunnels, je les connais comme ma poche.",
@@ -118,9 +118,9 @@ export const NPCS: NpcData[] = [
     id: "ondine", name: "Ondine", emoji: "🧜‍♀️", sprite: "wizzard",
     biome: "mer", x: 155, y: 160,
     quest: {
-      id: "q_trident", description: "Apporter 3 Coraux et 2 Perles à Ondine",
+      id: "q_cle_abysses", description: "Apporter 3 Coraux et 2 Perles à Ondine",
       type: "collect", need: { corail: 3, perle: 2 },
-      reward: { type: "equip", id: "trident", name: "Trident de corail", emoji: "🔱" },
+      reward: { type: "item", id: "cle_abysses", name: "Clé des Abysses", emoji: "🗝️" },
     },
     dialogs: {
       greeting: "Je suis Ondine, gardienne des profondeurs. Peu d'humains arrivent jusqu'ici.",
@@ -151,15 +151,15 @@ export const NPCS: NpcData[] = [
     id: "fanfan", name: "Fanfan le Chasseur", emoji: "🏹", sprite: "knight",
     biome: "garrigue", x: 55, y: 65,
     quest: {
-      id: "q_sanglier", description: "Vaincre le Sanglier pour Fanfan",
-      type: "boss", needBoss: "garrigue",
-      reward: { type: "equip", id: "sandales", name: "Sandales", emoji: "👡" },
+      id: "q_cle_taniere", description: "Apporter 5 Branches et 3 Herbes à Fanfan",
+      type: "collect", need: { branche: 5, herbe: 3 },
+      reward: { type: "item", id: "cle_taniere", name: "Clé de la Tanière", emoji: "🗝️" },
     },
     dialogs: {
       greeting: "Fanfan ! Le meilleur chasseur de Garrigue. Enfin, le seul qui reste...",
-      quest: "Ce Sanglier Ancien terrorise le village ! Battez-le et je vous donne mes meilleures sandales.",
-      hint: "Le Sanglier rôde au centre de la Garrigue. Il est fort mais lent.",
-      complete: "Héros ! Prenez ces sandales. Elles sont légères et solides.",
+      quest: "5 Branches solides et 3 Herbes — je vous forge la Clé de la Tanière du Sanglier !",
+      hint: "Les branches tombent des chênes. L'herbe pousse partout dans la garrigue.",
+      complete: "Voilà la Clé ! Allez affronter le Sanglier dans sa Tanière au sud-est !",
       after: "La Garrigue respire enfin. Merci, aventuriers !",
     },
   },

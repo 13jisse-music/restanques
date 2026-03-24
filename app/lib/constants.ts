@@ -148,6 +148,15 @@ export interface PlayerStats {
 }
 export const BAG_LIMIT = 20;
 
+// Fortress keys — needed to enter boss fortress
+export const FORTRESS_KEYS: Record<string, string> = {
+  garrigue: "cle_taniere",
+  calanques: "cle_nid",
+  mines: "cle_caverne",
+  mer: "cle_abysses",
+  restanques: "cle", // the Clé Ancienne (craftable)
+};
+
 // Node harvest HP by resource type
 export const NODE_HP: Record<string, number> = {
   herbe: 2, lavande: 2, branche: 3, coquillage: 2, sel: 3,
