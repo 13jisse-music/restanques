@@ -12,7 +12,7 @@ import {
 import { sounds } from "../lib/sounds";
 import {
   playerMapSprite, mobSprite, bonfireSprite, npcSprite,
-  itemSprite, GEM_STYLES,
+  itemSprite, gemSprite, monsterPortrait, natureSprite, GEM_STYLES,
   type Direction,
 } from "../lib/sprites";
 import { Joystick } from "./components/Joystick";
@@ -550,7 +550,7 @@ function GameContent() {
             </div>
             <div style={{ fontSize: 20, padding: "0 4px" }}>⚔️</div>
             <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-              <div style={{ fontSize: 40, lineHeight: 1 }}>{combat.enemy.e}</div>
+              <div style={{ ...monsterPortrait(combat.node.biome, 52), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
               <div style={{ fontSize: 10, fontWeight: "bold" }}>{combat.enemy.n}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #D94F4F, #A92F2F)", transition: "width 0.3s" }} />
@@ -567,15 +567,15 @@ function GameContent() {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
               const gs = GEM_STYLES[gem] || GEM_STYLES[0];
               return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
-                aspectRatio: "1", borderRadius: 10, cursor: "pointer",
-                background: `radial-gradient(circle at 30% 30%, ${gs.light}, ${gs.dark})`,
-                boxShadow: sel ? `0 0 12px ${gs.glow}, inset 2px 2px 4px rgba(255,255,255,0.4)` : `inset 2px 2px 4px rgba(255,255,255,0.3), 2px 2px 6px rgba(0,0,0,0.4)`,
+                aspectRatio: "1", borderRadius: 8, cursor: "pointer",
+                ...gemSprite(gem, 48),
+                width: "100%", height: "auto",
+                boxShadow: sel ? `0 0 12px ${gs.glow}` : `2px 2px 4px rgba(0,0,0,0.3)`,
                 transform: sel ? "scale(1.15)" : "scale(1)",
-                border: sel ? "3px solid #F4D03F" : "2px solid rgba(0,0,0,0.2)",
+                border: sel ? "3px solid #F4D03F" : "2px solid rgba(0,0,0,0.15)",
                 transition: "all 0.15s ease",
-                position: "relative",
+                background: `${gs.dark}22`,
               }}>
-                <div style={{ position: "absolute", top: "15%", left: "20%", width: "30%", height: "20%", background: "rgba(255,255,255,0.35)", borderRadius: "50%", transform: "rotate(-20deg)" }} />
               </div>;
             }))}
           </div>
@@ -871,10 +871,10 @@ function GameContent() {
                     : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL * 0.8) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
-                          : tile === "t" ? <span style={{ fontSize: fs + 2, filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
-                            : tile === "fl" ? <span style={{ fontSize: fs - 4 }}>🌸</span>
-                              : tile === "lv" ? <span style={{ fontSize: fs - 4 }}>💜</span>
-                                : tile === "r" ? <span style={{ fontSize: fs - 2, opacity: 0.7 }}>🪨</span>
+                          : tile === "t" ? <div style={{ ...natureSprite((wx + wy) % 2, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
+                            : tile === "fl" ? <div style={{ ...natureSprite(3, CELL * 0.8) }} />
+                              : tile === "lv" ? <div style={{ ...natureSprite(3, CELL * 0.8), filter: "hue-rotate(270deg)" }} />
+                                : tile === "r" ? <div style={{ ...natureSprite(2, CELL * 0.85) }} />
                                   : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerMapSprite("idle", "down", 0, CELL, false), filter: "brightness(0.15)", opacity: 0.5, animation: "float 2s ease infinite" }} />
                                     : null}
           </div>;
