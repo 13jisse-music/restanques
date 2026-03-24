@@ -21,6 +21,7 @@ import { CharacterSheet } from "./components/CharacterSheet";
 import { CampPanel } from "./components/CampPanel";
 import { InventoryPanel } from "./components/InventoryPanel";
 import { TopBar } from "./components/TopBar";
+import { PvpArena } from "./components/PvpArena";
 import { StorySequence } from "./components/StorySequence";
 import { DayNightOverlay } from "./components/DayNightOverlay";
 import { Minimap } from "./components/Minimap";
@@ -95,6 +96,7 @@ function GameContent() {
   const H = typeof window !== "undefined" ? window.innerHeight : 700;
   const CELL = Math.floor(Math.min(W / 9, H / 13));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pvpActive, setPvpActive] = useState(false);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -1067,6 +1069,14 @@ function GameContent() {
         onSetEquipped={setEquipped} onSetOwnedEquip={setOwnedEquip} onNotify={notify}
       />}
 
+      {/* PVP ARENA */}
+      {pvpActive && sessionId && playerId && <PvpArena
+        sessionId={sessionId} playerId={playerId}
+        pName={pName} pEmoji={pEmoji} pColor={pColor}
+        hp={hp} maxHp={maxHp} lvl={lvl} cards={cards}
+        onClose={(won, xpGained) => { setPvpActive(false); setXp(x => x + xpGained); sounds.playMusic(currentBiome); }}
+      />}
+
       {/* CHARACTER PANEL */}
       {charPanel && <CharacterSheet
         pName={pName} pEmoji={pEmoji} pColor={pColor} playerClass={playerClass}
@@ -1372,6 +1382,7 @@ function GameContent() {
         <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 12 }}>⚙️ Options</div>
           <button style={{ ...UI.btn("#7A9E3F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setShowGuide(true); }}>📖 Guide du jeu</button>
+          <button style={{ ...UI.btn("#D94F4F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setPvpActive(true); }}>⚔️ Arène PvP</button>
           <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); }}>{sounds.getVolIcon()} Son : {muted ? "OFF" : "ON"}</button>
           <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
           <button style={UI.close} onClick={() => setSettingsOpen(false)}>✕ Fermer</button>

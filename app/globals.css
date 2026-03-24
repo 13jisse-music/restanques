@@ -22,3 +22,130 @@ html, body {
 button {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ═══ ANIMATIONS RESTANQUES ═══ */
+
+/* Gem match explosion */
+@keyframes gemMatch {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.3) rotate(10deg); opacity: 1; }
+  60% { transform: scale(1.4) rotate(-5deg); opacity: 0.7; }
+  100% { transform: scale(0) rotate(20deg); opacity: 0; }
+}
+.gem-matched { animation: gemMatch 400ms ease-out forwards; pointer-events: none; }
+
+/* Gem selection pulse */
+@keyframes gemSelected {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 transparent; }
+  50% { transform: scale(1.1); box-shadow: 0 0 12px rgba(255,215,0,0.8); }
+}
+.gem-selected { animation: gemSelected 0.8s infinite; z-index: 3; }
+
+/* Gem swap */
+@keyframes gemSwap {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(var(--dx), var(--dy)); }
+}
+.gem-swapping { animation: gemSwap 200ms ease-in-out; z-index: 5; }
+
+/* Gem gravity fall with bounce */
+@keyframes gemFall {
+  0% { transform: translateY(var(--fall-from)); }
+  70% { transform: translateY(0); }
+  85% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+.gem-falling { animation: gemFall 300ms ease-out; }
+
+/* Particles */
+@keyframes particleFly {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--px), var(--py)) scale(0); opacity: 0; }
+}
+
+/* Level up */
+@keyframes levelUpParticle {
+  0% { transform: translate(0, 0) scale(0); opacity: 0; }
+  20% { transform: scale(1.5); opacity: 1; }
+  100% { transform: translate(var(--px), var(--py)) scale(0); opacity: 0; }
+}
+@keyframes levelUpFlash {
+  0% { background: transparent; }
+  15% { background: rgba(255, 215, 0, 0.15); }
+  100% { background: transparent; }
+}
+
+/* Craft sparkle */
+@keyframes craftSparkle {
+  0% { transform: translate(var(--startX), var(--startY)) scale(1); opacity: 1; }
+  100% { transform: translate(0, 0) scale(0.3); opacity: 0.5; }
+}
+
+/* Quest confetti */
+@keyframes confetti {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100px) rotate(720deg); opacity: 0; }
+}
+
+/* Screen shake */
+@keyframes screenShake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-4px, 2px); }
+  20% { transform: translate(4px, -2px); }
+  30% { transform: translate(-3px, -1px); }
+  40% { transform: translate(3px, 1px); }
+  50% { transform: translate(-2px, 2px); }
+  60% { transform: translate(2px, -1px); }
+  70% { transform: translate(-1px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  90% { transform: translate(-1px, 0); }
+}
+.screen-shake { animation: screenShake 300ms ease-out; }
+
+/* Damage flash */
+@keyframes damageFlash {
+  0% { background-color: transparent; }
+  20% { background-color: rgba(255, 0, 0, 0.15); }
+  100% { background-color: transparent; }
+}
+.damage-flash { animation: damageFlash 400ms ease-out; }
+
+/* Combat damage float */
+@keyframes combatDamageFloat {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-40px) scale(0.8); opacity: 0; }
+}
+
+/* Health bar pulse when low */
+@keyframes healthPulse {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; box-shadow: 0 0 8px rgba(244,67,54,0.5); }
+}
+
+/* Panel open/close */
+@keyframes panelOpen {
+  0% { transform: scale(0.8) translateY(20px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes panelClose {
+  0% { transform: scale(1) translateY(0); opacity: 1; }
+  100% { transform: scale(0.9) translateY(10px); opacity: 0; }
+}
+.panel-opening { animation: panelOpen 200ms ease-out forwards; }
+
+/* Biome transition */
+@keyframes biomeTransitionIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes biomeTransitionOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Fire flicker */
+@keyframes fireFlicker {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.08) translateY(-2px); filter: brightness(1.15); }
+}
