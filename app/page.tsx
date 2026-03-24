@@ -50,15 +50,15 @@ export default function Home() {
       opacity: fading ? 0 : 1, transition: "opacity 0.5s ease",
     }}>
       {/* Splash image — centered, covers full screen */}
-      <img
-        src="/splash.png" alt="Restanques"
-        style={{
-          position: "absolute", inset: 0,
-          width: "100%", height: "100%",
-          objectFit: "cover", objectPosition: "center 15%",
-          opacity: visible ? 1 : 0, transition: "opacity 1.5s ease",
-        }}
-      />
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: "url(/splash.png)",
+        backgroundSize: "100% auto",
+        backgroundPosition: "center 15%",
+        backgroundRepeat: "no-repeat",
+        backgroundColor: "#1A0A00",
+        opacity: visible ? 1 : 0, transition: "opacity 1.5s ease",
+      }} />
 
       {/* Gradient overlay at bottom for buttons */}
       <div style={{

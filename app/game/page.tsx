@@ -18,6 +18,7 @@ import {
 import { Joystick } from "./components/Joystick";
 import { StorySequence } from "./components/StorySequence";
 import { DayNightOverlay } from "./components/DayNightOverlay";
+import { Minimap } from "./components/Minimap";
 import { STORY, INTRO_IMAGES } from "../data/story";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -500,18 +501,14 @@ function GameContent() {
         <button onClick={() => { setMuted(sounds.toggleMute()); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{muted ? "🔇" : "🔊"}</button>
         {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵 Fatigue</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
-        <button onClick={() => setMmap(!mmap)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>🗺️</button>
         <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
       </div>
       <div style={{ position: "fixed", top: 32, left: 0, right: 0, zIndex: 10, height: 3, background: "rgba(0,0,0,0.3)" }}><div style={{ width: `${(xp / (lvl * 50)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #F4D03F, #E67E22)", transition: "width 0.3s" }} /></div>
 
       {notif && <div style={{ position: "fixed", top: 52, left: "50%", transform: "translateX(-50%)", ...UI.panel, padding: "8px 18px", fontSize: 13, fontWeight: "bold", zIndex: 50, color: "#3D2B1F", whiteSpace: "nowrap", border: "2px solid #8B7355" }}>{notif}</div>}
 
-      {mmap && <div style={{ position: "fixed", top: 54, right: 4, zIndex: 40, background: "#3D2B1F", border: "2px solid #F4D03F", borderRadius: 4, padding: 3 }}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${MW},2.5px)`, gap: 0 }}>
-          {world.m.map((row, y) => row.map((_, x) => <div key={`m${x}${y}`} style={{ width: 2.5, height: 2.5, background: pos.x === x && pos.y === y ? "#F4D03F" : otherPlayer && Math.abs(otherPlayer.x - x) < 2 && Math.abs(otherPlayer.y - y) < 2 ? "#E88EAD" : TILES[world.m[y][x]]?.bg || "#7BB33A" }} />))}
-        </div>
-      </div>}
+      {/* MINIMAP — canvas, always visible */}
+      <Minimap world={world} playerPos={pos} otherPlayer={otherPlayer} enemyPositions={enemyPositions} visible={true} />
 
       {/* STORY / DIALOG / COMBAT / SHOP / CRAFT / BAG / QUESTS overlays */}
       {story && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
