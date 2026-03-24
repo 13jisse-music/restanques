@@ -624,11 +624,17 @@ function GameContent() {
           const newEHp = Math.max(0, p.enemyHp - dmg);
           setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
           if (newEHp <= 0) {
-            p.node.done = true; if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]);
-            gainXp(p.node.boss ? 50 : 15); sounds.victory();
-            if (p.node.boss) {
+            p.node.done = true;
+            gainXp(p.node.boss === true ? 50 : 15); sounds.victory();
+            if (p.node.boss === true) {
               const biome = p.node.biome;
-              setTimeout(() => { setCombat(null); if (biome === "restanques") triggerStory("ending"); else triggerStory(biome + "_end"); }, 1500);
+              setBosses((prevBosses) => {
+                if (!prevBosses.includes(biome)) {
+                  setTimeout(() => { setCombat(null); if (biome === "restanques") triggerStory("ending"); else triggerStory(biome + "_end"); }, 1500);
+                  return [...prevBosses, biome];
+                }
+                return prevBosses;
+              });
             }
             return { ...p, enemyHp: 0, msg: `✨ Éclat ! -${dmg} VICTOIRE ! 🎉`, won: true };
           }
@@ -680,7 +686,7 @@ function GameContent() {
         if (!p) return p; const newEHp = Math.max(0, p.enemyHp - td);
         if (newEHp <= 0) {
           p.node.done = true;
-          if (p.node.boss) setBosses((prev) => [...prev, p.node.biome]);
+          // setBosses is now handled in the story trigger block below (to avoid stale closure)
           if (p.node.res) setInv((prev) => [...prev, p.node.res!]);
           // LOOT — biome-specific drops
           const biomeRes = BIOME_RES_LOOT[p.node.biome] || ["herbe"];
@@ -695,14 +701,22 @@ function GameContent() {
           if (!isBagFull(inv)) { lootItems.forEach((l) => setInv((prev) => [...prev, l])); }
           const lootText = lootItems.length > 0 ? `\nButin : ${lootItems.map((l) => RES[l]?.e || l).join(" ")}` : "";
           gainXp(p.node.boss ? 50 : 15); sounds.victory();
-          // Story transition — ONLY for boss, ONLY if not already seen
-          if (p.node.boss && !bosses.includes(p.node.biome)) {
+          // Story transition — STRICTLY boss only, never for normal mobs
+          if (p.node.boss === true) {
             const biome = p.node.biome;
-            setTimeout(() => {
-              setCombat(null);
-              if (biome === "restanques") triggerStory("ending");
-              else triggerStory(biome + "_end");
-            }, 1500);
+            // Check bosses via current state (not stale closure)
+            setBosses((prevBosses) => {
+              if (!prevBosses.includes(biome)) {
+                // First time beating this boss → trigger story
+                setTimeout(() => {
+                  setCombat(null);
+                  if (biome === "restanques") triggerStory("ending");
+                  else triggerStory(biome + "_end");
+                }, 1500);
+                return [...prevBosses, biome];
+              }
+              return prevBosses;
+            });
           }
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE !${lootText}`, won: true, animating: false };
         }
