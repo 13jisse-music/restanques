@@ -278,6 +278,17 @@ function GameContent() {
   }, [inv, tools, bosses, gainXp]);
   useEffect(() => { if (world) checkQuests(); }, [inv, tools, bosses, checkQuests, world]);
 
+  // ─── FATIGUE TIMER (re-render every second when fatigued) ───
+  const [, setFatigueTick] = useState(0);
+  useEffect(() => {
+    if (fatigueUntil <= Date.now()) return;
+    const iv = setInterval(() => {
+      if (fatigueUntil <= Date.now()) { clearInterval(iv); notify("💪 Fatigue dissipée !"); }
+      setFatigueTick((t) => t + 1);
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [fatigueUntil]);
+
   // ─── DAY/NIGHT CLOCK ───
   useEffect(() => {
     const start = Date.now();
@@ -627,8 +638,10 @@ function GameContent() {
     if (tools.includes("serpe")) s.atk += 2;
     if (tools.includes("pioche")) s.atk += 1;
     if (tools.includes("baton")) s.def += 1;
+    // Fatigue penalty: -30% ATK
+    if (fatigueUntil > Date.now()) s.atk = Math.max(1, Math.floor(s.atk * 0.7));
     return s;
-  }, [stats, equipped, tools]);
+  }, [stats, equipped, tools, fatigueUntil]);
 
   const castSpell = (card: CombatCard) => {
     if (!combat || combat.won || combat.lost || combat.animating || usedSpells.has(card.n)) return;
@@ -787,7 +800,19 @@ function GameContent() {
         setHp(Math.floor(maxHp * 0.5));
         setDeathScreen(true); sounds.playMusic("gameover");
         setFatigueUntil(Date.now() + 120000);
-        setTimeout(() => { setDeathScreen(false); setPos({ x: CAMP_POS.x, y: CAMP_POS.y }); sounds.playMusic(currentBiome); }, 2500);
+        setTimeout(() => {
+          setDeathScreen(false);
+          // Exit dungeon if inside
+          if (dungeon) {
+            setDungeon(null);
+            if (savedWorldPos) setPos(savedWorldPos);
+            setSavedWorldPos(null);
+          } else {
+            setPos({ x: CAMP_POS.x, y: CAMP_POS.y });
+          }
+          sounds.playMusic(currentBiome);
+          notify("😵 Fatigue — ATK réduit pendant 2:00");
+        }, 2500);
       }
       return null;
     });
@@ -939,7 +964,11 @@ function GameContent() {
           {/* Fixed needle pointing up */}
           <div style={{ position: "absolute", width: 2, height: 8, background: "#DAA520", top: 2, left: "50%", transform: "translateX(-50%)", zIndex: 5, borderRadius: 1 }} />
         </div>
-        {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵</span>}
+        {fatigueUntil > Date.now() && (() => {
+          const remaining = Math.max(0, Math.ceil((fatigueUntil - Date.now()) / 1000));
+          const mins = Math.floor(remaining / 60); const secs = remaining % 60;
+          return <span style={{ color: "#FF6666", fontSize: 10, fontWeight: "bold" }}>😵 {mins}:{secs.toString().padStart(2, "0")}</span>;
+        })()}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
       </div>

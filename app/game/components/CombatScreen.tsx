@@ -83,19 +83,22 @@ export function CombatScreen({
           }))}
         </div>
 
-        {/* Spell buttons */}
-        {cards.length > 0 && !combat.won && !combat.lost && !combat.animating && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginTop: 6 }}>
-          {cards.map((c, i) => {
+        {/* Spell slots — always visible (3 slots) */}
+        {!combat.won && !combat.lost && <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 6 }}>
+          {[0, 1, 2].map((i) => {
+            const c = cards[i];
+            if (!c) return <div key={i} style={{ width: 60, height: 36, borderRadius: 6, border: "2px dashed #8B735555", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#8B7355", opacity: 0.4 }}>+</div>;
             const used = usedSpells.has(c.n);
-            return <button key={i} disabled={used} onClick={() => onCastSpell(c)} style={{
+            return <button key={i} disabled={used || combat.animating} onClick={() => onCastSpell(c)} style={{
               padding: "4px 8px", fontSize: 11, fontWeight: "bold",
               background: used ? "#888" : `linear-gradient(145deg, ${c.color || "#8B7355"}, ${c.color || "#5C4033"}CC)`,
               color: "#FFF", border: "1px solid #3D2B1F", borderRadius: 6,
-              cursor: used ? "default" : "pointer", opacity: used ? 0.4 : 1,
-              fontFamily: "'Courier New',monospace",
+              cursor: used || combat.animating ? "default" : "pointer", opacity: used ? 0.4 : 1,
+              fontFamily: "'Courier New',monospace", minWidth: 60,
             }}>{c.e} {c.n}</button>;
           })}
         </div>}
+        {cards.length === 0 && !combat.won && !combat.lost && <div style={{ fontSize: 10, textAlign: "center", marginTop: 4, color: "#8B7355", fontStyle: "italic" }}>Craftez des sorts à l&apos;établi !</div>}
 
         {/* Potion */}
         {!combat.won && !combat.lost && inv.includes("potion") && <button style={{ ...UI_BTN("#9B7EDE", "#FFF", true), width: "100%", marginTop: 6, textAlign: "center" }} onClick={onUsePotion}>🧪 Potion</button>}
