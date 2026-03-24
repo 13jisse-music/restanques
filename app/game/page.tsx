@@ -927,9 +927,16 @@ function GameContent() {
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
         <button onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); sounds.uiClick(); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{sounds.getVolIcon()}</button>
-        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(to right, #FFD700 50%, #1A1A4E 50%)", border: "2px solid rgba(255,255,255,0.3)", position: "relative", overflow: "hidden", flexShrink: 0 }}>
-          <div style={{ position: "absolute", width: 2, height: 12, background: "#FFF", top: 0, left: "50%", transformOrigin: "bottom center", transform: `translateX(-50%) rotate(${timeOfDay * 360}deg)` }} />
-          <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 8 }}>{dayIcon}</span>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid #DAA520", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          {/* Rotating disk: sky top, night bottom */}
+          <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: "linear-gradient(to bottom, #87CEEB 0%, #87CEEB 45%, #FFD700 45%, #FFD700 55%, #1A1A4E 55%, #1A1A4E 100%)", transform: `rotate(${timeOfDay * 360}deg)`, transition: "transform 1s linear" }}>
+            {/* Sun on day side */}
+            <span style={{ position: "absolute", top: 3, left: "50%", fontSize: 10, transform: `translateX(-50%) rotate(-${timeOfDay * 360}deg)` }}>☀️</span>
+            {/* Moon on night side */}
+            <span style={{ position: "absolute", bottom: 3, left: "50%", fontSize: 8, transform: `translateX(-50%) rotate(-${timeOfDay * 360}deg)` }}>🌙</span>
+          </div>
+          {/* Fixed needle pointing up */}
+          <div style={{ position: "absolute", width: 2, height: 8, background: "#DAA520", top: 2, left: "50%", transform: "translateX(-50%)", zIndex: 5, borderRadius: 1 }} />
         </div>
         {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
@@ -1314,68 +1321,65 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* DUNGEON VIEW */}
-      {dungeon && <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "#0A0A0A" }}>
-        {/* Dungeon grid */}
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "grid", gridTemplateColumns: `repeat(20, ${CELL}px)`, gap: 0 }}>
-          {dungeon.tiles.map((row, y) => row.map((tile, x) => {
-            const isPlayer = dungeonPos.x === x && dungeonPos.y === y;
-            const mob = dungeon.mobs.findIndex((m) => m.x === x && m.y === y);
-            const mobAlive = mob >= 0 && dungeonMobsAlive.has(mob);
-            const isChest = tile.type === "chest" && !dungeonChestOpened.has(dungeon.tiles[0].length * y + x);
-            const isEntrance = tile.type === "entrance";
-            return <div key={`d${x}${y}`} style={{
-              width: CELL, height: CELL,
-              background: tile.walkable ? `hsl(30, 10%, ${12 + ((x * 3 + y * 7) % 5)}%)` : "#0A0808",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: Math.floor(CELL * 0.5),
-              border: tile.walkable && !tile.type.includes("wall") ? "1px solid rgba(255,255,255,0.03)" : "none",
-            }} onClick={() => {
-              const dx = x - dungeonPos.x, dy = y - dungeonPos.y;
-              if (Math.abs(dx) + Math.abs(dy) !== 1) return;
-              if (!tile.walkable) return;
-              if (isEntrance) { exitDungeon(); return; }
-              if (mobAlive) {
-                // Start combat with dungeon mob
-                const guard = GUARDS[dungeon.biome];
-                const dMob = dungeon.mobs[mob];
-                setCombat({ grid: createGrid(), enemy: { ...guard, hp: dMob.hp }, enemyHp: dMob.hp, enemyMaxHp: dMob.hp, playerHp: hp, node: { x: dMob.x, y: dMob.y, biome: dungeon.biome, res: null, guard, done: false }, sel: null, combo: 0, totalDmg: 0, msg: "Donjon ! Alignez 3 gemmes.", won: false, lost: false, animating: false });
-                setDungeonMobsAlive((s) => { const ns = new Set(s); ns.delete(mob); return ns; });
-                sounds.playCombatMusic();
-                return;
-              }
-              if (isChest) {
-                // Open chest
-                setDungeonChestOpened((s) => new Set(s).add(dungeon.tiles[0].length * y + x));
-                if (dungeon.loot) {
-                  const eq = EQUIPMENTS.find((e) => e.id === dungeon.loot);
-                  if (eq && !ownedEquip.includes(eq.id)) {
-                    setOwnedEquip((p) => [...p, eq.id]);
-                    notify(`🎁 ${eq.emoji} ${eq.name} trouvé !`);
-                  } else {
-                    setInv((p) => [...p, "potion", "potion"]);
-                    notify("🎁 2 Potions trouvées !");
-                  }
+      {/* DUNGEON VIEW — viewport centered on player */}
+      {dungeon && (() => {
+        const dvw = Math.ceil(W / CELL) + 2;
+        const dvh = Math.ceil(H / CELL) + 2;
+        const dcx = Math.max(0, Math.min(20 - dvw, dungeonPos.x - Math.floor(dvw / 2)));
+        const dcy = Math.max(0, Math.min(20 - dvh, dungeonPos.y - Math.floor(dvh / 2)));
+        const biMobs = BIOME_MOBS[dungeon.biome] || BIOME_MOBS.garrigue;
+        return <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "#0A0A0A" }}>
+          {/* Viewport grid */}
+          <div style={{ position: "fixed", top: 0, left: 0, display: "grid", gridTemplateColumns: `repeat(${dvw},${CELL}px)`, gap: 0 }}>
+            {Array.from({ length: dvh }, (_, vy) => Array.from({ length: dvw }, (_, vx) => {
+              const dx = dcx + vx, dy = dcy + vy;
+              if (dx < 0 || dx >= 20 || dy < 0 || dy >= 20) return <div key={`d${vx}${vy}`} style={{ width: CELL, height: CELL, background: "#000" }} />;
+              const tile = dungeon.tiles[dy][dx];
+              const isPlayer = dungeonPos.x === dx && dungeonPos.y === dy;
+              const mobIdx = dungeon.mobs.findIndex((m) => m.x === dx && m.y === dy);
+              const mobAlive = mobIdx >= 0 && dungeonMobsAlive.has(mobIdx);
+              const isChest = tile.type === "chest" && !dungeonChestOpened.has(20 * dy + dx);
+              const isEntrance = tile.type === "entrance";
+              const fs = Math.floor(CELL * 0.5);
+              return <div key={`d${vx}${vy}`} style={{
+                width: CELL, height: CELL,
+                background: tile.walkable ? `hsl(30, 10%, ${12 + ((dx * 3 + dy * 7) % 5)}%)` : "#0A0808",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs,
+                boxShadow: isPlayer ? "inset 0 0 0 2px #F4D03F" : "none",
+              }} onClick={() => {
+                const ddx = dx - dungeonPos.x, ddy = dy - dungeonPos.y;
+                if (Math.abs(ddx) + Math.abs(ddy) !== 1 || !tile.walkable) return;
+                if (isEntrance) { exitDungeon(); return; }
+                if (mobAlive) {
+                  const mob = biMobs[mobIdx % biMobs.length];
+                  const guard = { n: mob.n, e: mob.e, hp: dungeon.mobs[mobIdx].hp, d: `${mob.e} attaque !` };
+                  setCombat({ grid: createGrid(), enemy: guard, enemyHp: guard.hp, enemyMaxHp: guard.hp, playerHp: hp, node: { x: dx, y: dy, biome: dungeon.biome, res: null, guard, done: false }, sel: null, combo: 0, totalDmg: 0, msg: "Donjon !", won: false, lost: false, animating: false });
+                  setDungeonMobsAlive((s) => { const ns = new Set(s); ns.delete(mobIdx); return ns; }); sounds.playCombatMusic(); return;
                 }
-                sounds.questComplete();
-                return;
-              }
-              setDungeonPos({ x, y });
-            }}>
-              {isPlayer ? <div style={{ ...playerCircle(PLAYER_STYLES[classParam]?.emoji || "🎸", PLAYER_STYLES[classParam]?.c1 || "#4A6E1F", PLAYER_STYLES[classParam]?.c2 || "#2D4A0F", CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                : mobAlive ? <div style={{ width: CELL, height: CELL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.6), filter: "drop-shadow(0 0 4px #D94F4F)" }} />
-                  : isChest ? <span style={{ fontSize: Math.floor(CELL * 0.6), animation: "float 2s ease infinite" }}>🎁</span>
-                    : isEntrance ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🚪</span>
-                      : null}
-            </div>;
-          }))}
-        </div>
-        {/* Dungeon HUD */}
-        <div style={{ position: "fixed", top: 8, left: 8, zIndex: 55, background: "rgba(0,0,0,0.7)", padding: "6px 12px", borderRadius: 8, fontSize: 12, color: "#FFF" }}>
-          🕳️ Donjon ({dungeon.biome}) · ❤️{hp}/{maxHp} · Monstres: {dungeonMobsAlive.size}
-        </div>
+                if (isChest) {
+                  setDungeonChestOpened((s) => new Set(s).add(20 * dy + dx));
+                  const eq = EQUIPMENTS.find((e) => e.id === dungeon.loot);
+                  if (eq && !ownedEquip.includes(eq.id)) { setOwnedEquip((p) => [...p, eq.id]); notify(`🎁 ${eq.emoji} ${eq.name} !`); }
+                  else { setInv((p) => [...p, "potion", "potion"]); notify("🎁 2 Potions !"); }
+                  sounds.questComplete(); return;
+                }
+                setDungeonPos({ x: dx, y: dy });
+              }}>
+                {isPlayer ? <div style={{ ...playerCircle(PLAYER_STYLES[classParam]?.emoji || "🎸", PLAYER_STYLES[classParam]?.c1 || "#4A6E1F", PLAYER_STYLES[classParam]?.c2 || "#2D4A0F", CELL) }} />
+                  : mobAlive ? <span style={{ fontSize: Math.floor(CELL * 0.55), filter: "drop-shadow(0 0 4px #D94F4F)" }}>{biMobs[mobIdx % biMobs.length]?.e || "👾"}</span>
+                    : isChest ? <span style={{ fontSize: Math.floor(CELL * 0.6), animation: "float 2s ease infinite", filter: "drop-shadow(0 0 4px #F4D03F)" }}>📦</span>
+                      : isEntrance ? <span style={{ filter: "drop-shadow(0 0 3px #87CEEB)" }}>🚪</span>
+                        : null}
+              </div>;
+            })).flat()}
+          </div>
+          {/* Dungeon HUD */}
+          <div style={{ position: "fixed", top: 8, left: 8, zIndex: 55, background: "rgba(0,0,0,0.7)", padding: "6px 12px", borderRadius: 8, fontSize: 12, color: "#FFF" }}>
+            🕳️ Donjon · ❤️{hp}/{maxHp} · 👾{dungeonMobsAlive.size}
+          </div>
         <button onClick={exitDungeon} style={{ position: "fixed", top: 8, right: 8, zIndex: 55, ...UI.btn("#8B7355", "#FFF", true) }}>🚪 Sortir</button>
-      </div>}
+      </div>;
+      })()}
 
       {/* NPC DIALOG */}
       {talkingNpc && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 12px 80px" }}>
