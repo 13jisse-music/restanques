@@ -503,7 +503,7 @@ function GameContent() {
         <span style={{ color: bagFull ? "#FF6666" : "#D4C5A9" }}>🎒{bagCount}/{BAG_LIMIT}</span>
         <span>🏆{bosses.length}/5</span>
         {otherPlayer && <span style={{ color: "#F4D03F" }}>👥{otherPlayer.emoji}</span>}
-        <button onClick={() => { setMuted(sounds.toggleMute()); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{muted ? "🔇" : "🔊"}</button>
+        <button onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); sounds.uiClick(); }} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>{sounds.getVolIcon()}</button>
         {fatigueUntil > Date.now() && <span style={{ color: "#FF6666", fontSize: 10 }}>😵 Fatigue</span>}
         <button onClick={() => setTutoStep(0)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>❓</button>
         <button onClick={() => setSettingsOpen(true)} style={{ background: "none", border: "none", color: "#F4D03F", fontSize: 14, cursor: "pointer", padding: 2 }}>⚙️</button>
@@ -896,7 +896,7 @@ function GameContent() {
         <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 12 }}>⚙️ Options</div>
           <button style={{ ...UI.btn("#7A9E3F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setShowGuide(true); }}>📖 Guide du jeu</button>
-          <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setMuted(sounds.toggleMute()); }}>🔊 Son : {muted ? "OFF" : "ON"}</button>
+          <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); }}>{sounds.getVolIcon()} Son : {muted ? "OFF" : "ON"}</button>
           <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
           <button style={UI.close} onClick={() => setSettingsOpen(false)}>✕ Fermer</button>
         </div>
