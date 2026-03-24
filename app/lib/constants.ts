@@ -73,13 +73,42 @@ export const FORTRESSES: Record<string, { x: number; y: number; name: string }> 
   restanques: { x: 50, y: 50, name: "Trône du Mistral" },
 };
 
-export const GUARDS: Record<string, { n: string; e: string; hp: number; d: string }> = {
-  garrigue: { n: "Sanglier Ancien", e: "🐗", hp: 30, d: "GRRR ! Mes collines !" },
-  calanques: { n: "Mouette Géante", e: "🦅", hp: 50, d: "CRIII ! Mes falaises !" },
-  mines: { n: "Tarasque", e: "🐉", hp: 80, d: "Ces mines m'appartiennent..." },
-  mer: { n: "Pieuvre Géante", e: "🦑", hp: 120, d: "Mes tentacules gardent ces trésors !" },
-  restanques: { n: "Le Mistral", e: "🌪️", hp: 200, d: "JE SUIS LE MISTRAL !" },
+export const GUARDS: Record<string, { n: string; e: string; hp: number; atk: number; d: string }> = {
+  garrigue: { n: "Sanglier Ancien", e: "🐗", hp: 50, atk: 12, d: "GRRR ! Mes collines !" },
+  calanques: { n: "Mouette Géante", e: "🦅", hp: 80, atk: 18, d: "CRIII ! Mes falaises !" },
+  mines: { n: "Tarasque", e: "🐉", hp: 120, atk: 25, d: "Ces mines m'appartiennent..." },
+  mer: { n: "Pieuvre Géante", e: "🦑", hp: 180, atk: 35, d: "Mes tentacules gardent ces trésors !" },
+  restanques: { n: "Le Mistral", e: "🌪️", hp: 300, atk: 50, d: "JE SUIS LE MISTRAL !" },
 };
+
+// Monster stats by level (exponential scaling)
+export function monsterHp(lv: number): number {
+  if (lv <= 1) return 8;
+  if (lv <= 4) return 8 + (lv - 1) * 5; // 8, 13, 18, 23
+  if (lv <= 8) return 28 + (lv - 5) * 4; // 28, 32, 36, 40
+  if (lv <= 13) return 40 + (lv - 8) * 5; // 40, 45, 50, 55, 60
+  if (lv <= 18) return 60 + (lv - 13) * 5; // 60, 65, 70, 75, 80, 85
+  return 85 + (lv - 18) * 7; // 85, 92, 99, 106, 113, 120
+}
+export function monsterAtk(lv: number): number {
+  if (lv <= 1) return 2;
+  if (lv <= 4) return 2 + lv; // 3, 4, 5, 6
+  if (lv <= 8) return 7 + (lv - 5); // 7, 8, 9, 10
+  if (lv <= 13) return 12 + (lv - 9); // 12, 13, 14, 15, 16
+  if (lv <= 18) return 18 + (lv - 14); // 18, 19, 20, 21, 22
+  return 25 + (lv - 19) * 2; // 25, 27, 29, 31, 33, 35
+}
+
+// Night monster variants
+export const NIGHT_MOBS: Record<string, { n: string; e: string; lv: number }> = {
+  garrigue: { n: "Hibou", e: "🦉", lv: 4 },
+  calanques: { n: "Chauve-souris", e: "🦇", lv: 8 },
+  mer: { n: "Calmar", e: "🦑", lv: 18 },
+  restanques: { n: "Spectre noir", e: "👻", lv: 23 },
+};
+
+// Torch recipe
+export const TORCH_RECIPE = { branche: 2, herbe: 1 };
 
 export const QUESTS_DEF = [
   { id: "q1", t: "Récolte 3 branches", need: { branche: 3 } as Record<string, number>, needTool: null as string | null, needBoss: null as string | null, xp: 10, reward: "herbe" as string | null },
@@ -267,3 +296,28 @@ export interface Quest {
   reward: string | null;
   done: boolean;
 }
+
+// ═══ GARDEN (Artisane) ═══
+export interface GardenPlot { seed: string | null; plantedAt: number; growTime: number }
+export const GARDEN_SEEDS: Record<string, { name: string; emoji: string; growTime: number; yields: string }> = {
+  herbe:       { name: "Herbe fraîche", emoji: "🌿", growTime: 120, yields: "herbe_fraiche" },
+  lavande:     { name: "Lavande pure", emoji: "💜", growTime: 180, yields: "lavande_pure" },
+  champignon:  { name: "Champignon", emoji: "🍄", growTime: 300, yields: "champignon" },
+  baies:       { name: "Baies dorées", emoji: "🫐", growTime: 240, yields: "baies" },
+};
+
+// ═══ CUISINE (Artisane) ═══
+export const RECIPES_CUISINE: { name: string; emoji: string; recipe: Record<string, number>; buff: { stat: string; value: number; duration: number }; desc: string }[] = [
+  { name: "Ragoût provençal", emoji: "🍖", recipe: { herbe_fraiche: 2, poisson: 1 }, buff: { stat: "atk", value: 3, duration: 300 }, desc: "ATK +3 pendant 5 min" },
+  { name: "Élixir de vie", emoji: "🧪", recipe: { champignon: 1, baies: 2 }, buff: { stat: "hp", value: 15, duration: 0 }, desc: "Soigne 15 PV" },
+  { name: "Bouillon fortifiant", emoji: "🛡️", recipe: { herbe_fraiche: 1, baies: 1 }, buff: { stat: "def", value: 3, duration: 300 }, desc: "DEF +3 pendant 5 min" },
+  { name: "Infusion magique", emoji: "✨", recipe: { lavande_pure: 2, champignon: 1 }, buff: { stat: "mag", value: 5, duration: 300 }, desc: "MAG +5 pendant 5 min" },
+];
+
+// ═══ FUSION ═══
+export const FUSION_RESULTS: Record<string, { name: string; emoji: string; value: string }> = {
+  herbe: { name: "Herbe concentrée", emoji: "🌿✨", value: "herbe_conc" },
+  pierre: { name: "Pierre taillée", emoji: "🪨✨", value: "pierre_taillee" },
+  cristal: { name: "Cristal pur", emoji: "💎✨", value: "cristal_pur" },
+  lavande: { name: "Essence de lavande", emoji: "💜✨", value: "essence_lavande" },
+};
