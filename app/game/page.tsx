@@ -19,6 +19,7 @@ import { Joystick } from "./components/Joystick";
 import { StorySequence } from "./components/StorySequence";
 import { DayNightOverlay } from "./components/DayNightOverlay";
 import { Minimap } from "./components/Minimap";
+import { GameGuide } from "./components/GameGuide";
 import { STORY, INTRO_IMAGES } from "../data/story";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -124,6 +125,8 @@ function GameContent() {
   const [fatigueUntil, setFatigueUntil] = useState(0);
   const [mysteryPos, setMysteryPos] = useState<{ x: number; y: number } | null>(null);
   const [currentBiome, setCurrentBiome] = useState("garrigue");
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideHint, setGuideHint] = useState(false);
   const moveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -476,8 +479,10 @@ function GameContent() {
           // Transition music: intro → silence → garrigue
           sounds.stopMusic();
           setTimeout(() => sounds.playBiomeMusic("garrigue"), 300);
-          // Start tutorial AFTER intro
-          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 800);
+          // Show guide hint after intro
+          if (!localStorage.getItem("restanques_guide_hint")) {
+            setTimeout(() => { setGuideHint(true); setTimeout(() => setGuideHint(false), 5000); localStorage.setItem("restanques_guide_hint", "done"); }, 1000);
+          }
         }}
       />}
 
@@ -827,6 +832,11 @@ function GameContent() {
         </div>
       </div>}
 
+      {/* GUIDE HINT — first time */}
+      {guideHint && <div onClick={() => setGuideHint(false)} style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", zIndex: 20, background: "rgba(245,236,215,0.95)", border: "2px solid #5C4033", borderRadius: 10, padding: "10px 16px", maxWidth: 300, textAlign: "center", fontSize: 13, color: "#3D2B1F", fontFamily: "'Courier New',monospace", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+        📖 Première fois ? Consultez le <strong>Guide</strong> dans ⚙️ Options !
+      </div>}
+
       {/* ═══ MAP ═══ */}
       <div style={{ position: "fixed", top: 0, left: 0, display: "grid", gridTemplateColumns: `repeat(${vw},${CELL}px)`, gap: 0, zIndex: 0 }}>
         {Array.from({ length: vh }, (_, vy) => Array.from({ length: vw }, (_, vx) => {
@@ -885,12 +895,13 @@ function GameContent() {
       {settingsOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...UI.panel, padding: 16, maxWidth: 260, color: "#3D2B1F", textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 12 }}>⚙️ Options</div>
-          <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
+          <button style={{ ...UI.btn("#7A9E3F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setShowGuide(true); }}>📖 Guide du jeu</button>
           <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setMuted(sounds.toggleMute()); }}>🔊 Son : {muted ? "OFF" : "ON"}</button>
-          <button style={{ ...UI.btn("#F4D03F", "#3D2B1F"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setTutoStep(0); }}>❓ Aide</button>
+          <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
           <button style={UI.close} onClick={() => setSettingsOpen(false)}>✕ Fermer</button>
         </div>
       </div>}
+      {showGuide && <GameGuide onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

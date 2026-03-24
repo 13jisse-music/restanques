@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "./lib/supabase";
+import { GameGuide } from "./game/components/GameGuide";
 
 export default function Home() {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [fading, setFading] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => { setTimeout(() => setVisible(true), 300); }, []);
 
@@ -111,7 +114,7 @@ export default function Home() {
 
         {/* Options */}
         <button
-          onClick={() => alert("Bientôt disponible !")}
+          onClick={() => setShowOptions(true)}
           style={{
             width: "60%", maxWidth: 200, height: 40,
             background: "rgba(255,255,255,0.1)",
@@ -125,6 +128,21 @@ export default function Home() {
           }}
         >⚙️ Options</button>
       </div>
+
+      {/* Options menu */}
+      {showOptions && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "linear-gradient(#F5ECD7, #E8D5A3)", border: "4px solid #5C4033", borderRadius: 14, padding: 20, maxWidth: 280, width: "85%", boxShadow: "0 8px 24px rgba(0,0,0,0.5)", fontFamily: "'Courier New',monospace" }}>
+          <div style={{ fontSize: 16, fontWeight: "bold", color: "#5C4033", textAlign: "center", marginBottom: 14 }}>⚙️ Options</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button onClick={() => { setShowOptions(false); setShowGuide(true); }} style={{ width: "100%", padding: "12px 16px", background: "linear-gradient(135deg, #7A9E3F, #5A7E2F)", color: "#FFF", border: "2px solid #3D5E1A", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>📖 Guide du jeu</button>
+            <button onClick={resetGame} disabled={resetting} style={{ width: "100%", padding: "12px 16px", background: "linear-gradient(135deg, #E67E22, #CC6600)", color: "#FFF", border: "2px solid #5C4033", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", opacity: resetting ? 0.5 : 1 }}>{resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}</button>
+            <button onClick={() => setShowOptions(false)} style={{ width: "100%", padding: "10px 16px", background: "#8B7355", color: "#E8D5A3", border: "2px solid #5C4033", borderRadius: 10, fontSize: 13, cursor: "pointer" }}>❌ Fermer</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Guide */}
+      {showGuide && <GameGuide onClose={() => setShowGuide(false)} />}
     </div>
   );
 }
