@@ -39,12 +39,13 @@ export default function Home() {
     width: "85%", maxWidth: 320, height: 54,
     borderRadius: 12, cursor: "pointer",
     fontSize: 18, fontWeight: "bold", color: "#FFF",
-    fontFamily: "'Courier New',monospace",
-    letterSpacing: 2,
-    textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
-    border: "2px solid #F4D03F",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
-    transition: "transform 0.15s, box-shadow 0.15s",
+    fontFamily: "'Crimson Text', Georgia, serif",
+    letterSpacing: 3,
+    textShadow: "1px 1px 2px rgba(0,0,0,0.6)",
+    border: "2px solid #DAA520",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
+    transition: "transform 0.1s, box-shadow 0.1s",
+    textTransform: "uppercase" as const,
   };
 
   return (
@@ -75,11 +76,11 @@ export default function Home() {
           onClick={() => play("jisse", "aventurier")}
           style={{
             ...btnBase,
-            background: "linear-gradient(135deg, #7A9E3F, #5A7E2F)",
+            background: "linear-gradient(135deg, #6B8E23, #556B2F)",
             opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
             transition: "opacity 0.5s ease 0.5s, transform 0.5s ease 0.5s, box-shadow 0.15s, scale 0.15s",
           }}
-          onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.97)"; }}
+          onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.96)"; }}
           onPointerUp={(e) => { (e.target as HTMLElement).style.transform = "scale(1)"; }}
         >🎸 Rejoindre : Jisse</button>
 
@@ -88,11 +89,11 @@ export default function Home() {
           onClick={() => play("melanie", "artisane")}
           style={{
             ...btnBase,
-            background: "linear-gradient(135deg, #C77DA5, #A05A82)",
+            background: "linear-gradient(135deg, #B5658A, #8E4466)",
             opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
             transition: "opacity 0.5s ease 0.7s, transform 0.5s ease 0.7s, box-shadow 0.15s, scale 0.15s",
           }}
-          onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.97)"; }}
+          onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.96)"; }}
           onPointerUp={(e) => { (e.target as HTMLElement).style.transform = "scale(1)"; }}
         >🎨 Rejoindre : Mélanie</button>
 
@@ -101,11 +102,11 @@ export default function Home() {
           onClick={resetGame} disabled={resetting}
           style={{
             width: "60%", maxWidth: 200, height: 40,
-            background: "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: 8, color: "rgba(255,255,255,0.8)",
-            fontSize: 13, fontFamily: "'Courier New',monospace",
-            cursor: "pointer", backdropFilter: "blur(4px)",
+            background: "rgba(0,0,0,0.4)",
+            border: "1px solid rgba(218,165,32,0.4)",
+            borderRadius: 8, color: "rgba(255,248,231,0.7)",
+            fontSize: 14, fontFamily: "'Crimson Text', Georgia, serif",
+            cursor: "pointer", backdropFilter: "blur(8px)", letterSpacing: 2,
             opacity: visible ? (resetting ? 0.5 : 1) : 0,
             transform: visible ? "translateY(0)" : "translateY(20px)",
             transition: "opacity 0.5s ease 0.9s, transform 0.5s ease 0.9s",
@@ -117,11 +118,11 @@ export default function Home() {
           onClick={() => setShowOptions(true)}
           style={{
             width: "60%", maxWidth: 200, height: 40,
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 8, color: "rgba(255,255,255,0.6)",
-            fontSize: 13, fontFamily: "'Courier New',monospace",
-            cursor: "pointer", backdropFilter: "blur(4px)",
+            background: "rgba(0,0,0,0.3)",
+            border: "1px solid rgba(218,165,32,0.3)",
+            borderRadius: 8, color: "rgba(255,248,231,0.6)",
+            fontSize: 14, fontFamily: "'Crimson Text', Georgia, serif",
+            cursor: "pointer", backdropFilter: "blur(8px)", letterSpacing: 2,
             opacity: visible ? 1 : 0,
             transform: visible ? "translateY(0)" : "translateY(20px)",
             transition: "opacity 0.5s ease 1.1s, transform 0.5s ease 1.1s",
@@ -134,7 +135,7 @@ export default function Home() {
         <div style={{ background: "linear-gradient(#F5ECD7, #E8D5A3)", border: "4px solid #5C4033", borderRadius: 14, padding: 20, maxWidth: 280, width: "85%", boxShadow: "0 8px 24px rgba(0,0,0,0.5)", fontFamily: "'Courier New',monospace" }}>
           <div style={{ fontSize: 16, fontWeight: "bold", color: "#5C4033", textAlign: "center", marginBottom: 14 }}>⚙️ Options</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button onClick={() => { setShowOptions(false); setShowGuide(true); }} style={{ width: "100%", padding: "12px 16px", background: "linear-gradient(135deg, #7A9E3F, #5A7E2F)", color: "#FFF", border: "2px solid #3D5E1A", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>📖 Guide du jeu</button>
+            <button onClick={() => { setShowOptions(false); setShowGuide(true); }} style={{ width: "100%", padding: "12px 16px", background: "linear-gradient(135deg, #6B8E23, #556B2F)", color: "#FFF", border: "2px solid #3D5E1A", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>📖 Guide du jeu</button>
             <button onClick={resetGame} disabled={resetting} style={{ width: "100%", padding: "12px 16px", background: "linear-gradient(135deg, #E67E22, #CC6600)", color: "#FFF", border: "2px solid #5C4033", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", opacity: resetting ? 0.5 : 1 }}>{resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}</button>
             <button onClick={() => setShowOptions(false)} style={{ width: "100%", padding: "10px 16px", background: "#8B7355", color: "#E8D5A3", border: "2px solid #5C4033", borderRadius: 10, fontSize: 13, cursor: "pointer" }}>❌ Fermer</button>
           </div>

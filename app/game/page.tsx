@@ -697,6 +697,7 @@ function GameContent() {
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
         @keyframes playerHit{0%,100%{transform:translateX(0)}25%{transform:translateX(4px);filter:brightness(1.5)}50%{transform:translateX(-4px)}75%{transform:translateX(2px)}}
         @keyframes pulse{0%,100%{filter:drop-shadow(0 0 4px #F4D03F)}50%{filter:drop-shadow(0 0 10px #FF6600)}}
+        @keyframes fireFlicker{0%{transform:scale(1);opacity:0.9}100%{transform:scale(1.1) translateY(-2px);opacity:1}}
         @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
         @keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1px) scale(1.05)}}
         @keyframes enemyAtk{0%{transform:scale(1)}40%{transform:scale(1.3) translateY(-8px)}100%{transform:scale(1)}}
@@ -1285,7 +1286,7 @@ function GameContent() {
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
+                  : isCamp ? <div style={{ width: CELL * 0.6, height: CELL * 0.6, borderRadius: "50%", background: "radial-gradient(circle, #FF6600, #FF3300, #CC0000)", boxShadow: "0 0 15px rgba(255,100,0,0.6), 0 0 30px rgba(255,50,0,0.3)", animation: "fireFlicker 0.5s infinite alternate" }} />
                     : staticNode && staticNode.res ? (() => {
                         const nIdx = world.nodes.indexOf(staticNode);
                         const maxHp = NODE_HP[staticNode.res!] || 3;
