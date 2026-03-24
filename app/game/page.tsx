@@ -75,7 +75,7 @@ function GameContent() {
   // Fullscreen CELL — carte remplit tout l'écran
   const W = typeof window !== "undefined" ? window.innerWidth : 360;
   const H = typeof window !== "undefined" ? window.innerHeight : 700;
-  const CELL = Math.floor(Math.min(W / 15, H / 20));
+  const CELL = Math.floor(Math.min(W / 11, H / 15));
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [world, setWorld] = useState<GameWorld | null>(null);
@@ -454,8 +454,8 @@ function GameContent() {
   if (!world) return <div style={{ width: "100%", height: "100vh", background: "#1A1410", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace", color: "#F4D03F" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 48 }}>⛰️</div>Chargement...</div></div>;
 
   const bagCount = countBagItems(inv); const bagFull = bagCount >= BAG_LIMIT;
-  const vw = Math.floor(W / CELL);
-  const vh = Math.floor(H / CELL);
+  const vw = Math.ceil(W / CELL) + 2;
+  const vh = Math.ceil(H / CELL) + 2;
   const camX = Math.max(0, Math.min(MW - vw, pos.x - Math.floor(vw / 2)));
   const camY = Math.max(0, Math.min(MH - vh, pos.y - Math.floor(vh / 2)));
 
@@ -567,15 +567,15 @@ function GameContent() {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
               const gs = GEM_STYLES[gem] || GEM_STYLES[0];
               return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
-                aspectRatio: "1", borderRadius: 8, cursor: "pointer",
-                ...gemSprite(gem, 48),
-                width: "100%", height: "auto",
-                boxShadow: sel ? `0 0 12px ${gs.glow}` : `2px 2px 4px rgba(0,0,0,0.3)`,
+                aspectRatio: "1", borderRadius: 10, cursor: "pointer",
+                background: `radial-gradient(circle at 30% 30%, ${gs.light}, ${gs.dark})`,
+                boxShadow: sel ? `0 0 12px ${gs.glow}, inset 2px 2px 4px rgba(255,255,255,0.4)` : `inset 2px 2px 4px rgba(255,255,255,0.3), 2px 2px 6px rgba(0,0,0,0.4)`,
                 transform: sel ? "scale(1.15)" : "scale(1)",
-                border: sel ? "3px solid #F4D03F" : "2px solid rgba(0,0,0,0.15)",
+                border: sel ? "3px solid #F4D03F" : "2px solid rgba(0,0,0,0.2)",
                 transition: "all 0.15s ease",
-                background: `${gs.dark}22`,
+                position: "relative",
               }}>
+                <div style={{ position: "absolute", top: "15%", left: "20%", width: "30%", height: "20%", background: "rgba(255,255,255,0.35)", borderRadius: "50%", transform: "rotate(-20deg)" }} />
               </div>;
             }))}
           </div>
@@ -871,10 +871,10 @@ function GameContent() {
                     : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL * 0.8) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
-                          : tile === "t" ? <div style={{ ...natureSprite((wx + wy) % 2, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
-                            : tile === "fl" ? <div style={{ ...natureSprite(3, CELL * 0.8) }} />
-                              : tile === "lv" ? <div style={{ ...natureSprite(3, CELL * 0.8), filter: "hue-rotate(270deg)" }} />
-                                : tile === "r" ? <div style={{ ...natureSprite(2, CELL * 0.85) }} />
+                          : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.65), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
+                            : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>🌸</span>
+                              : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>💜</span>
+                                : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.45), opacity: 0.7 }}>🪨</span>
                                   : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerMapSprite("idle", "down", 0, CELL, false), filter: "brightness(0.15)", opacity: 0.5, animation: "float 2s ease infinite" }} />
                                     : null}
           </div>;

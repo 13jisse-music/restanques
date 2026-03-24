@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { TILES, MW, MH, CAMP_POS, type GameWorld } from "../../lib/constants";
 
 interface MinimapProps {
@@ -83,20 +83,26 @@ export function Minimap({ world, playerPos, otherPlayer, enemyPositions, visible
     return () => clearInterval(iv);
   }, [visible, playerPos, world]);
 
+  const [expanded, setExpanded] = useState(false);
   if (!visible) return null;
+  const sz = expanded ? 160 : 90;
 
   return (
     <canvas
       ref={canvasRef}
       width={MW} height={MH}
+      onClick={() => setExpanded(!expanded)}
       style={{
         position: "fixed", top: 40, right: 8, zIndex: 10,
-        width: 110, height: 110,
-        border: "2px solid rgba(255,215,0,0.6)",
+        width: sz, height: sz,
+        border: "2px solid rgba(255,215,0,0.5)",
         borderRadius: 8,
         imageRendering: "pixelated",
         boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
         background: "#1A1410",
+        opacity: 0.85,
+        transition: "width 0.2s, height 0.2s",
+        cursor: "pointer",
       }}
     />
   );
