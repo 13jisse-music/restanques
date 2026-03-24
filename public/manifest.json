@@ -1,0 +1,13 @@
+{
+  "name": "Restanques",
+  "short_name": "Restanques",
+  "description": "Reconstruis le duché provençal à deux",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1A1410",
+  "theme_color": "#3D2B1F",
+  "icons": [
+    { "src": "/splash.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

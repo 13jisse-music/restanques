@@ -162,10 +162,13 @@ function GameContent() {
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
       if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); }
       else { const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single(); if (np) setPlayerId(np.id); }
-      setStory("🏔️ Un magnifique duché provençal s'élevait sur les terrasses de pierre...\n\n🌪️ Mais le Mistral, jaloux, a tout balayé.\n\n💪 Deux aventuriers partent restaurer les Restanques.\n\n🌿 Explorez la Garrigue. ⛺ Le camp 🔥 restaure vos PV !");
-      // Intro + tutorial + music
-      if (!ep?.intro_seen) { setShowIntro(true); }
-      else if (!localStorage.getItem("restanques_tuto")) { setTimeout(() => setTutoStep(0), 2000); }
+      // Intro sequence OR tutorial (never both at once)
+      if (!ep?.intro_seen) {
+        setShowIntro(true);
+        // Tutorial will start AFTER intro completes (see onComplete)
+      } else {
+        if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 1500);
+      }
       setTimeout(() => sounds.playBiomeMusic("garrigue"), 1000);
     }
     init();
@@ -469,7 +472,8 @@ function GameContent() {
         onComplete={() => {
           setShowIntro(false);
           if (playerId) supabase.from("players").update({ intro_seen: true }).eq("id", playerId);
-          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 1000);
+          // Start tutorial AFTER intro is gone
+          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 500);
         }}
       />}
 

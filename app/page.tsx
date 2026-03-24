@@ -54,45 +54,39 @@ export default function Home() {
         background: "linear-gradient(transparent, rgba(26,20,16,0.85) 50%, rgba(26,20,16,0.95))",
       }} />
 
-      {/* Content */}
+      {/* Buttons — fixed at bottom, always visible */}
       <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        display: "flex", flexDirection: "column", alignItems: "center",
-        padding: "20px 20px 60px",
-        width: "100%",
-        gap: "10px",
+        position: "fixed", bottom: 10, left: 20, right: 20, zIndex: 10,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
         opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
         transition: "all 1s ease 0.5s",
+        paddingBottom: "env(safe-area-inset-bottom, 10px)",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", maxWidth: "300px" }}>
-          <button onClick={() => play("jisse")} style={{
-            padding: "14px 20px", fontSize: "16px", fontWeight: "bold",
-            fontFamily: "'Courier New',monospace",
-            background: "linear-gradient(145deg, rgba(122,158,63,0.9), rgba(74,110,31,0.9))",
-            color: "#FFF8E7", border: "2px solid #F4D03F",
-            borderRadius: "12px", cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
-            letterSpacing: "1px",
-          }}>🎸 Rejoindre : Jisse</button>
+        <button onClick={() => play("jisse")} style={{
+          width: "100%", maxWidth: 300, padding: "14px 20px", fontSize: 16, fontWeight: "bold",
+          fontFamily: "'Courier New',monospace",
+          background: "linear-gradient(145deg, rgba(122,158,63,0.9), rgba(74,110,31,0.9))",
+          color: "#FFF8E7", border: "2px solid #F4D03F",
+          borderRadius: 12, cursor: "pointer",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+          letterSpacing: 1,
+        }}>🎸 Rejoindre : Jisse</button>
 
-          <button onClick={() => play("melanie")} style={{
-            padding: "14px 20px", fontSize: "16px", fontWeight: "bold",
-            fontFamily: "'Courier New',monospace",
-            background: "linear-gradient(145deg, rgba(232,142,173,0.9), rgba(180,90,120,0.9))",
-            color: "#FFF8E7", border: "2px solid #F4D03F",
-            borderRadius: "12px", cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
-            letterSpacing: "1px",
-          }}>🎨 Rejoindre : Mélanie</button>
+        <button onClick={() => play("melanie")} style={{
+          width: "100%", maxWidth: 300, padding: "14px 20px", fontSize: 16, fontWeight: "bold",
+          fontFamily: "'Courier New',monospace",
+          background: "linear-gradient(145deg, rgba(232,142,173,0.9), rgba(180,90,120,0.9))",
+          color: "#FFF8E7", border: "2px solid #F4D03F",
+          borderRadius: 12, cursor: "pointer",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+          letterSpacing: 1,
+        }}>🎨 Rejoindre : Mélanie</button>
 
-          <button onClick={resetGame} disabled={resetting} style={{
-            padding: "10px 16px", fontSize: "12px", fontWeight: "bold",
-            fontFamily: "'Courier New',monospace",
-            background: "rgba(61,43,31,0.7)", color: "#D4C5A9",
-            border: "1px solid #8B7355", borderRadius: "8px", cursor: "pointer",
-            opacity: resetting ? 0.5 : 0.8,
-          }}>{resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}</button>
-        </div>
+        <button onClick={resetGame} disabled={resetting} style={{
+          background: "none", color: "#D4C5A9", border: "none", cursor: "pointer",
+          fontSize: 12, fontFamily: "'Courier New',monospace", opacity: resetting ? 0.5 : 0.7,
+          textDecoration: "underline",
+        }}>{resetting ? "⏳ Reset..." : "🔄 Nouvelle partie"}</button>
       </div>
     </div>
   );
