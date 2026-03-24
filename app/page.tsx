@@ -55,7 +55,7 @@ export default function Home() {
         style={{
           position: "absolute", inset: 0,
           width: "100%", height: "100%",
-          objectFit: "cover", objectPosition: "center center",
+          objectFit: "cover", objectPosition: "center 15%",
           opacity: visible ? 1 : 0, transition: "opacity 1.5s ease",
         }}
       />
