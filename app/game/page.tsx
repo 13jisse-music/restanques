@@ -1238,18 +1238,7 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* LEVEL UP CHOICE */}
-      {levelUpChoice && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{ ...UI.panel, padding: 16, maxWidth: 300, color: "#3D2B1F", textAlign: "center" }}>
-          <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>⬆️ Niveau {lvl} !</div>
-          <div style={{ fontSize: 12, marginBottom: 12 }}>Choisis un bonus :</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button style={UI.btn("#D94F4F", "#FFF")} onClick={() => { setStats((s) => ({ ...s, atk: s.atk + 1 })); setLevelUpChoice(false); }}>⚔️ ATK +1</button>
-            <button style={UI.btn("#4A90D9", "#FFF")} onClick={() => { setStats((s) => ({ ...s, def: s.def + 1 })); setLevelUpChoice(false); }}>🛡️ DEF +1</button>
-            <button style={UI.btn("#9B7EDE", "#FFF")} onClick={() => { setStats((s) => ({ ...s, mag: s.mag + 1 })); setLevelUpChoice(false); }}>✨ MAG +1</button>
-          </div>
-        </div>
-      </div>}
+      {/* Level up is now automatic (no popup) */}
 
       {/* TUTORIAL — big clear panel */}
       {tutoStep >= 0 && <div style={{ position: "fixed", inset: 0, zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}>
@@ -1427,16 +1416,16 @@ function GameContent() {
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  : isCamp ? <div style={{ width: CELL * 0.6, height: CELL * 0.6, borderRadius: "50%", background: "radial-gradient(circle, #FF6600, #FF3300, #CC0000)", boxShadow: "0 0 15px rgba(255,100,0,0.6), 0 0 30px rgba(255,50,0,0.3)", animation: "fireFlicker 0.5s infinite alternate" }} />
+                  : isCamp ? <div style={{ width: CELL * 1.2, height: CELL * 1.2, borderRadius: "50%", background: "radial-gradient(circle, #FF6600, #FF3300, #CC0000, transparent)", boxShadow: "0 0 15px rgba(255,100,0,0.6), 0 0 30px rgba(255,50,0,0.3)", animation: "fireFlicker 0.5s infinite alternate", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.5) }}>🔥</div>
                     : staticNode && staticNode.res ? (() => {
                         const nIdx = world.nodes.indexOf(staticNode);
                         const maxHp = NODE_HP[staticNode.res!] || 3;
                         const curHp = nodeHpMap[nIdx] ?? maxHp;
                         const isAdj = Math.abs(wx - pos.x) + Math.abs(wy - pos.y) === 1;
                         const damaged = curHp < maxHp;
-                        return <div style={{ position: "relative" }}>
-                          <div style={{ ...(itemSprite(staticNode.res!, CELL * 0.8) || {}), animation: isAdj ? "float 1s ease infinite" : "float 3s ease infinite", filter: damaged ? "brightness(0.6)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))", border: isAdj ? "2px solid rgba(244,208,63,0.6)" : "none", borderRadius: 4 }} />
-                          {damaged && <div style={{ position: "absolute", bottom: -2, left: "10%", width: "80%", height: 3, background: "#333", borderRadius: 2 }}><div style={{ width: `${(curHp / maxHp) * 100}%`, height: "100%", background: "#7A9E3F", borderRadius: 2 }} /></div>}
+                        return <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ fontSize: Math.floor(CELL * 0.55), animation: isAdj ? "float 1s ease infinite" : "float 3s ease infinite", filter: damaged ? "brightness(0.5) saturate(0.5)" : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))", border: isAdj ? "2px solid rgba(244,208,63,0.6)" : "none", borderRadius: 4, padding: 1 }}>{RES[staticNode.res!]?.e || "❓"}</span>
+                          {damaged && <div style={{ position: "absolute", bottom: 0, left: "10%", width: "80%", height: 3, background: "#333", borderRadius: 2 }}><div style={{ width: `${(curHp / maxHp) * 100}%`, height: "100%", background: "#7A9E3F", borderRadius: 2 }} /></div>}
                         </div>;
                       })()
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
