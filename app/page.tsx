@@ -80,7 +80,7 @@ export default function Home() {
   const CLASSES = [
     { id: "aventurier", emoji: "🎸", name: "AVENTURIER", desc: "Combat +20%, explore loin, Rage du guerrier", color: "#6B8E23", color2: "#556B2F" },
     { id: "artisane", emoji: "🎨", name: "ARTISANE", desc: "Récolte ×2, Jardin, Cuisine, Fusion d'items", color: "#B5658A", color2: "#8E4466" },
-    { id: "ombre", emoji: "🌙", name: "L'OMBRE", desc: "Vitesse +30%, critiques ×3, autonome", color: "#444", color2: "#1a1a2e", locked: ngPlusCount === 0 },
+    { id: "ombre", emoji: "🌙", name: "L'OMBRE", desc: "Vitesse +30%, critiques ×3 — Mode avancé", color: "#444", color2: "#1a1a2e", locked: false },
   ];
 
   const btnStyle = (bg: string, delay = 0): React.CSSProperties => ({

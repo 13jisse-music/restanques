@@ -53,6 +53,15 @@ export const CARD_RECIPES = [
   { r: ["poisson", "sel"], c: { n: "Festin", d: "+5 PV", e: "🍽️", color: COLORS.olive, pow: 5 } },
   { r: ["perle", "corail"], c: { n: "Marée", d: "+4 dmg", e: "🌊", color: COLORS.deep, pow: 4 } },
   { r: ["fer", "pierre"], c: { n: "Séisme", d: "Mélange grille", e: "💥", color: COLORS.mine, pow: 0 } },
+  // 8 nouveaux sorts
+  { r: ["branche", "ocre", "herbe"], c: { n: "Brasier", d: "-2 PV/tour 3t", e: "🔥", color: COLORS.orange, pow: 2 } },
+  { r: ["sel", "coquillage"], c: { n: "Gel", d: "Bloque 2 col 2t", e: "❄️", color: COLORS.sky, pow: 0 } },
+  { r: ["cristal", "perle"], c: { n: "Miroir", d: "Renvoie 50% 2t", e: "🪞", color: COLORS.crystal, pow: 0 } },
+  { r: ["fer", "ocre", "cristal"], c: { n: "Confusion", d: "Auto-attaque 1t", e: "🔄", color: COLORS.violet, pow: 0 } },
+  { r: ["corail", "perle", "cristal"], c: { n: "Malédiction", d: "-1 ATK permanent", e: "💀", color: "#333", pow: 0 } },
+  { r: ["lavande", "lavande", "cristal"], c: { n: "Lumière", d: "×2 si jour", e: "☀️", color: COLORS.sun, pow: 6 } },
+  { r: ["fer", "fer", "ocre"], c: { n: "Ombre sort", d: "×2 si nuit", e: "🌙", color: "#2D2D4A", pow: 6 } },
+  { r: ["pierre", "pierre", "herbe"], c: { n: "Ralentissement", d: "1 tour/2 3t", e: "⏳", color: COLORS.stone, pow: 0 } },
 ];
 
 // Monstres normaux par biome (patrouille)

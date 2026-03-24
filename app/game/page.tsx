@@ -795,6 +795,10 @@ function GameContent() {
               return prevBosses;
             });
           }
+          // Auto-close combat after victory (2s delay)
+          if (!p.node.boss || bosses.includes(p.node.biome)) {
+            setTimeout(() => endCombat(), 2000);
+          }
           return { ...p, grid: filled, enemyHp: 0, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} VICTOIRE !${lootText}`, won: true, animating: false };
         }
         if (nm.length > 0) { setTimeout(() => processMatches(filled, nm, combo + 1), 400); return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: combo + 1, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true }; }
@@ -808,7 +812,7 @@ function GameContent() {
         const atks = ["charge", "frappe", "mord", "griffe", "souffle"]; setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${atks[Math.floor(Math.random() * atks.length)]} !`);
         setTimeout(() => { setPlayerShaking(true); sounds.hit(); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => { if (!c) return c; const np = c.playerHp - rd; setHp(Math.max(0, np)); setEnemyTurnMsg("");
-            if (np <= 0) return { ...c, playerHp: 0, sel: null, combo: 0, msg: `${c.enemy.e} -${rd} PV... KO ! 💀`, lost: true, animating: false };
+            if (np <= 0) { setTimeout(() => endCombat(), 1500); return { ...c, playerHp: 0, sel: null, combo: 0, msg: `${c.enemy.e} -${rd} PV... KO ! 💀`, lost: true, animating: false }; }
             return { ...c, playerHp: np, sel: null, combo: 0, msg: `Ton tour ! (-${rd} PV)`, animating: false }; }); }, 800);
         return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: 0, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm}`, animating: true };
       });
