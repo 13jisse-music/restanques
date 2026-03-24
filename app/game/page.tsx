@@ -235,7 +235,9 @@ function GameContent() {
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) { for (const idx of session.collected_nodes) { if (w.nodes[idx]) w.nodes[idx].done = true; } }
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
       if (ep) {
-        setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped); if (ep.ng_plus) setNgPlus(ep.ng_plus);
+        setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped); if (ep.ng_plus) setNgPlus(ep.ng_plus);
+        // Load SHARED chest from game_sessions
+        supabase.from("game_sessions").select("shared_chest").eq("id", ep.session_id).single().then(({ data: sc }) => { if (sc?.shared_chest) setChest(sc.shared_chest); });
         // Restore biome
         const savedBiome = ep.current_biome || "garrigue";
         if (savedBiome !== "garrigue") {
@@ -262,7 +264,11 @@ function GameContent() {
   useEffect(() => {
     if (!playerId) return;
     if (syncRef.current) clearTimeout(syncRef.current);
-    syncRef.current = setTimeout(() => { supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, chest, stats, owned_equip: ownedEquip, equipped, updated_at: new Date().toISOString() }).eq("id", playerId); }, 250);
+    syncRef.current = setTimeout(() => {
+      supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, stats, owned_equip: ownedEquip, equipped, updated_at: new Date().toISOString() }).eq("id", playerId);
+      // Save shared chest to game_sessions
+      if (sessionId) supabase.from("game_sessions").update({ shared_chest: chest }).eq("id", sessionId);
+    }, 250);
   }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, chest, stats, ownedEquip, equipped, playerId]);
 
   const doneRef = useRef(0);
@@ -477,6 +483,16 @@ function GameContent() {
       return;
     }
     if (!tt?.w && tile !== "gt") return;
+    // A6: NPC blocking — check if a PNJ is at target position
+    const biomeNpcs = NPCS.filter((n) => n.biome === currentBiome);
+    const npcAtPos = biomeNpcs.find((n) => {
+      const npcNode = world.nodes.find((nd) => nd.x === nx && nd.y === ny && !nd.guard && !nd.res && !nd.done);
+      return npcNode !== undefined;
+    });
+    if (npcAtPos) {
+      const npcNode = world.nodes.find((nd) => nd.x === nx && nd.y === ny && !nd.guard && !nd.res && !nd.done);
+      if (npcNode) { setDialog(npcNode); return; }
+    }
     setPos({ x: nx, y: ny });
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
     if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }

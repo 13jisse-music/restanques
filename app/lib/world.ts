@@ -3,7 +3,7 @@
 // Chaque biome a ses propres tiles, nodes, villages, portails
 // ═══════════════════════════════════════════════════════════
 
-import { MW, MH, TILES, GUARDS, BIOME_MOBS, FORTRESSES, VILLAGES, CAMP_POS, type GameNode, type Gate, type Village, type GameWorld } from './constants';
+import { MW, MH, TILES, GUARDS, BIOME_MOBS, FORTRESSES, VILLAGES, CAMP_POS, monsterHp, monsterAtk, type GameNode, type Gate, type Village, type GameWorld } from './constants';
 
 function makeRng(seed: number) {
   let s = seed | 0;
@@ -152,8 +152,8 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     }
   }
 
-  // Additional roaming monsters (NOT guarding resources) — 30-40 per biome
-  const monsterCount = 30 + Math.floor(rng() * 10);
+  // Additional roaming monsters (NOT guarding resources) — 80-100 per biome
+  const monsterCount = 80 + Math.floor(rng() * 20);
   for (let i = 0; i < monsterCount; i++) {
     let tries = 0;
     while (tries < 60) {
@@ -166,8 +166,8 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
         const distFromCenter = Math.abs(x - 50) + Math.abs(y - 50);
         const mobIdx = distFromCamp < 20 ? 0 : distFromCenter > 50 ? mobs.length - 1 : Math.floor(rng() * mobs.length);
         const mob = mobs[Math.min(mobIdx, mobs.length - 1)];
-        const mobHp = Math.ceil(4 + mob.lv * 2.5 + Math.pow(mob.lv, 1.3));
-        nodes.push({ x, y, biome: biomeId, res: null, guard: { n: mob.n, e: mob.e, hp: mobHp, d: `${mob.e} ${mob.n} attaque !` }, done: false });
+        const mhp = monsterHp(mob.lv);
+        nodes.push({ x, y, biome: biomeId, res: null, guard: { n: mob.n, e: mob.e, hp: mhp, d: `${mob.e} ${mob.n} attaque !` }, done: false });
         break;
       }
       tries++;
