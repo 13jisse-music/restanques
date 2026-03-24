@@ -126,10 +126,10 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     drawPath(50, 50, v.x, v.y);
   }
 
-  // Resource nodes (30-50 per biome) — with varied mob guards
+  // Resource nodes (40-50 per biome)
   const res = BIOME_RES[biomeId] || ["branche"];
   const mobs = BIOME_MOBS[biomeId] || BIOME_MOBS.garrigue;
-  const nodeCount = 30 + Math.floor(rng() * 20);
+  const nodeCount = 40 + Math.floor(rng() * 10);
   for (let i = 0; i < nodeCount; i++) {
     let tries = 0;
     while (tries < 80) {
@@ -137,13 +137,37 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
       const y = 5 + Math.floor(rng() * 90);
       if (TILES[m[y][x]]?.w && !nodes.find((n) => n.x === x && n.y === y)) {
         const r = res[Math.floor(rng() * res.length)];
-        const hasGuard = rng() < 0.35;
+        const hasGuard = rng() < 0.25;
         let guard = null;
         if (hasGuard) {
           const mob = mobs[Math.floor(rng() * mobs.length)];
-          guard = { n: mob.n, e: mob.e, hp: 4 + mob.lv * 2, d: `${mob.e} ${mob.n} attaque !` };
+          // Progressive HP: exponential scaling
+          const mobHp = Math.ceil(4 + mob.lv * 2.5 + Math.pow(mob.lv, 1.3));
+          guard = { n: mob.n, e: mob.e, hp: mobHp, d: `${mob.e} ${mob.n} attaque !` };
         }
         nodes.push({ x, y, biome: biomeId, res: r, guard, done: false });
+        break;
+      }
+      tries++;
+    }
+  }
+
+  // Additional roaming monsters (NOT guarding resources) — 30-40 per biome
+  const monsterCount = 30 + Math.floor(rng() * 10);
+  for (let i = 0; i < monsterCount; i++) {
+    let tries = 0;
+    while (tries < 60) {
+      const x = 5 + Math.floor(rng() * 90);
+      const y = 5 + Math.floor(rng() * 90);
+      // Don't place near camp (garrigue only, radius 15 is safe-ish zone with weak mobs)
+      const distFromCamp = biomeId === "garrigue" ? Math.abs(x - CAMP_POS.x) + Math.abs(y - CAMP_POS.y) : 999;
+      if (TILES[m[y][x]]?.w && !nodes.find((n) => n.x === x && n.y === y)) {
+        // Stronger mobs further from camp / center
+        const distFromCenter = Math.abs(x - 50) + Math.abs(y - 50);
+        const mobIdx = distFromCamp < 20 ? 0 : distFromCenter > 50 ? mobs.length - 1 : Math.floor(rng() * mobs.length);
+        const mob = mobs[Math.min(mobIdx, mobs.length - 1)];
+        const mobHp = Math.ceil(4 + mob.lv * 2.5 + Math.pow(mob.lv, 1.3));
+        nodes.push({ x, y, biome: biomeId, res: null, guard: { n: mob.n, e: mob.e, hp: mobHp, d: `${mob.e} ${mob.n} attaque !` }, done: false });
         break;
       }
       tries++;

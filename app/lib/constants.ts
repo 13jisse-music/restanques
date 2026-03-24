@@ -74,11 +74,11 @@ export const FORTRESSES: Record<string, { x: number; y: number; name: string }> 
 };
 
 export const GUARDS: Record<string, { n: string; e: string; hp: number; d: string }> = {
-  garrigue: { n: "Sanglier", e: "🐗", hp: 8, d: "Grrr ! Mes collines !" },
-  calanques: { n: "Mouette", e: "🦅", hp: 12, d: "CRIII ! Mes falaises !" },
-  mines: { n: "Tarasque", e: "🐉", hp: 18, d: "Ces mines sont à moi..." },
-  mer: { n: "Pieuvre", e: "🐙", hp: 16, d: "Mes tentacules gardent ces trésors !" },
-  restanques: { n: "Le Mistral", e: "🌪️", hp: 30, d: "Je suis LE MISTRAL ! Nul ne reconstruira ces restanques !" },
+  garrigue: { n: "Sanglier Ancien", e: "🐗", hp: 30, d: "GRRR ! Mes collines !" },
+  calanques: { n: "Mouette Géante", e: "🦅", hp: 50, d: "CRIII ! Mes falaises !" },
+  mines: { n: "Tarasque", e: "🐉", hp: 80, d: "Ces mines m'appartiennent..." },
+  mer: { n: "Pieuvre Géante", e: "🦑", hp: 120, d: "Mes tentacules gardent ces trésors !" },
+  restanques: { n: "Le Mistral", e: "🌪️", hp: 200, d: "JE SUIS LE MISTRAL !" },
 };
 
 export const QUESTS_DEF = [

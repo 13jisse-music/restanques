@@ -701,7 +701,12 @@ function GameContent() {
   };
 
   const processMatches = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
-    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + totalStats.atk + totalStats.mag + spellBonus; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = Math.floor((dmg + Math.floor(bd / 2)) * playerClass.combatBonus);
+    const cc = cardsRef.current;
+    const matchBonus = matches.length <= 3 ? 0 : matches.length === 4 ? 2 : 6;
+    const comboMult = combo === 0 ? 1 : combo === 1 ? 1.5 : 2;
+    const dmg = matches.length + matchBonus + totalStats.atk + totalStats.mag + spellBonus;
+    const bd = cc.reduce((a, c) => a + (c.pow || 0), 0);
+    const td = Math.floor((dmg + Math.floor(bd / 2)) * playerClass.combatBonus * comboMult);
     if (spellBonus > 0) setSpellBonus(0); // Marée consumed
     const cm = combo > 0 ? ` COMBO x${combo + 1} !` : "";
     const g = grid.map((r) => [...r]); matches.forEach(({ x, y }) => { g[y][x] = -1; });
@@ -1401,6 +1406,32 @@ function GameContent() {
         </div>
       </div>}
 
+      {/* DIRECTION INDICATORS */}
+      {world && !combat && !dungeon && (() => {
+        const indicators: { emoji: string; label: string; tx: number; ty: number }[] = [];
+        // Camp
+        if (currentBiome === "garrigue") indicators.push({ emoji: "🏡", label: "Camp", tx: CAMP_POS.x, ty: CAMP_POS.y });
+        // Fortress
+        const fort = FORTRESSES[currentBiome];
+        if (fort && !bosses.includes(currentBiome)) indicators.push({ emoji: "🏰", label: "Boss", tx: fort.x, ty: fort.y });
+        // Nearest portal
+        const portal = world.gates[0];
+        if (portal) indicators.push({ emoji: "🚪", label: portal.b, tx: portal.x, ty: portal.y });
+
+        return indicators.map((ind, i) => {
+          const dx = ind.tx - pos.x, dy = ind.ty - pos.y;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist < 5) return null; // too close, don't show
+          // Position on screen edge
+          const angle = Math.atan2(dy, dx);
+          const edgeX = Math.max(40, Math.min(W - 40, W / 2 + Math.cos(angle) * (W / 2 - 30)));
+          const edgeY = Math.max(60, Math.min(H - 80, H / 2 + Math.sin(angle) * (H / 2 - 50)));
+          return <div key={i} style={{ position: "fixed", left: edgeX, top: edgeY, zIndex: 15, fontSize: 11, background: "rgba(0,0,0,0.6)", padding: "2px 6px", borderRadius: 8, color: "#FFF", fontFamily: "'Courier New',monospace", pointerEvents: "none", transform: "translate(-50%,-50%)" }}>
+            {ind.emoji} {dist}
+          </div>;
+        });
+      })()}
+
       {/* GUIDE HINT — first time */}
       {guideHint && <div onClick={() => setGuideHint(false)} style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", zIndex: 20, background: "rgba(245,236,215,0.95)", border: "2px solid #5C4033", borderRadius: 10, padding: "10px 16px", maxWidth: 300, textAlign: "center", fontSize: 13, color: "#3D2B1F", fontFamily: "'Courier New',monospace", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
         📖 Première fois ? Consultez le <strong>Guide</strong> dans ⚙️ Options !
@@ -1486,7 +1517,35 @@ function GameContent() {
       </div>
 
       {/* JOYSTICK (mobile) */}
-      <Joystick onMove={(dx, dy) => tryMove(dx, dy)} onStop={() => { setWalking(false); }} moveInterval={equipped.bottes === "bottes_vent" ? 150 : equipped.bottes === "sandales" ? 200 : 250} />
+      <Joystick onMove={(dx, dy) => {
+        if (dungeon) {
+          // Dungeon movement
+          const nx = dungeonPos.x + dx, ny = dungeonPos.y + dy;
+          if (nx < 0 || nx >= 20 || ny < 0 || ny >= 20) return;
+          if (!dungeon.tiles[ny][nx].walkable) return;
+          if (dungeon.tiles[ny][nx].type === "entrance") { exitDungeon(); return; }
+          // Check mob
+          const mobIdx = dungeon.mobs.findIndex((m) => m.x === nx && m.y === ny);
+          if (mobIdx >= 0 && dungeonMobsAlive.has(mobIdx)) {
+            const guard = GUARDS[dungeon.biome];
+            const dMob = dungeon.mobs[mobIdx];
+            setCombat({ grid: createGrid(), enemy: { ...guard, hp: dMob.hp }, enemyHp: dMob.hp, enemyMaxHp: dMob.hp, playerHp: hp, node: { x: dMob.x, y: dMob.y, biome: dungeon.biome, res: null, guard, done: false }, sel: null, combo: 0, totalDmg: 0, msg: "Donjon !", won: false, lost: false, animating: false });
+            setDungeonMobsAlive((s) => { const ns = new Set(s); ns.delete(mobIdx); return ns; });
+            sounds.playCombatMusic(); return;
+          }
+          // Check chest
+          if (dungeon.tiles[ny][nx].type === "chest" && !dungeonChestOpened.has(dungeon.tiles[0].length * ny + nx)) {
+            setDungeonChestOpened((s) => new Set(s).add(dungeon.tiles[0].length * ny + nx));
+            const eq = EQUIPMENTS.find((e) => e.id === dungeon.loot);
+            if (eq && !ownedEquip.includes(eq.id)) { setOwnedEquip((p) => [...p, eq.id]); notify(`🎁 ${eq.emoji} ${eq.name} !`); }
+            else { setInv((p) => [...p, "potion", "potion"]); notify("🎁 2 Potions !"); }
+            sounds.questComplete();
+          }
+          setDungeonPos({ x: nx, y: ny });
+        } else {
+          tryMove(dx, dy);
+        }
+      }} onStop={() => { setWalking(false); }} moveInterval={equipped.bottes === "bottes_vent" ? 150 : equipped.bottes === "sandales" ? 200 : 250} />
 
       {/* ACTION BUTTONS (bottom right) */}
       <div style={{ position: "fixed", bottom: 16, right: 10, zIndex: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
