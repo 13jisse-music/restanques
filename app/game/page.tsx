@@ -11,8 +11,8 @@ import {
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
 import {
-  playerSprite, mobSprite, bonfireSprite, npcSprite, monsterSprite,
-  gemSprite, itemSprite, natureSprite, tileSpriteStyle, buildingSprite,
+  playerMapSprite, mobSprite, bonfireSprite, npcSprite,
+  itemSprite, GEM_STYLES,
   type Direction,
 } from "../lib/sprites";
 import { useSearchParams } from "next/navigation";
@@ -43,14 +43,7 @@ const TILE_COLORS: Record<string, { bg: string; border?: string; pattern?: strin
 };
 
 // ═══ GEM STYLES — radial gradients + glow ═══
-const GEM_COLORS = [
-  { light: "#B89EEE", dark: "#6B4EAE", glow: "#9B7EDE" },  // lavande
-  { light: "#9ABE5F", dark: "#4A6E1F", glow: "#7A9E3F" },  // olive
-  { light: "#E96F6F", dark: "#A92F2F", glow: "#D94F4F" },  // rubis
-  { light: "#6AB0E9", dark: "#2A60A9", glow: "#4A90D9" },  // saphir
-  { light: "#F7E06F", dark: "#C4A01F", glow: "#F4D03F" },  // soleil
-  { light: "#F09E42", dark: "#B64E02", glow: "#E67E22" },  // ocre
-];
+// GEM_STYLES imported from sprites.ts
 
 // ═══ UI STYLES ═══
 const UI = {
@@ -463,7 +456,7 @@ function GameContent() {
         <div style={{ ...UI.panel, padding: 12, maxWidth: 380, width: "100%", color: "#3D2B1F" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ flex: 1, textAlign: "center", animation: playerShaking ? "playerHit 0.3s" : "none" }}>
-              <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", "right", spriteFrame, 56), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: pColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "3px solid #3D2B1F", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", margin: "0 auto" }}>{pEmoji}</div>
               <div style={{ fontSize: 10, fontWeight: "bold", marginTop: 2 }}>{pName}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${(combat.playerHp / maxHp) * 100}%`, height: "100%", background: combat.playerHp < maxHp * 0.3 ? "#D94F4F" : "linear-gradient(90deg, #7A9E3F, #5E9A22)", transition: "width 0.3s" }} />
@@ -472,7 +465,7 @@ function GameContent() {
             </div>
             <div style={{ fontSize: 20, padding: "0 4px" }}>⚔️</div>
             <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-              <div style={{ ...monsterSprite(combat.node.biome, 56), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
+              <div style={{ fontSize: 40, lineHeight: 1 }}>{combat.enemy.e}</div>
               <div style={{ fontSize: 10, fontWeight: "bold" }}>{combat.enemy.n}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #D94F4F, #A92F2F)", transition: "width 0.3s" }} />
@@ -487,17 +480,17 @@ function GameContent() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 4, width: "100%", maxWidth: 340, margin: "0 auto", padding: 8, background: "#1A1410", borderRadius: 10, border: "3px solid #F4D03F" }}>
             {combat.grid.map((row, y) => row.map((gem, x) => {
               const sel = combat.sel && combat.sel.x === x && combat.sel.y === y;
-              const gc = GEM_COLORS[gem] || GEM_COLORS[0];
+              const gs = GEM_STYLES[gem] || GEM_STYLES[0];
               return <div key={`${x}${y}`} onClick={() => selectGem(x, y)} style={{
-                aspectRatio: "1", borderRadius: 8, cursor: "pointer",
-                ...gemSprite(gem, 48),
-                width: "100%", height: "auto",
-                boxShadow: sel ? `0 0 12px ${gc.glow}` : `2px 2px 6px rgba(0,0,0,0.3)`,
+                aspectRatio: "1", borderRadius: 10, cursor: "pointer",
+                background: `radial-gradient(circle at 30% 30%, ${gs.light}, ${gs.dark})`,
+                boxShadow: sel ? `0 0 12px ${gs.glow}, inset 2px 2px 4px rgba(255,255,255,0.4)` : `inset 2px 2px 4px rgba(255,255,255,0.3), 2px 2px 6px rgba(0,0,0,0.4)`,
                 transform: sel ? "scale(1.15)" : "scale(1)",
-                border: sel ? `3px solid #F4D03F` : "2px solid rgba(0,0,0,0.15)",
+                border: sel ? "3px solid #F4D03F" : "2px solid rgba(0,0,0,0.2)",
                 transition: "all 0.15s ease",
-                background: `${gc.dark}33`,
+                position: "relative",
               }}>
+                <div style={{ position: "absolute", top: "15%", left: "20%", width: "30%", height: "20%", background: "rgba(255,255,255,0.35)", borderRadius: "50%", transform: "rotate(-20deg)" }} />
               </div>;
             }))}
           </div>
@@ -682,7 +675,7 @@ function GameContent() {
             <span style={{ fontSize: 15, fontWeight: "bold" }}>👤 {pName}</span>
             <button style={UI.close} onClick={() => setCharPanel(false)}>✕</button>
           </div>
-          <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", "down", spriteFrame, 64), margin: "0 auto 8px" }} />
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: pColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, border: "3px solid #3D2B1F", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", margin: "0 auto 8px" }}>{pEmoji}</div>
           <div style={{ fontSize: 13, textAlign: "center", marginBottom: 8 }}>Nv.{lvl} · ❤️{hp}/{maxHp} · XP {xp}/{lvl * 50}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
             <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
@@ -698,8 +691,17 @@ function GameContent() {
               <div style={{ fontSize: 10, color: "#8B7355" }}>💚 VIT</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.vit}</div>
             </div>
           </div>
-          {tools.length > 0 && <div style={{ fontSize: 11, marginBottom: 4 }}><strong>🔧</strong> {tools.map((t) => `${TOOLS[t].e}${TOOLS[t].n}`).join(", ")}</div>}
-          {cards.length > 0 && <div style={{ fontSize: 11 }}><strong>🃏</strong> {cards.map((c) => `${c.e}${c.n}`).join(", ")}</div>}
+          {tools.length > 0 && <div style={{ marginTop: 6, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
+            <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 2 }}>🔧 Équipement</div>
+            {tools.map((t) => {
+              const bonus = t === "serpe" ? "ATK +2" : t === "pioche" ? "ATK +1" : t === "baton" ? "DEF +1" : "";
+              return <div key={t} style={{ fontSize: 11 }}>{TOOLS[t].e} {TOOLS[t].n} {bonus && <span style={{ color: "#7A9E3F", fontWeight: "bold" }}>({bonus})</span>}</div>;
+            })}
+          </div>}
+          {cards.length > 0 && <div style={{ marginTop: 4, padding: 6, background: "#FFF8E7", borderRadius: 6, border: "1px solid #D4C5A9" }}>
+            <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 2 }}>🃏 Sorts</div>
+            {cards.map((c, i) => <div key={i} style={{ fontSize: 11 }}>{c.e} {c.n} — {c.d}</div>)}
+          </div>}
           <div style={{ fontSize: 11, marginTop: 6 }}><strong>🏆</strong> Boss vaincus: {bosses.length}/5</div>
         </div>
       </div>}
@@ -754,37 +756,27 @@ function GameContent() {
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
           const fs = Math.floor(CELL * 0.5);
 
-          // Tile floor sprite (ChatGPT tiles.png) or CSS fallback
-          const tileStyle = tileSpriteStyle(tile, CELL);
-
           return <div key={`${vx}${vy}`} style={{
-            width: CELL, height: CELL,
-            ...(tileStyle || { background: tc.bg, backgroundImage: tc.pattern }),
+            width: CELL, height: CELL, background: tc.bg, backgroundImage: tc.pattern,
             display: "flex", alignItems: "center", justifyContent: "center",
-            position: "relative", fontSize: fs,
-            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : "none",
+            position: "relative", fontSize: fs, overflow: "hidden",
+            boxShadow: isP ? "inset 0 0 0 2px #F4D03F" : isOther ? "inset 0 0 0 2px #E88EAD" : tc.border ? `inset 0 -2px 0 ${tc.border}` : "none",
           }} onClick={() => { const dx = wx - pos.x, dy = wy - pos.y; if (Math.abs(dx) + Math.abs(dy) === 1) tryMove(dx, dy); }}>
-            {/* PLAYER — ChatGPT sprite */}
-            {isP ? <div style={{ ...playerSprite(playerParam === "melanie" ? "melanie" : "jisse", lastDir, walking ? spriteFrame : 0, CELL), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
-              : isOther ? <div style={{ ...playerSprite(otherPlayer!.name === "Mélanie" ? "melanie" : "jisse", "down", spriteFrame, CELL * 0.85), opacity: 0.75 }} />
-                /* ENEMY — Pixel Crawler mob (animated) */
+            {/* PLAYER — Pixel Crawler Body_A */}
+            {isP ? <div style={{ ...playerMapSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
+              : isOther ? <div style={{ ...playerMapSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
                 : mobileEnemyNode ? <div style={{ position: "relative" }}>
                     <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
-                  /* BONFIRE */
                   : isCamp ? <div style={{ ...bonfireSprite(spriteFrame, CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                    /* RESOURCE NODE — item sprite */
-                    : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
-                      /* GATE */
-                      : gate ? <div style={{ width: CELL * 0.8, height: CELL * 0.8, background: "#6B4226", border: "2px solid #F4D03F", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs, boxShadow: "0 0 6px #F4D03F44" }}>🚪</div>
-                        /* VILLAGE — building sprite */
-                        : vilIdx >= 0 ? <div style={{ ...buildingSprite(vilIdx, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
-                          /* NATURE — tree, rock, bush sprites */
-                          : tile === "t" ? <div style={{ ...natureSprite(1, CELL), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }} />
-                            : tile === "r" ? <div style={{ ...natureSprite(2, CELL), opacity: 0.85 }} />
-                              : tile === "fl" ? <div style={{ ...natureSprite(3, CELL) }} />
-                                : tile === "lv" ? <div style={{ ...natureSprite(3, CELL), filter: "hue-rotate(270deg)" }} />
+                    : staticNode && staticNode.res ? <div style={{ ...(itemSprite(staticNode.res, CELL * 0.8) || {}), animation: "float 2s ease infinite", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                      : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
+                        : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                          : tile === "t" ? <span style={{ fontSize: fs + 2, filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
+                            : tile === "fl" ? <span style={{ fontSize: fs - 4 }}>🌸</span>
+                              : tile === "lv" ? <span style={{ fontSize: fs - 4 }}>💜</span>
+                                : tile === "r" ? <span style={{ fontSize: fs - 2, opacity: 0.7 }}>🪨</span>
                                   : null}
           </div>;
         })).flat()}

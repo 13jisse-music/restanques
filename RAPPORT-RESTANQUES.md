@@ -1,271 +1,285 @@
-# RAPPORT RESTANQUES — État au 23 mars 2026, 22h30
+# RAPPORT RESTANQUES — État au 24 mars 2026
 
-## Le projet en bref
+## Le projet
 **Restanques** — jeu web coopératif 2 joueurs (Jisse 🎸 + Mélanie 🎨) sur mobile.
-Thème provençal : exploration carte 50×50, craft, combat match-3, villages, quêtes.
-Les 2 joueurs voient la même carte en temps réel via Supabase Realtime.
+Thème provençal : exploration carte 200×200, craft, combat match-3, villages, quêtes.
+Multijoueur temps réel via Supabase Realtime.
 
 **URL live** : https://restanques.vercel.app
-**Code** : /c/tmp/restanques (12 commits, ~1260 lignes de code)
+**Code** : /c/tmp/restanques (18 commits, ~1550 lignes de code)
+**Vercel** : projet `restanques`, compte 13jisse-music
 
 ---
 
-## Stack technique
+## Stack
 - **Next.js 14** (App Router) + TypeScript
-- **Supabase** : base de données + Realtime (tables `game_sessions` + `players`)
-- **Vercel** : déploiement (projet `restanques`, compte 13jisse-music)
-- **Sons** : Web Audio API (zéro fichier audio, tout généré en JS)
-- **Sprites** : Kenney CC0 (Tiny Town 192×176 + Tiny Dungeon 192×176 + Micro Roguelike 128×80) — NON UTILISÉS actuellement pour le rendu, gardés en `/public/sprites/` pour usage futur
-- **Rendu actuel** : CSS pur (couleurs par biome + emojis) — c'est ce qui marche le mieux sur mobile
-
-## Supabase
-- URL : `https://omivxkzvzfobylgjscvx.supabase.co`
-- Anon key : `eyJhbGci...2V-aO_8jz0ki8sCf4poA3IYuyokFMwyQn2y8MwWWNMA`
-- Service role key : `eyJhbGci...r931uHoftu6ZqWzCrXZcs3EvnCWk7KM7hipOLBdQ8-o`
-- DB direct : host `aws-1-eu-central-1.pooler.supabase.com:5432`, user `postgres.omivxkzvzfobylgjscvx`, password `Yourbanlt300!`
-- Tables : `game_sessions` (id, seed, collected_nodes JSONB, active) + `players` (id, session_id, name, emoji, x, y, hp, max_hp, lvl, xp, inventory, tools, cards, unlocked_biomes, bosses_defeated)
-- RLS ouvert (jeu privé)
-- Realtime activé sur les 2 tables
-
-## GitHub
-- Compte : `restanques-lejeu-create` (restanques.lejeu@gmail.com / Yourbanlt300!)
-- Repo créé mais PAS encore pushé (auth GitHub non configurée — il faut créer un Personal Access Token)
-- Le code est uniquement local dans /c/tmp/restanques et déployé sur Vercel
+- **Supabase** : BDD + Realtime
+  - URL : `https://omivxkzvzfobylgjscvx.supabase.co`
+  - Anon key : `eyJhbGci...2V-aO_8jz0ki8sCf4poA3IYuyokFMwyQn2y8MwWWNMA`
+  - Service role : `eyJhbGci...r931uHoftu6ZqWzCrXZcs3EvnCWk7KM7hipOLBdQ8-o`
+  - DB direct : `aws-1-eu-central-1.pooler.supabase.com:5432`, user `postgres.omivxkzvzfobylgjscvx`, mdp `Yourbanlt300!`
+- **Sons** : Web Audio API (zéro fichier audio)
+- **Sprites** : ChatGPT pixel art (découpés par sharp en grilles 64×64) + Pixel Crawler Free Pack (mobs animés)
+- **Rendu terrain** : CSS pur (couleurs par biome) — les sprites de sol ne marchent PAS (pas seamless)
 
 ---
 
-## Structure des fichiers (1262 lignes total)
+## Fichiers (1548 lignes total)
 ```
 app/
-  page.tsx (93 lignes)            — Écran titre : poster plein écran, fade-in, boutons dorés, fondu noir → /game
-  layout.tsx                      — Meta + viewport mobile + font Courier New
-  globals.css                     — Reset CSS + tap highlight
+  page.tsx (93)               — Écran titre : poster plein écran, fade-in, boutons dorés
+  layout.tsx                  — Meta + viewport + fullscreen PWA tags
+  globals.css                 — Reset CSS
   lib/
-    constants.ts (194 lignes)     — TOUTES les données du jeu : 14 ressources, 5 outils, 6 cartes combat, 5 gardiens, 7 quêtes, 4 villages, 5 biomes, types TypeScript
-    supabase.ts                   — Client Supabase (3 lignes)
-    match3.ts (64 lignes)         — Moteur match-3 : createGrid (6×7), findMatches, swapGems, applyGravity
-    world.ts (129 lignes)         — Génération monde déterministe (seeded PRNG 50×50) : biomes, chemins, portes, villages, nodes, boss, camp
-    sounds.ts (67 lignes)         — 10 sons Web Audio API (step, collect, gemMatch, craft, hit, victory, locked, levelUp, unlock, enemyAlert)
-    sprites.ts (65 lignes)        — Mapping Kenney tiles (NON UTILISÉ actuellement dans le rendu)
+    constants.ts (206)        — Données du jeu : 14 ressources, 5 outils, 6 cartes, 5 gardiens, 7 quêtes, 8 villages, 5 biomes, types TS, stats RPG
+    supabase.ts               — Client Supabase
+    match3.ts (64)            — Moteur match-3 : createGrid (6×7), findMatches, swapGems, applyGravity
+    world.ts (135)            — Génération monde 200×200 déterministe (seeded PRNG)
+    sounds.ts (98)            — 10 sons + musique explore/combat (Web Audio)
+    sprites.ts (132)          — Système sprites : playerSprite, mobSprite, monsterSprite, gemSprite, itemSprite, natureSprite, bonfireSprite, npcSprite, buildingSprite
   game/
-    page.tsx (650 lignes)         — LE JEU COMPLET : état, Supabase sync, mouvement, combat match-3, craft, shop, inventaire, quêtes, rendu carte, ennemis mobiles, UI
+    page.tsx (820)            — LE JEU COMPLET
 public/
-  splash.png                     — Poster du jeu (1024×1536, magnifique pixel art provençal)
+  splash.png                  — Poster pixel art provençal (1024×1536)
   sprites/
-    town.png                     — Kenney Tiny Town (192×176, 12×11 grid 16×16)
-    dungeon.png                  — Kenney Tiny Dungeon (192×176, 12×11 grid 16×16)
-    roguelike.png                — Kenney Micro Roguelike (128×80, 16×10 grid 8×8)
+    game/                     — ChatGPT sprites découpés par sharp (grilles régulières 64×64)
+      jisse.png (256×192)     — Jisse 4×3 (4 frames × 3 directions)
+      melanie.png (256×192)   — Mélanie 4×3
+      monsters.png (320×64)   — 5 monstres en ligne (fond nettoyé)
+      gems.png (384×64)       — 6 gemmes en ligne (fond nettoyé)
+      items.png (256×256)     — 16 items 4×4
+      tools.png (320×64)      — 5 outils en ligne
+      nature.png (256×64)     — 4 éléments (chêne, sapin, rocher, buisson)
+      buildings.png (288×192) — 6 bâtiments 3×2
+      tiles.png (384×320)     — 30 tiles sol 6×5 (NON UTILISÉ — pas seamless)
+      icons.png (448×64)      — 7 icônes menu
+    mobs/                     — Pixel Crawler mob sprites (idle 32×32, run 64×64)
+      orc-idle.png, orc-run.png, warrior-*, shaman-*, rogue-*, mage-*, skeleton-*
+    player/                   — Pixel Crawler player sprites (walk/idle 64×64)
+      walk-down.png, walk-side.png, walk-up.png, idle-down.png, idle-side.png, idle-up.png
+    env/                      — Pixel Crawler environment
+      bonfire.png (feu animé 64×384, 6 frames vertical)
+    npcs/                     — Pixel Crawler NPCs (knight, rogue, wizzard — idle 128×32, 4 frames)
+    chatgpt/                  — Images ChatGPT originales (non découpées, pour référence)
+  process-sprites.js          — Script sharp qui découpe les images ChatGPT en grilles régulières
 ```
+
+---
+
+## Tables Supabase
+```sql
+game_sessions (id UUID PK, seed INT, collected_nodes JSONB, active BOOL, created_at TIMESTAMPTZ)
+players (id UUID PK, session_id FK, name TEXT, emoji TEXT,
+  x INT, y INT, hp INT, max_hp INT, lvl INT, xp INT,
+  inventory JSONB, tools JSONB, cards JSONB,
+  unlocked_biomes JSONB, bosses_defeated JSONB,
+  chest JSONB DEFAULT '[]',              -- coffre 40 items
+  stats JSONB DEFAULT '{"atk":1,"def":0,"mag":0,"vit":1}',  -- stats RPG
+  updated_at TIMESTAMPTZ)
+```
+- RLS ouvert (jeu privé entre 2 joueurs)
+- Realtime activé sur les 2 tables
 
 ---
 
 ## Ce qui FONCTIONNE ✅
 
-### Gameplay complet
-- Carte 50×50 avec 5 biomes (garrigue, calanques, mines, mer, restanques)
-- 14 ressources récoltables (branche, herbe, lavande, pierre, coquillage, sel, fer, ocre, cristal, poisson, perle, corail, pain, potion)
-- 5 outils craftables (bâton → calanques, pioche → mines, filet → mer, serpe, clé → restanques)
-- 6 cartes de combat craftables (brume, bouclier, éclat, festin, marée, séisme)
-- 4 villages avec troc
-- 7 quêtes avec XP et montée de niveau (+3 PV max par level)
-- 5 boss gardiens + boss final Le Mistral (30 PV)
-- Camp de base 🔥 qui restaure tous les PV
-- Limite sac 20 items (pain/potion ne comptent pas)
-- Livre de recettes dans l'atelier (outils + cartes listés lisiblement)
-- Inventaire groupé par type avec compteur ×N
+### Carte & exploration
+- Carte 200×200 avec 5 biomes (garrigue r=35, calanques r=30, mines r=30, mer r=35, restanques r=20)
+- 155 nodes de ressources (45 garrigue, 35 calanques, 30 mines, 30 mer, 15 restanques)
+- 40% des nodes gardés par un ennemi (combat obligatoire)
+- 8 villages avec NPCs marchands (sprites Knight/Rogue/Wizzard animés)
+- Portes entre biomes (nécessitent l'outil correspondant)
+- Chemins tracés entre tous les biomes
+- Rendu : CSS couleurs par biome + sprites en overlay (perso, mobs, items, arbres, rochers, bâtiments)
+- Viewport responsive : CELL 24px mobile / 32px desktop
+- Minimap
+
+### Personnages (sprites ChatGPT)
+- Jisse : jisse.png 4×3 grille (4 frames walk × 3 directions : down, side, up)
+- Mélanie : melanie.png même format
+- Animation marche : cycle 4 frames à 200ms, direction change avec le D-pad
+- Side flippé horizontalement pour gauche (scaleX(-1))
+
+### Ennemis mobiles
+- Chaque gardien patrouille autour de son spawn (1 case / 1.5s, rayon 6)
+- Mode chasse si joueur ≤ 3 cases (≤ 5 pour boss)
+- ❗ rouge + tremblement + son d'alerte en mode chasse
+- Collision joueur/ennemi = combat automatique
+- Zone camp (5×5) = safe zone, ennemis interdits
+- Sprites : Pixel Crawler mobs (idle 32×32 / run 64×64 selon état)
+- Déplacement déterministe (seed+tick) pour synchro multijoueur
 
 ### Combat match-3
-- Grille 6×7, 6 types de gemmes (CSS gradients avec brillance, pas des emojis basiques)
-- Swap → match → gravity → cascade (combos)
-- Tours ennemis VISIBLES : après le match du joueur → monstre tremble → bannière rouge "🐗 Sanglier charge !" → délai 800ms → joueur tremble → dégâts affichés → "Ton tour !"
-- Cartes de combat actives en bonus passif
+- Grille 6×7, 6 types de gemmes (sprites ChatGPT gems.png)
+- Swap → match → gravity → cascade (récursif)
+- Tours ennemis VISIBLES : shake monstre → bannière rouge → délai 800ms → shake joueur → dégâts
+- Dégâts joueur = matchCount + combo×2 + ATK + MAG + bonus cartes
+- Dégâts ennemi = ceil(enemyMaxHP/5) - shields - DEF (min 1)
+- Portraits : sprite ChatGPT joueur + sprite ChatGPT monstre
 - Potion utilisable en combat
-- Victoire : loot (ressource + bonus aléatoire du biome) + XP
-- Défaite : respawn avec PV réduits
+- Musique combat (Web Audio bass+kick)
 
-### Ennemis mobiles (NOUVEAU)
-- Chaque gardien patrouille autour de son spawn (1 case / 1.5s, rayon 6 cases)
-- Mode chasse : si joueur à ≤3 cases (≤5 pour boss), l'ennemi fonce vers le joueur
-- ❗ rouge + tremblement + son d'alerte quand un ennemi chasse
-- Collision joueur/ennemi = combat automatique
-- Déplacement déterministe (seed+tick) pour synchro multijoueur approximative
-- Ennemis vaincus disparaissent
+### Camp de base (position 50, 46)
+- Zone safe 5×5
+- Bouton 🏠 Camp → panneau 3 onglets :
+  - 🛏️ Repos : PV restaurés
+  - 📦 Coffre : 40 emplacements, tap pour transférer (sauvegardé Supabase colonne `chest`)
+  - 🔨 Établi : recettes visuelles avec bouton "Forger" si ingrédients OK
+- Feu de camp : bonfire Pixel Crawler animé (6 frames)
+
+### Stats RPG
+- 4 stats : ATK (1), DEF (0), MAG (0), VIT (1)
+- Level up → popup choix : +1 ATK / +1 DEF / +1 MAG
+- Fiche personnage 👤 : portrait sprite, stats, outils, cartes, boss vaincus
+- Sauvegardé Supabase colonne `stats`
+
+### Craft
+- 5 outils : bâton (→calanques), pioche (→mines), filet (→mer), serpe, clé ancienne (→restanques)
+- 6 cartes combat : brume, bouclier, éclat, festin, marée, séisme
+- Craft dans l'établi du camp (recettes visuelles) OU dans le menu Craft mobile
+
+### Inventaire
+- Limite 20 items (pain/potion ne comptent pas)
+- Items groupés par type avec compteur ×N
+- Tap = jeter ×1
+- Sprites ChatGPT items.png pour l'affichage
+
+### Sons + Musique (Web Audio API)
+- 10 effets : step, collect, gemMatch(combo), craft, hit, victory, locked, levelUp, unlock, enemyAlert
+- Musique explore : drone La+Mi + arpège triangle La mineur
+- Musique combat : bass sawtooth Mi mineur + kick
+- Bouton 🔊/🔇
 
 ### Multijoueur Realtime
-- Seed partagé → même carte pour les 2 joueurs
-- Positions synchronisées (poll 1s + Supabase Realtime pour collected_nodes)
-- L'autre joueur visible sur la carte (cercle rose)
-- Sauvegarde automatique de tout l'état (position, inventaire, outils, cartes, zones, boss)
+- Seed partagé → même carte
+- Positions synchronisées (poll 1s + Realtime pour collected_nodes)
+- L'autre joueur visible avec son sprite
+- Sauvegarde complète auto (position, inv, tools, cards, zones, boss, chest, stats)
 
 ### UI
-- Écran titre : poster plein écran avec fade-in, boutons dorés, fondu noir
-- Fond de jeu : poster flouté (blur 20px, brightness 0.3)
-- Panneaux style parchemin (gradient #F5ECD7 → #E8D5A3, cadre bois #5C4033)
-- Boutons dégradés avec ombres
-- Top bar sombre avec liseré doré, barre XP gradient
-- Cadre carte avec ombre intérieure
-- D-pad compact (42×42)
-- Responsive : CELL 24px mobile / 32px desktop
-
-### Sons Web Audio
-- 10 sons générés en JS pur (zéro fichier) : pas, récolte, match gemme (pitch monte avec combo), craft, dégât, victoire, porte verrouillée, level up, zone débloquée, alerte ennemi
-- Bouton 🔊/🔇
+- Écran titre : poster plein écran, fade-in, boutons dorés, fondu noir
+- Fond jeu : poster flouté (blur 20px, brightness 0.3)
+- Panneaux parchemin (gradient + cadre bois)
+- Top bar sombre + liseré doré + barre XP gradient
+- D-pad compact + boutons Camp/Sac/Perso/Quêtes
+- Tutoriel 7 étapes + bouton ❓
+- Fullscreen au premier tap + PWA meta tags
 
 ---
 
 ## Ce qui NE MARCHE PAS / À AMÉLIORER 🔧
 
-### 1. SPRITES PERSONNAGES (priorité haute)
-**Problème** : Jisse et Mélanie sont des cercles colorés avec emoji (🎸🎨). Pas de vrais sprites.
-**Impact** : le jeu n'a pas l'air "fini" visuellement.
-**Solution** :
-- Sprites 16×16 ou 32×32 avec 4 directions + animation de marche (4 frames)
-- Le pack Anokolisa (itch.io, gratuit) a 3 héros avec marche 4 dirs — parfait
-- Fichier à modifier : `app/game/page.tsx` lignes ~600 (le rendu `isP` dans la carte)
-- Alternative : découper les sprites ChatGPT existants (dans `C:\Users\ecole\Downloads\restanques\chars-idle.png` etc.) dans Photopea
+### 1. TILES DE SOL (priorité haute)
+**Problème** : les sprites de sol ChatGPT (tiles.png) ne sont PAS seamless — bandes blanches entre les tiles.
+**État actuel** : CSS couleurs pures (ça marche bien mais c'est basique).
+**Solution** : soit régénérer les tiles avec un prompt spécifiant "seamless tileable", soit utiliser un vrai tileset seamless (ex: Kenney mais avec bon mapping), soit améliorer les CSS avec des textures (repeating-linear-gradient, noise patterns).
 
-### 2. SPRITES MONSTRES (priorité haute)
-**Problème** : les monstres sont des emojis (🐗🦅🐉🐙🌪️). Ça marche mais manque d'impact.
-**Impact** : les ennemis mobiles seraient beaucoup plus immersifs avec de vrais sprites animés.
-**Solution** :
-- Sprites 16×16 ou 32×32 avec animation idle (2 frames, bounce)
-- Anokolisa a 8 ennemis différents
-- Le Kenney Micro Roguelike (`roguelike.png`) a aussi des monstres en 8×8 (scalables)
-- Fichier : `app/game/page.tsx` rendu des mobileEnemyNode dans la carte + combat
+### 2. SPRITES NATURE DÉCALÉS (priorité moyenne)
+**Problème** : les arbres/rochers/buissons du nature.png peuvent être légèrement décalés car les sprites originaux n'étaient pas parfaitement centrés dans la grille 4×1.
+**Solution** : redécouper avec des bounding boxes plus précises, ou ajuster les offsets dans sprites.ts.
 
-### 3. GEMMES MATCH-3 (priorité moyenne)
-**État actuel** : CSS gradients avec brillance — déjà bien mieux que les emojis.
-**Manque** :
-- Animation de destruction (actuellement elles disparaissent juste)
-- Particules lors de la destruction
-- Flash de combo visible
-- Les gemmes pourraient être encore plus grosses sur mobile
+### 3. GEMMES PETITES (priorité moyenne)
+**Problème** : après nettoyage du fond gris, les gemmes ont perdu leur glow et paraissent petites dans le cadre 64×64.
+**Solution** : soit garder les gemmes CSS (radial-gradient) qui étaient plus grosses et plus visuelles, soit régénérer les gemmes sans fond.
 
-### 4. ARBRES ET DÉCORS (priorité moyenne)
-**Problème** : les arbres 🌳, rochers 🪨, fleurs 🌸💜 sont des emojis — ça casse l'immersion.
-**Solution** :
-- Sprites d'arbres/rochers/fleurs depuis Kenney ou Anokolisa
-- Les sols CSS sont bien (couleurs riches par biome), ne pas les changer
-- Juste remplacer les emoji de décor par des sprites
+### 4. SORTS ACTIFS EN COMBAT (non implémenté)
+**Prévu dans le prompt** : les cartes de combat comme sorts utilisables (1x par combat) :
+- Brume : efface toutes les gemmes d'une couleur
+- Bouclier : annule le prochain tour ennemi
+- Éclat : dégâts directs ATK+MAG
+- Festin : soigne 5 PV
+- Marée : +5 dégâts au prochain match
+- Séisme : mélange la grille
+**État** : les cartes donnent un bonus passif de dégâts, mais ne sont PAS des sorts actifs avec boutons.
 
-### 5. UI COMBAT (priorité moyenne)
-**Problème** : le fond du combat est un panneau parchemin simple. Pas d'ambiance.
-**Solution** :
-- Fond de combat qui change selon le biome (gradient vert garrigue, bleu mer, brun mines)
-- Portrait du personnage et du monstre avec sprites (pas emoji)
-- Animation d'attaque du monstre (le sprite avance vers le joueur puis recule)
+### 5. ANIMATION DE DESTRUCTION DES GEMMES (non implémenté)
+**Prévu** : scale(1.3) → rotation → opacity 0 → particules.
+**État** : les gemmes disparaissent simplement.
 
-### 6. SONS (priorité basse — déjà fonctionnel)
-**Manque** :
-- Musique de fond (ambient loop) — pourrait être généré avec Web Audio (drone + arpège lent)
-- Son différent par type de gemme
-- Son de pas différent par biome (herbe vs pierre vs sable)
+### 6. ÉQUIPEMENT (non implémenté)
+**Prévu** : les outils donnent des bonus de stats quand possédés (serpe ATK+2, pioche ATK+1, bâton DEF+1).
+**État** : les outils débloquent les zones mais ne donnent pas de bonus de combat.
 
-### 7. PERFORMANCE (attention)
-- La carte 50×50 ne rend que le viewport visible (OK)
-- Les ennemis mobiles font un setInterval à 1.5s avec mise à jour de state → pourrait lag si beaucoup d'ennemis. Actuellement ~50 ennemis max → ça tient.
-- Le poll de l'autre joueur (1 requête Supabase / seconde) pourrait être remplacé par du Realtime pur
+### 7. UI SPRITES (non intégré)
+Les sprites ChatGPT d'UI existent (boutons, barres de vie, panneaux, D-pad, badges, bannières) mais ne sont PAS intégrés dans le jeu.
+Fichiers disponibles :
+- 23_45_30.png : boutons colorés + slots inventaire + grand cadre parchemin
+- 23_45_51.png : barres de vie/XP/mana + icônes (coeur, étoile, bouclier, épée, botte, potion)
+- 23_49_19.png : D-pad en pierre + 4 boutons ronds (épée, sac, parchemin, maison)
+- 23_49_23.png : bannière scroll + bulle dialogue + 4 badges (!, i, ✓, ⚠)
+- 23_47_20.png : 7 icônes menu (sac, combat, craft, quêtes, maison, carte, aide) — fond nettoyé
 
-### 8. GITHUB (à faire)
-- Le repo `restanques-lejeu-create/restanques-lejeu-create` est créé mais vide
-- Il faut créer un Personal Access Token (PAT) sur github.com → Settings → Developer settings → Tokens → Generate
-- Puis : `git remote add origin https://TOKEN@github.com/restanques-lejeu-create/restanques-lejeu-create.git && git push -u origin master`
+### 8. GITHUB (pas pushé)
+- Compte : `restanques-lejeu-create` (restanques.lejeu@gmail.com / Yourbanlt300!)
+- Repo créé mais vide — il faut un Personal Access Token pour push
 
-### 9. SPRITES CHATGPT (ressource existante non utilisée)
-16 images pixel art dans `C:\Users\ecole\Downloads\restanques\` :
-- `chars-idle.png` (1536×1024) : Jisse + Mélanie, 4 directions idle
-- `chars-walk1/2/3.png` : 3 frames de marche
-- `tiles-garrigue/calanques/mines/mer/restanques.png` : tiles terrain 4×4
-- `items.png` : 4×4 items
-- `tools.png` : 5 outils
-- `monsters.png` : 4 monstres (sanglier, aigle, tarasque, mistral)
-- `gems.png` : 6 gemmes
-- `ui.png` : barres de vie, cadres, boutons
-- `villages.png` : 4 bâtiments
-- `camp.png` : camp de base
-
-**Problème** : ce ne sont PAS des spritesheets régulières. Les sprites sont placés avec des espaces irréguliers et des fonds avec dégradé/glow. Pour les utiliser :
-1. Ouvrir dans Photopea (photopea.com, gratuit)
-2. Découper chaque sprite individuellement (baguette magique + supprimer fond)
-3. Redimensionner en taille uniforme (32×32)
-4. Exporter en PNG transparent
-5. Assembler en spritesheet grille régulière
+### 9. PERFORMANCE CARTE 200×200
+- La génération est OK (PRNG déterministe)
+- Le rendu ne montre que le viewport → OK
+- Les ennemis mobiles (155 nodes × tick 1.5s) = potentiel lag si beaucoup actifs simultanément
 
 ---
 
-## Architecture code — comment ça marche
+## Architecture code — points clés
 
-### game/page.tsx (le cœur — 650 lignes)
-- Composant unique `GameContent` avec ~30 useState hooks
-- **Refs anti-stale-closure** : `cardsRef`, `hpRef`, `maxHpRef` — critiques pour le combat match-3 car les setTimeout lisent les cards/hp via closure
-- **CELL dynamique** : `const CELL = window.innerWidth < 500 ? 24 : 32`
-- **Ennemis mobiles** :
-  - State `enemyPositions: Record<number, {x,y}>` — indexé par l'index du node dans `world.nodes`
-  - `alertedEnemies: Set<number>` — ennemis en mode chasse
-  - setInterval 1.5s : pour chaque ennemi, calcule distance joueur, chasse si ≤3, sinon patrouille aléatoire (seed déterministe `tick*7+idx*13`)
-  - `checkEnemyCollision()` : vérifie si ennemi = même case que joueur → déclenche combat
-- **Combat match-3** :
-  - `selectGem()` utilise `setCombat(prev => ...)` pour éviter stale closures
-  - `processMatchesFromState()` est récursif pour les cascades
-  - Après toutes les cascades → tour ennemi avec setTimeout 800ms (pour le feedback visuel)
-- **Rendu carte** : seules les `vw×vh` tiles du viewport sont rendues. Chaque tile = div avec background CSS + emoji overlay
-- **Sync Supabase** : throttled 250ms pour les positions, state complet du joueur pushé à chaque changement
+### game/page.tsx (820 lignes)
+- ~35 useState hooks
+- Refs anti-stale-closure : `cardsRef`, `hpRef`, `maxHpRef` (critiques pour combat)
+- CELL dynamique : `window.innerWidth < 500 ? 24 : 32`
+- `spriteFrame` : incrémenté toutes les 200ms (setInterval) pour animer tous les sprites
+- Ennemis mobiles : `enemyPositions` state + setInterval 1.5s + `checkEnemyCollision`
+- Combat : `selectGem` → `processMatchesFromState` (récursif cascades) → tour ennemi setTimeout 800ms
+- Camp : `campPanel` state ("rest"/"chest"/"craft") avec 3 onglets
+- Stats : `stats` state {atk,def,mag,vit} + `levelUpChoice` popup
+- Tutoriel : `tutoStep` state (-1 à 6) + localStorage
+- Musique : `sounds.playExploreMusic()` au init, switch `playCombatMusic()` en combat
 
-### world.ts
-- `genWorld(seed)` : PRNG déterministe `makeRng(seed)`
-- Remplit les 5 biomes (centre + rayon), trace les chemins, place les portes, villages, nodes de ressources (40% avec gardien), boss au centre de chaque biome
-- Le camp est placé à `CAMP_POS` (12, 8)
+### sprites.ts (132 lignes)
+- `fromSheet(src, cols, col, row, cellSize, displaySize, flipX)` : helper générique
+- `playerSprite(name, dir, frame, size)` : jisse.png/melanie.png 4×3×64
+- `mobSprite(biome, chasing, frame, size)` : Pixel Crawler idle/run
+- `monsterSprite(biome, size)` : ChatGPT monsters.png 5×1×64
+- `gemSprite(idx, size)` : ChatGPT gems.png 6×1×64
+- `itemSprite(id, size)` : ChatGPT items.png 4×4×64
+- `natureSprite(variant, size)` : ChatGPT nature.png 4×1×64
+- `bonfireSprite(frame, size)` : Pixel Crawler vertical 64×384
+- `npcSprite(villageIdx, frame, size)` : Pixel Crawler knight/rogue/wizzard
+- `tileSpriteStyle()` : retourne TOUJOURS null (désactivé, CSS pur)
 
-### constants.ts
-- `TILES` : 19 types de tile (herbe, chemin, arbre, eau, sable, mine, etc.) avec bg color + walkable flag
-- `RES` : 14 ressources avec nom, emoji, biome, couleur
-- `TOOLS` : 5 outils avec recette + zone débloquée
-- `CARD_RECIPES` : 6 cartes de combat avec recette + bonus
-- `GUARDS` : 5 gardiens avec nom, emoji, HP, dialogue
-- `QUESTS_DEF` : 7 quêtes (récolte, craft, boss)
-- `VILLAGES` : 4 villages avec position + items en vente
-- `BIOME_ZONES` : 5 biomes avec centre (cx,cy) et rayon
-- Types : GameWorld, GameNode, CombatState, CombatCard, Quest, Village
-- `BAG_LIMIT = 20`, `CAMP_POS = {x:12, y:8}`
-- `countBagItems()`, `isBagFull()` : pain/potion ne comptent pas
+### world.ts (135 lignes)
+- `genWorld(seed)` : PRNG `makeRng(seed)`, carte 200×200
+- Place biomes (centre + rayon), chemins, portes, 8 villages, 155 nodes, 5 boss, camp
+- Camp à (50, 46)
 
-### sounds.ts
-- Classe `GameSounds` avec `AudioContext`
-- `init()` obligatoire au premier user gesture (restriction mobile)
-- Chaque son = oscillateur + gain envelope decay
-- `gemMatch(combo)` : pitch monte avec les combos
-
-### match3.ts
-- `createGrid()` : grille 6 cols × 7 rows, vérifie pas de match initial
-- `findMatches()` : horizontal + vertical, 3+ alignées
-- `swapGems()` : swap 2 cases
-- `applyGravity()` : les gemmes tombent, nouvelles gemmes aléatoires en haut
+### sounds.ts (98 lignes)
+- 10 effets + `playExploreMusic()` + `playCombatMusic()` + `stopMusic()`
+- Explore : drone La+Mi (oscillators persistants) + arpège (setInterval 800ms)
+- Combat : bass sawtooth + kick (setInterval 300ms)
 
 ---
 
-## Pour continuer — guide rapide
-
-### Ajouter des vrais sprites (le chantier principal restant)
-1. Télécharger le pack Anokolisa gratuit : https://anokolisa.itch.io/free-pixel-art-asset-pack-topdown-tileset-rpg-16x16-sprites
-2. Extraire les spritesheets personnages + monstres
-3. Les mettre dans `public/sprites/characters/` et `public/sprites/monsters/`
-4. Dans `sprites.ts` : ajouter les mappings (comme `kenney()` mais pour les nouveaux sheets)
-5. Dans `game/page.tsx` : remplacer les emoji `{pEmoji}` et `{node.guard?.e}` par des divs avec background-image
-
-### Tester le jeu
-```bash
-cd /c/tmp/restanques
-npm run dev   # dev local sur localhost:3000
-```
+## Pour continuer
 
 ### Déployer
 ```bash
-npx vercel --prod --yes
+cd /c/tmp/restanques && npx vercel --prod --yes
 ```
 
-### Variables d'environnement Vercel (déjà configurées)
+### Reset une partie
+Bouton "🔄 Nouvelle partie" sur l'écran titre.
+
+### Ajouter une feature
+1. Modifier les fichiers dans `app/`
+2. `npx next build` pour vérifier
+3. `git add -A && git commit -m "message" && npx vercel --prod --yes`
+
+### Regénérer les sprites ChatGPT
+```bash
+node process-sprites.js
+```
+Les images sources sont dans `public/sprites/chatgpt/`, les résultats dans `public/sprites/game/`.
+
+### Variables d'env Vercel (déjà configurées)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-### Reset la partie (si besoin)
-Sur l'écran titre, bouton "🔄 Nouvelle partie" — supprime la session active + les joueurs en base.
