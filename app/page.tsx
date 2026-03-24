@@ -13,8 +13,13 @@ export default function Home() {
   const [resetting, setResetting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [ngPlusCount, setNgPlusCount] = useState(0);
 
   useEffect(() => {
+    // Check if NG+ is available
+    supabase.from("players").select("ng_plus").gt("ng_plus", 0).limit(1).then(({ data }) => {
+      if (data && data.length > 0) setNgPlusCount(data[0].ng_plus || 0);
+    });
     setTimeout(() => setVisible(true), 300);
     // Play theme music on first interaction
     const startTheme = () => { sounds.init(); sounds.playMusic("theme"); document.removeEventListener("click", startTheme); };
@@ -103,6 +108,21 @@ export default function Home() {
           onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.96)"; }}
           onPointerUp={(e) => { (e.target as HTMLElement).style.transform = "scale(1)"; }}
         >🎨 Rejoindre : Mélanie</button>
+
+        {/* Ombre — unlocked after NG+ */}
+        {ngPlusCount > 0 && <button
+          onClick={() => play("ombre", "ombre")}
+          style={{
+            ...btnBase,
+            background: "linear-gradient(135deg, #333, #1a1a2e)",
+            opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
+            transition: "opacity 0.5s ease 0.9s, transform 0.5s ease 0.9s, box-shadow 0.15s",
+          }}
+          onPointerDown={(e) => { (e.target as HTMLElement).style.transform = "scale(0.96)"; }}
+          onPointerUp={(e) => { (e.target as HTMLElement).style.transform = "scale(1)"; }}
+        >🌙 Rejoindre : L&apos;Ombre</button>}
+
+        {ngPlusCount > 0 && <div style={{ fontSize: 11, color: "rgba(218,165,32,0.6)", fontFamily: "'Crimson Text', serif", letterSpacing: 2 }}>NG+ ×{ngPlusCount}</div>}
 
         {/* Nouvelle partie */}
         <button

@@ -143,6 +143,8 @@ function GameContent() {
   const [mysteryPos, setMysteryPos] = useState<{ x: number; y: number } | null>(null);
   const [currentBiome, setCurrentBiome] = useState("garrigue");
   const [biomeTransition, setBiomeTransition] = useState(false);
+  const [ngPlusScreen, setNgPlusScreen] = useState(false);
+  const [ngPlus, setNgPlus] = useState(0);
   const biomeCacheRef = useRef<Record<string, GameWorld>>({});
   const [showGuide, setShowGuide] = useState(false);
   const [guideHint, setGuideHint] = useState(false);
@@ -214,7 +216,7 @@ function GameContent() {
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) { for (const idx of session.collected_nodes) { if (w.nodes[idx]) w.nodes[idx].done = true; } }
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
       if (ep) {
-        setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped);
+        setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped); if (ep.ng_plus) setNgPlus(ep.ng_plus);
         // Restore biome
         const savedBiome = ep.current_biome || "garrigue";
         if (savedBiome !== "garrigue") {
@@ -450,7 +452,16 @@ function GameContent() {
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft" || e.key === "a") tryMove(-1, 0); if (e.key === "ArrowRight" || e.key === "d") tryMove(1, 0); if (e.key === "ArrowUp" || e.key === "w") tryMove(0, -1); if (e.key === "ArrowDown" || e.key === "s") tryMove(0, 1); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [tryMove]);
 
   // ═══ COMBAT ═══
-  const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
+  const startCombat = (node: GameNode) => {
+    setDialog(null);
+    const g = node.guard || GUARDS[node.biome];
+    // NG+ buff: HP increases per ng_plus level
+    const hpMult = ngPlus === 0 ? 1 : ngPlus === 1 ? 1.5 : ngPlus === 2 ? 2 : 2.5;
+    const buffedHp = Math.ceil(g.hp * hpMult);
+    setCombat({ grid: createGrid(), enemy: { ...g, hp: buffedHp }, enemyHp: buffedHp, enemyMaxHp: buffedHp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: ngPlus > 0 ? `⚔️ NG+${ngPlus} ! Aligne 3 gemmes.` : "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false });
+    setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0);
+    sounds.playCombatMusic(!!node.boss);
+  };
 
   // ─── CAST SPELL ───
   // ─── DUNGEON ───
@@ -726,7 +737,8 @@ function GameContent() {
           setUsedSpells((s) => { const ns = new Set(s); ns.delete("Bouclier"); return ns; }); // consume shield
           return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: 0, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} 🛡️ Tour ennemi bloqué !`, animating: false };
         }
-        const ed = Math.ceil(p.enemy.hp / 5); const rd = Math.max(1, ed - totalStats.def);
+        const atkMult = ngPlus === 0 ? 1 : ngPlus === 1 ? 1.3 : ngPlus === 2 ? 1.6 : 2;
+        const ed = Math.ceil((p.enemy.hp / 5) * atkMult); const rd = Math.max(1, ed - totalStats.def);
         const atks = ["charge", "frappe", "mord", "griffe", "souffle"]; setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${atks[Math.floor(Math.random() * atks.length)]} !`);
         setTimeout(() => { setPlayerShaking(true); sounds.hit(); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => { if (!c) return c; const np = c.playerHp - rd; setHp(Math.max(0, np)); setEnemyTurnMsg("");
@@ -814,9 +826,10 @@ function GameContent() {
           setStorySequence(null);
           // After ending → show NG+ option
           if (key === "ending") {
-            setStory("🏆 FÉLICITATIONS !\n\nVous avez terminé Restanques !\n\n🌙 La classe Ombre est débloquée !\n\n⚔️ New Game+ disponible au menu !");
-            // Mark NG+ available
-            if (playerId) supabase.from("players").update({ ng_plus: (stats.vit || 0) > 0 ? 1 : 1 }).eq("id", playerId);
+            // Show NG+ screen
+            setStory(null);
+            setNgPlusScreen(true);
+            if (playerId) supabase.from("players").update({ ng_plus: 1 }).eq("id", playerId);
           }
           // After biome_end → trigger next biome intro
           if (key === "garrigue_end") setTimeout(() => triggerStory("calanques_intro"), 500);
@@ -825,6 +838,45 @@ function GameContent() {
           if (key === "mer_end") setTimeout(() => triggerStory("restanques_intro"), 500);
         }}
       />}
+
+      {/* NEW GAME+ SCREEN */}
+      {ngPlusScreen && <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.95)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{ ...UI.panel, padding: 24, maxWidth: 340, color: "#3D2B1F", textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>🏆</div>
+          <div style={{ fontSize: 20, fontWeight: "bold", fontFamily: "'Crimson Text', Georgia, serif", marginBottom: 12 }}>Félicitations !</div>
+          <div style={{ fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
+            Le Mistral est vaincu !<br/>
+            Niveau {lvl} · {bosses.length} boss · {completedQuests.length} quêtes<br/>
+            🌙 La classe Ombre est débloquée !
+          </div>
+          <button onClick={async () => {
+            // NG+ : new seed, keep level/stats/equip, reset progress
+            if (sessionId) {
+              await supabase.from("players").delete().eq("session_id", sessionId);
+              await supabase.from("game_sessions").update({ active: false }).eq("id", sessionId);
+            }
+            // Create new session with fresh seed
+            const newSeed = Math.floor(Math.random() * 999999);
+            const { data: ns } = await supabase.from("game_sessions").insert({ seed: newSeed, active: true }).select().single();
+            if (ns) {
+              await supabase.from("players").insert({
+                session_id: ns.id, name: pName, emoji: pEmoji,
+                x: CAMP_POS.x, y: CAMP_POS.y, hp: maxHp, max_hp: maxHp,
+                lvl, xp, inventory: [], tools, cards, stats,
+                unlocked_biomes: ["garrigue"], bosses_defeated: [],
+                chest: [], owned_equip: ownedEquip, equipped,
+                ng_plus: 1, current_biome: "garrigue",
+              });
+            }
+            window.location.href = `/game?player=${playerParam}&class=${classParam}`;
+          }} style={{ ...UI.btn("#7A9E3F", "#FFF"), width: "100%", marginBottom: 8 }}>
+            ⚔️ New Game+ (monstres buffés !)
+          </button>
+          <button onClick={() => { window.location.href = "/"; }} style={{ ...UI.btn("#8B7355", "#E8D5A3"), width: "100%" }}>
+            🏠 Retour au menu
+          </button>
+        </div>
+      </div>}
 
       {/* DEATH SCREEN */}
       {deathScreen && <div style={{ position: "fixed", inset: 0, zIndex: 150, background: "rgba(80,0,0,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Courier New',monospace" }}>
