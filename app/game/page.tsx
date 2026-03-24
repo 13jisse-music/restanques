@@ -133,7 +133,7 @@ function GameContent() {
   const [craftMsg, setCraftMsg] = useState("");
   const [notif, setNotif] = useState("");
   const [mmap, setMmap] = useState(false);
-  const [otherPlayer, setOtherPlayer] = useState<{ x: number; y: number; name: string; emoji: string } | null>(null);
+  const [otherPlayer, setOtherPlayer] = useState<{ x: number; y: number; name: string; emoji: string; current_biome?: string } | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [walking, setWalking] = useState(false);
@@ -148,7 +148,7 @@ function GameContent() {
   const [alertedEnemies, setAlertedEnemies] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState<PlayerStats>({ atk: 1, def: 0, mag: 0, vit: 1 });
   const [chest, setChest] = useState<string[]>([]);
-  const [campPanel, setCampPanel] = useState<"" | "rest" | "chest" | "craft" | "equip">("");
+  const [campPanel, setCampPanel] = useState<"" | "menu" | "rest" | "chest" | "craft" | "equip" | "garden" | "cuisine" | "fusion">("");
   const [equipped, setEquipped] = useState<Record<EquipSlot, string | null>>({ arme: null, armure: null, amulette: null, bottes: null });
   const [ownedEquip, setOwnedEquip] = useState<string[]>([]);
   const [charPanel, setCharPanel] = useState(false);
@@ -283,9 +283,15 @@ function GameContent() {
   });
 
   useEffect(() => {
-    if (!sessionId) return;
-    const other = pName === "Jisse" ? "Mélanie" : "Jisse";
-    const iv = setInterval(async () => { const { data } = await supabase.from("players").select("x,y,name,emoji").eq("session_id", sessionId).eq("name", other).single(); if (data) setOtherPlayer(data); }, 1000);
+    if (!sessionId || !playerId) return;
+    const iv = setInterval(async () => {
+      const { data } = await supabase.from("players").select("x,y,name,emoji,current_biome").eq("session_id", sessionId).neq("id", playerId).limit(1);
+      if (data && data.length > 0) {
+        const p = data[0];
+        if (p.current_biome === currentBiome) setOtherPlayer(p);
+        else setOtherPlayer(null); // Different biome → hide
+      }
+    }, 2000);
     const ch = supabase.channel(`s-${sessionId}`).on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_sessions", filter: `id=eq.${sessionId}` }, (p) => { if (p.new.collected_nodes && worldRef.current) { for (const idx of p.new.collected_nodes as number[]) { if (worldRef.current.nodes[idx]) worldRef.current.nodes[idx].done = true; } } }).subscribe();
     return () => { clearInterval(iv); supabase.removeChannel(ch); };
   }, [sessionId, pName]);
@@ -498,14 +504,16 @@ function GameContent() {
     }
     setPos({ x: nx, y: ny });
     stepCountRef.current++; if (stepCountRef.current % 2 === 0) sounds.step();
-    if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); setCampPanel("rest"); notify("⛺ Camp — PV restaurés !"); }
+    if (nx === CAMP_POS.x && ny === CAMP_POS.y) { setHp(maxHp); notify("⛺ Camp — PV restaurés !"); setCampPanel("menu"); sounds.playMusic("house"); }
     const vil = world.villages.find((v) => nx >= v.x && nx <= v.x + 1 && ny >= v.y && ny <= v.y + 1); if (vil && !shop) setShop(vil);
     // Fortress boss check — needs key
     const fort = FORTRESSES[currentBiome];
     if (fort && Math.abs(nx - fort.x) <= 1 && Math.abs(ny - fort.y) <= 1 && !bosses.includes(currentBiome)) {
       const keyNeeded = FORTRESS_KEYS[currentBiome];
-      if (keyNeeded && !inv.includes(keyNeeded) && !tools.includes(keyNeeded)) {
-        notify(`🔒 Il vous faut la ${keyNeeded === "cle" ? "Clé Ancienne" : "clé"} ! Parlez aux PNJs.`);
+      const hasKey = inv.includes(keyNeeded) || tools.includes(keyNeeded) || ownedEquip.includes(keyNeeded);
+      if (keyNeeded && !hasKey) {
+        const keyNames: Record<string, string> = { cle_taniere: "Clé de la Tanière (quête Fanfan)", cle_nid: "Clé du Nid (quête Roustan)", cle_caverne: "Clé de la Caverne (quête Marcel)", cle_abysses: "Clé des Abysses (quête Ondine)", cle: "Clé Ancienne (craft)" };
+        notify(`🔒 Forteresse verrouillée ! Il faut : ${keyNames[keyNeeded] || keyNeeded}`);
         sounds.locked(); return;
       }
       setFortressPrompt(currentBiome); return;
@@ -1462,7 +1470,7 @@ function GameContent() {
 
       {/* ACTION BUTTONS (bottom right) */}
       <div style={{ position: "fixed", bottom: 16, right: 10, zIndex: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(232,163,23,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => { const inCamp = Math.abs(pos.x - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(pos.y - CAMP_POS.y) <= CAMP_RADIUS; if (inCamp) setCampPanel("rest"); else notify("🏠 Au camp !"); }}>🏠</button>
+        <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(232,163,23,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => { const inCamp = Math.abs(pos.x - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(pos.y - CAMP_POS.y) <= CAMP_RADIUS; if (inCamp) setCampPanel("menu"); else notify("🏠 Au camp !"); }}>🏠</button>
         <button style={{ width: 52, height: 44, borderRadius: 8, background: bagFull ? "rgba(217,79,79,0.8)" : "rgba(46,134,171,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setBag(true)}>🎒</button>
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(155,126,222,0.8)", color: "#FFF", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setCharPanel(true)}>👤</button>
         <button style={{ width: 52, height: 44, borderRadius: 8, background: "rgba(244,208,63,0.8)", color: "#3D2B1F", border: "2px solid #5C4033", fontSize: 10, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace" }} onClick={() => setQuestPanel(true)}>📋</button>

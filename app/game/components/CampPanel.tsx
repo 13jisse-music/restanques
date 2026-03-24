@@ -54,11 +54,36 @@ export function CampPanel(props: CampPanelProps) {
         </div>
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-          {(["rest", "chest", "craft", "equip", "garden", "cuisine", "fusion"] as string[]).map((t) => (
-            <button key={t} onClick={() => onSetTab(t)} style={{ flex: 1, padding: "4px 2px", fontSize: 9, fontWeight: "bold", background: tab === t ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F", minWidth: 0 }}>
-              {t === "rest" ? "🛏️" : t === "chest" ? "📦" : t === "craft" ? "🔨" : t === "equip" ? "⚔️" : t === "garden" ? "🌱" : t === "cuisine" ? "🍳" : "🔮"}
-            </button>
-          ))}
+          {/* Main menu — big icon grid */}
+          {tab === "menu" ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { id: "rest", emoji: "🛏️", title: "Repos", sub: "Soigner", show: true },
+              { id: "chest", emoji: "📦", title: "Coffre", sub: "Échanger", show: true },
+              { id: "craft", emoji: "🔨", title: "Crafter", sub: "Forger", show: true },
+              { id: "equip", emoji: "⚔️", title: "Perso", sub: "Équiper", show: true },
+              { id: "garden", emoji: "🌱", title: "Jardin", sub: "Planter", show: isArtisan },
+              { id: "cuisine", emoji: "🍳", title: "Cuisine", sub: "Recettes", show: isArtisan },
+              { id: "fusion", emoji: "🔮", title: "Fusion", sub: "Combiner", show: true },
+            ].filter(t => t.show).map(t => (
+              <button key={t.id} onClick={() => onSetTab(t.id)} style={{
+                padding: "12px 8px", borderRadius: 12,
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(139,115,85,0.3)",
+                cursor: "pointer", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              }}>
+                <span style={{ fontSize: 32 }}>{t.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: "bold", color: "#3D2B1F" }}>{t.title}</span>
+                <span style={{ fontSize: 10, color: "#8B7355" }}>{t.sub}</span>
+              </button>
+            ))}
+          </div>
+          : <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
+            <button onClick={() => onSetTab("menu")} style={{ padding: "4px 8px", fontSize: 11, fontWeight: "bold", background: "#8B7355", color: "#E8D5A3", border: "2px solid #5C4033", borderRadius: 6, cursor: "pointer" }}>← Menu</button>
+            {(["rest", "chest", "craft", "equip", "garden", "cuisine", "fusion"] as string[]).filter(t => t === tab || !(["garden","cuisine"].includes(t) && !isArtisan)).map((t) => (
+              <button key={t} onClick={() => onSetTab(t)} style={{ padding: "4px 6px", fontSize: 9, fontWeight: "bold", background: tab === t ? "#E8A317" : "#E8D5A3", border: "1px solid #8B7355", borderRadius: 4, cursor: "pointer", color: "#3D2B1F" }}>
+                {t === "rest" ? "🛏️" : t === "chest" ? "📦" : t === "craft" ? "🔨" : t === "equip" ? "⚔️" : t === "garden" ? "🌱" : t === "cuisine" ? "🍳" : "🔮"}
+              </button>
+            ))}
+          </div>}
         </div>
         {/* REST */}
         {tab === "rest" && <div style={{ textAlign: "center", padding: 20 }}><div style={{ fontSize: 40, marginBottom: 8 }}>❤️</div><div style={{ fontSize: 14, fontWeight: "bold" }}>PV restaurés !</div><div style={{ fontSize: 12 }}>{hp}/{maxHp}</div></div>}

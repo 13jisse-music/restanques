@@ -126,11 +126,38 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     drawPath(50, 50, v.x, v.y);
   }
 
-  // Resource nodes (40-50 per biome)
+  // Resource nodes in CLUSTERS (groups of similar resources)
   const res = BIOME_RES[biomeId] || ["branche"];
   const mobs = BIOME_MOBS[biomeId] || BIOME_MOBS.garrigue;
-  const nodeCount = 40 + Math.floor(rng() * 10);
-  for (let i = 0; i < nodeCount; i++) {
+
+  // Generate clusters: each cluster = 4-8 nodes of the same type in a radius of 4-6
+  const clusterCount = 8 + Math.floor(rng() * 4); // 8-12 clusters
+  for (let ci = 0; ci < clusterCount; ci++) {
+    const clusterRes = res[Math.floor(rng() * res.length)];
+    const cx = 10 + Math.floor(rng() * 80);
+    const cy = 10 + Math.floor(rng() * 80);
+    const clusterSize = 4 + Math.floor(rng() * 5); // 4-8 nodes per cluster
+    const radius = 4 + Math.floor(rng() * 3); // radius 4-6
+    for (let ni = 0; ni < clusterSize; ni++) {
+      const angle = rng() * Math.PI * 2;
+      const dist = rng() * radius;
+      const x = Math.round(cx + Math.cos(angle) * dist);
+      const y = Math.round(cy + Math.sin(angle) * dist);
+      if (x < 2 || x > 97 || y < 2 || y > 97) continue;
+      if (!TILES[m[y][x]]?.w || nodes.find(n => n.x === x && n.y === y)) continue;
+      // 30% chance of guard on resource
+      let guard = null;
+      if (rng() < 0.3) {
+        const mob = mobs[Math.floor(rng() * mobs.length)];
+        guard = { n: mob.n, e: mob.e, hp: monsterHp(mob.lv), d: `${mob.e} ${mob.n} attaque !` };
+      }
+      nodes.push({ x, y, biome: biomeId, res: clusterRes, guard, done: false });
+    }
+  }
+
+  // Also scatter some individual resources (10-15)
+  const scatterCount = 10 + Math.floor(rng() * 5);
+  for (let i = 0; i < scatterCount; i++) {
     let tries = 0;
     while (tries < 80) {
       const x = 5 + Math.floor(rng() * 90);

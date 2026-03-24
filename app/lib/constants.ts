@@ -197,9 +197,9 @@ export const FORTRESS_KEYS: Record<string, string> = {
 
 // Node harvest HP by resource type
 export const NODE_HP: Record<string, number> = {
-  herbe: 2, lavande: 2, branche: 3, coquillage: 2, sel: 3,
-  pierre: 5, fer: 6, ocre: 5, poisson: 3, perle: 4, corail: 4,
-  cristal: 8,
+  herbe: 5, lavande: 5, branche: 8, coquillage: 5, sel: 8,
+  pierre: 18, fer: 25, ocre: 18, poisson: 8, perle: 15, corail: 12,
+  cristal: 30,
 };
 
 // ─── EQUIPMENT ───
