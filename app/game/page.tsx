@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { genWorld, genBiome } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
-  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP, FORTRESSES, BIOME_MOBS, FORTRESS_KEYS,
+  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS, NODE_HP, FORTRESSES, BIOME_MOBS, FORTRESS_KEYS, ARENA_POS,
   TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
   type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats, type EquipSlot,
 } from "../lib/constants";
@@ -294,7 +294,33 @@ function GameContent() {
     }, 2000);
     const ch = supabase.channel(`s-${sessionId}`).on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_sessions", filter: `id=eq.${sessionId}` }, (p) => { if (p.new.collected_nodes && worldRef.current) { for (const idx of p.new.collected_nodes as number[]) { if (worldRef.current.nodes[idx]) worldRef.current.nodes[idx].done = true; } } }).subscribe();
     return () => { clearInterval(iv); supabase.removeChannel(ch); };
-  }, [sessionId, pName]);
+  }, [sessionId, playerId, currentBiome]);
+
+  // Beforeunload — mark player as inactive
+  useEffect(() => {
+    if (!playerId) return;
+    supabase.from("players").update({ active: true }).eq("id", playerId);
+    const handleUnload = () => {
+      navigator.sendBeacon?.(`https://omivxkzvzfobylgjscvx.supabase.co/rest/v1/players?id=eq.${playerId}`, JSON.stringify({ active: false }));
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => { window.removeEventListener("beforeunload", handleUnload); };
+  }, [playerId]);
+
+  // Detect other player disconnect
+  useEffect(() => {
+    if (!otherPlayer) return;
+    // The polling already checks active — show notification if they disconnect
+    const checkActive = setInterval(async () => {
+      if (!sessionId || !playerId) return;
+      const { data } = await supabase.from("players").select("active, name").eq("session_id", sessionId).neq("id", playerId).limit(1);
+      if (data && data.length > 0 && data[0].active === false) {
+        notify(`👋 ${data[0].name || "L'autre joueur"} s'est déconnecté`);
+        clearInterval(checkActive);
+      }
+    }, 5000);
+    return () => clearInterval(checkActive);
+  }, [otherPlayer, sessionId, playerId]);
 
   // Quests
   const checkQuests = useCallback(() => {
@@ -521,6 +547,12 @@ function GameContent() {
     // Dungeon entrance check
     const dungeonEntry = DUNGEON_ENTRANCES.find((d) => d.x === nx && d.y === ny);
     if (dungeonEntry) { setDungeonPrompt({ ...dungeonEntry, seed: dungeonEntry.seed + nx * 1000 + ny }); return; }
+    // Arena check
+    const arena = ARENA_POS[currentBiome];
+    if (arena && nx === arena.x && ny === arena.y) {
+      if (confirm("⚔️ Entrer dans l'Arène PvP ?")) { setPvpActive(true); }
+      return;
+    }
   }, [world, pos, story, dialog, combat, craft, bag, shop, questPanel, tools, unlocked, inv, maxHp]);
 
   const holdMove = (dx: number, dy: number) => { tryMove(dx, dy); moveRef.current = setInterval(() => tryMove(dx, dy), 160); };
@@ -1357,6 +1389,8 @@ function GameContent() {
           const gate = world.gates.find((g) => g.x === wx && g.y === wy);
           const vilIdx = world.villages.findIndex((v) => wx >= v.x && wx <= v.x + 1 && wy >= v.y && wy <= v.y + 1);
           const isCamp = wx === CAMP_POS.x && wy === CAMP_POS.y;
+          const arenaPos = ARENA_POS[currentBiome];
+          const isArena = arenaPos && wx === arenaPos.x && wy === arenaPos.y;
           const inCampZone = Math.abs(wx - CAMP_POS.x) <= CAMP_RADIUS && Math.abs(wy - CAMP_POS.y) <= CAMP_RADIUS;
           const fs = Math.floor(CELL * 0.5);
 
@@ -1404,6 +1438,9 @@ function GameContent() {
                     <div style={{ width: CELL, height: CELL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.55), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
+                  : isArena ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.8) }}>
+                      <span style={{ animation: "gemSelected 1.5s infinite", filter: "drop-shadow(0 0 4px rgba(255,50,50,0.6))" }}>⚔️</span>
+                    </div>
                   : isCamp ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                       <span style={{ fontSize: Math.floor(CELL * 0.9) }}>🏡</span>
                       <div style={{ position: "absolute", bottom: -2, right: -2, width: CELL * 0.5, height: CELL * 0.5, borderRadius: "50%", background: "radial-gradient(circle, #FF8800, #FF4400, transparent)", boxShadow: "0 0 8px rgba(255,100,0,0.5)", animation: "fireFlicker 0.6s infinite alternate" }} />
@@ -1525,7 +1562,12 @@ function GameContent() {
           <button style={{ ...UI.btn("#7A9E3F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setShowGuide(true); }}>📖 Guide du jeu</button>
           <button style={{ ...UI.btn("#D94F4F", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { setSettingsOpen(false); setPvpActive(true); }}>⚔️ Arène PvP</button>
           <button style={{ ...UI.btn("#2E86AB", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { sounds.cycleVolume(); setMuted(sounds.isMuted()); }}>{sounds.getVolIcon()} Son : {muted ? "OFF" : "ON"}</button>
-          <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => { window.location.href = "/"; }}>🏠 Menu principal</button>
+          <button style={{ ...UI.btn("#8B7355", "#FFF"), width: "100%", marginBottom: 8 }} onClick={() => {
+            if (confirm("Votre progression est sauvegardée. L'autre joueur sera prévenu.")) {
+              if (playerId) supabase.from("players").update({ active: false }).eq("id", playerId);
+              window.location.href = "/";
+            }
+          }}>🚪 Quitter la partie</button>
           <button style={UI.close} onClick={() => setSettingsOpen(false)}>✕ Fermer</button>
         </div>
       </div>}

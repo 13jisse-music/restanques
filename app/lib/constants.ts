@@ -108,6 +108,15 @@ export function monsterAtk(lv: number): number {
   return 25 + (lv - 19) * 2; // 25, 27, 29, 31, 33, 35
 }
 
+// Arena positions (1 per biome, near a village)
+export const ARENA_POS: Record<string, { x: number; y: number }> = {
+  garrigue: { x: 30, y: 30 },
+  calanques: { x: 70, y: 30 },
+  mines: { x: 30, y: 70 },
+  mer: { x: 70, y: 70 },
+  restanques: { x: 50, y: 30 },
+};
+
 // Night monster variants
 export const NIGHT_MOBS: Record<string, { n: string; e: string; lv: number }> = {
   garrigue: { n: "Hibou", e: "🦉", lv: 4 },
