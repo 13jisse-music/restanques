@@ -165,11 +165,11 @@ function GameContent() {
       // Intro sequence OR tutorial (never both at once)
       if (!ep?.intro_seen) {
         setShowIntro(true);
-        // Tutorial will start AFTER intro completes (see onComplete)
+        setTimeout(() => { sounds.init(); sounds.playIntroMusic(); }, 500);
       } else {
         if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 1500);
+        setTimeout(() => sounds.playBiomeMusic("garrigue"), 1000);
       }
-      setTimeout(() => sounds.playBiomeMusic("garrigue"), 1000);
     }
     init();
   }, [pName, pEmoji]);
@@ -472,8 +472,11 @@ function GameContent() {
         onComplete={() => {
           setShowIntro(false);
           if (playerId) supabase.from("players").update({ intro_seen: true }).eq("id", playerId);
-          // Start tutorial AFTER intro is gone
-          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 500);
+          // Transition music: intro → silence → garrigue
+          sounds.stopMusic();
+          setTimeout(() => sounds.playBiomeMusic("garrigue"), 300);
+          // Start tutorial AFTER intro
+          if (!localStorage.getItem("restanques_tuto")) setTimeout(() => setTutoStep(0), 800);
         }}
       />}
 
@@ -799,23 +802,31 @@ function GameContent() {
         </div>
       </div>}
 
-      {/* TUTORIAL */}
-      {tutoStep >= 0 && <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 90, ...UI.panel, padding: "10px 16px", maxWidth: 320, color: "#3D2B1F", fontSize: 12, textAlign: "center" }}>
-        {[
-          "👋 Bienvenue ! D-pad pour vous déplacer.",
-          "🌿 Marchez sur les items pour récolter.",
-          "⚠️ Les ennemis patrouillent ! Ils vous chassent si vous êtes trop près.",
-          "💎 Combats en match-3 : alignez 3 gemmes !",
-          "🏠 Retournez au camp pour crafter, stocker et vous soigner.",
-          "🔧 Forgez des outils pour débloquer de nouvelles zones !",
-          "🗝️ Objectif : forgez la Clé Ancienne et battez le Mistral !",
-        ][tutoStep]}
-        <div style={{ marginTop: 6 }}>
-          <button style={{ ...UI.btn("#7A9E3F", "#FFF", true), marginRight: 8 }} onClick={() => {
-            if (tutoStep < 6) setTutoStep(tutoStep + 1);
+      {/* TUTORIAL — big clear panel */}
+      {tutoStep >= 0 && <div style={{ position: "fixed", inset: 0, zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}>
+        <div style={{ width: "85%", maxWidth: 340, background: "rgba(245,236,215,0.95)", border: "3px solid #5C4033", borderRadius: 14, padding: 20, textAlign: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+          <div style={{ fontSize: 16, fontWeight: "bold", color: "#3D2B1F", lineHeight: 1.6, marginBottom: 16, fontFamily: "'Courier New',monospace" }}>
+            {[
+              "🕹️ Utilisez le D-pad en bas à gauche pour vous déplacer",
+              "🌿 Tapez sur une ressource adjacente pour la récolter",
+              "⚔️ Les monstres patrouillent ! Ils vous chassent si vous êtes trop près",
+              "💎 Les combats se jouent en match-3 : alignez 3 gemmes !",
+              "🏠 Retournez au camp pour crafter et vous soigner",
+              "🗝️ Objectif : forgez la Clé Ancienne et battez le Mistral !",
+            ][tutoStep]}
+          </div>
+          <button onClick={() => {
+            if (tutoStep < 5) setTutoStep(tutoStep + 1);
             else { setTutoStep(-1); localStorage.setItem("restanques_tuto", "done"); }
-          }}>{tutoStep < 6 ? "Suivant →" : "C'est parti !"}</button>
-          <button style={{ ...UI.btn("#8B7355", "#E8D5A3", true) }} onClick={() => { setTutoStep(-1); localStorage.setItem("restanques_tuto", "done"); }}>Passer</button>
+          }} style={{ width: "100%", height: 48, background: "linear-gradient(145deg, #7A9E3F, #5A7E2F)", color: "#FFF", border: "2px solid #3D5E1A", borderRadius: 10, fontSize: 16, fontWeight: "bold", cursor: "pointer", fontFamily: "'Courier New',monospace", boxShadow: "0 4px 8px rgba(0,0,0,0.3)" }}>
+            {tutoStep < 5 ? "Suivant →" : "C'est parti ! 🎮"}
+          </button>
+          <button onClick={() => { setTutoStep(-1); localStorage.setItem("restanques_tuto", "done"); }} style={{ marginTop: 8, background: "none", border: "none", color: "#8B7355", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "'Courier New',monospace" }}>
+            Passer le tutoriel
+          </button>
+          <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i === tutoStep ? "#F4D03F" : "#D4C5A9" }} />)}
+          </div>
         </div>
       </div>}
 

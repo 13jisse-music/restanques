@@ -104,6 +104,19 @@ class GameSounds {
   }
 
   mystery() { this.osc(82, "sine", 0.08, 1.5); }
+
+  playIntroMusic() {
+    if (!this.ctx || this.muted) return;
+    this.stopMusic();
+    const drone = (freq: number, vol: number) => {
+      const o = this.ctx!.createOscillator(); const g = this.ctx!.createGain();
+      o.connect(g); g.connect(this.ctx!.destination);
+      o.type = "sine"; o.frequency.value = freq; g.gain.value = vol;
+      o.start(); this.musicOscs.push(o); this.musicGains.push(g);
+    };
+    drone(220, 0.02);
+    drone(330, 0.015);
+  }
 }
 
 export const sounds = new GameSounds();
