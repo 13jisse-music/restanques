@@ -11,8 +11,8 @@ import {
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
 import {
-  playerMapSprite, mobSprite, bonfireSprite, npcSprite,
-  itemSprite, gemSprite, monsterPortrait, natureSprite, GEM_STYLES,
+  playerCircle, PLAYER_STYLES, npcCircle,
+  itemSprite, ITEM_EMOJI, GEM_STYLES, BOSS_EMOJI,
   type Direction,
 } from "../lib/sprites";
 import { Joystick } from "./components/Joystick";
@@ -959,7 +959,7 @@ function GameContent() {
             </div>
             <div style={{ fontSize: 20, padding: "0 4px" }}>⚔️</div>
             <div style={{ flex: 1, textAlign: "center", animation: enemyShaking ? "shake 0.3s" : "none" }}>
-              <div style={{ ...monsterPortrait(combat.node.biome, 52), margin: "0 auto", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
+              <div style={{ fontSize: 48, lineHeight: 1, textAlign: "center" as const }} />
               <div style={{ fontSize: 10, fontWeight: "bold" }}>{combat.enemy.n}</div>
               <div style={{ height: 8, background: "#ddd", borderRadius: 4, overflow: "hidden", border: "1px solid #3D2B1F", margin: "2px 0" }}>
                 <div style={{ width: `${Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #D94F4F, #A92F2F)", transition: "width 0.3s" }} />
@@ -1365,8 +1365,8 @@ function GameContent() {
               }
               setDungeonPos({ x, y });
             }}>
-              {isPlayer ? <div style={{ ...playerMapSprite("idle", "down", spriteFrame, CELL, playerParam === "melanie"), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
-                : mobAlive ? <div style={{ ...mobSprite(dungeon.biome, false, spriteFrame, CELL), filter: "drop-shadow(0 0 4px #D94F4F)" }} />
+              {isPlayer ? <div style={{ ...playerCircle(PLAYER_STYLES[classParam]?.emoji || "🎸", PLAYER_STYLES[classParam]?.c1 || "#4A6E1F", PLAYER_STYLES[classParam]?.c2 || "#2D4A0F", CELL), filter: "drop-shadow(0 0 6px #F4D03F)" }} />
+                : mobAlive ? <div style={{ width: CELL, height: CELL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.6), filter: "drop-shadow(0 0 4px #D94F4F)" }} />
                   : isChest ? <span style={{ fontSize: Math.floor(CELL * 0.6), animation: "float 2s ease infinite" }}>🎁</span>
                     : isEntrance ? <span style={{ fontSize: Math.floor(CELL * 0.5) }}>🚪</span>
                       : null}
@@ -1384,7 +1384,7 @@ function GameContent() {
       {talkingNpc && <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 12px 80px" }}>
         <div style={{ ...UI.panel, padding: 16, maxWidth: 340, width: "100%", color: "#3D2B1F" }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-            <div style={{ ...npcSprite(["knight", "rogue", "wizzard"].indexOf(talkingNpc.sprite), spriteFrame, 48), flexShrink: 0 }} />
+            <div style={{ ...npcCircle(talkingNpc.emoji, 48), flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 14, fontWeight: "bold" }}>{talkingNpc.emoji} {talkingNpc.name}</div>
               {activeQuests.includes(talkingNpc.quest.id) && !completedQuests.includes(talkingNpc.quest.id) && <div style={{ fontSize: 10, color: "#E67E22" }}>📋 Quête active</div>}
@@ -1446,10 +1446,10 @@ function GameContent() {
             tryMove(dx, dy);
           }}>
             {/* PLAYER — Pixel Crawler Body_A */}
-            {isP ? <div style={{ ...playerMapSprite(walking ? "walk" : "idle", lastDir, spriteFrame, CELL, playerParam === "melanie"), zIndex: 2, filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.5))" }} />
-              : isOther ? <div style={{ ...playerMapSprite("idle", "down", spriteFrame, CELL * 0.85, otherPlayer!.name === "Mélanie"), opacity: 0.75 }} />
+            {isP ? <div style={{ ...playerCircle(PLAYER_STYLES[classParam]?.emoji || "🎸", PLAYER_STYLES[classParam]?.c1 || "#4A6E1F", PLAYER_STYLES[classParam]?.c2 || "#2D4A0F", CELL), zIndex: 2, animation: walking ? "bounce 0.4s ease infinite" : "none" }} />
+              : isOther ? <div style={{ ...playerCircle(otherPlayer!.name === "Mélanie" ? "🎨" : "🎸", otherPlayer!.name === "Mélanie" ? "#8E4466" : "#4A6E1F", otherPlayer!.name === "Mélanie" ? "#5C2D42" : "#2D4A0F", CELL * 0.85), opacity: 0.7 }} />
                 : mobileEnemyNode ? <div style={{ position: "relative" }}>
-                    <div style={{ ...mobSprite(mobileEnemyNode.biome, isAlerted, spriteFrame, CELL), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
+                    <div style={{ width: CELL, height: CELL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.55), filter: isAlerted ? "drop-shadow(0 0 4px #D94F4F)" : "none" }} />
                     {isAlerted && <span style={{ position: "absolute", top: -4, right: -2, fontSize: 10, color: "#D94F4F", fontWeight: "bold", textShadow: "0 0 3px #000" }}>❗</span>}
                   </div>
                   : isCamp ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -1469,17 +1469,17 @@ function GameContent() {
                       })()
                       : gate ? <span style={{ filter: "drop-shadow(0 0 3px #F4D03F)" }}>🚪</span>
                         : NPCS.find((n) => n.x === wx && n.y === wy) ? (() => { const npc = NPCS.find((n) => n.x === wx && n.y === wy)!; return <div style={{ position: "relative" }}>
-                            <div style={{ ...npcSprite(["knight", "rogue", "wizzard"].indexOf(npc.sprite), spriteFrame, CELL), filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
+                            <div style={{ ...npcCircle(npc.emoji, CELL), filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
                             {!completedQuests.includes(npc.quest.id) && <span style={{ position: "absolute", top: -6, right: -2, fontSize: 12, animation: "float 1s ease infinite" }}>❗</span>}
                           </div>; })()
-                          : vilIdx >= 0 ? <div style={{ ...npcSprite(vilIdx, spriteFrame, CELL), filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+                          : vilIdx >= 0 ? <div style={{ width: CELL, height: CELL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(CELL * 0.6) }} />
                           : tile === "t" ? <span style={{ fontSize: Math.floor(CELL * 0.65), filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.3))" }}>🌳</span>
                             : tile === "fl" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>🌸</span>
                               : tile === "lv" ? <span style={{ fontSize: Math.floor(CELL * 0.4) }}>💜</span>
                                 : tile === "r" ? <span style={{ fontSize: Math.floor(CELL * 0.45), opacity: 0.7 }}>🪨</span>
                                   : (() => { const f = FORTRESSES[currentBiome]; return f && Math.abs(wx - f.x) <= 1 && Math.abs(wy - f.y) <= 1 && !bosses.includes(currentBiome); })() ? (wx === FORTRESSES[currentBiome].x && wy === FORTRESSES[currentBiome].y ? <span style={{ fontSize: Math.floor(CELL * 1.3), filter: "drop-shadow(0 0 8px #D94F4F)", animation: "float 2s ease infinite" }}>🏰</span> : null)
                                     : DUNGEON_ENTRANCES.find((d) => d.x === wx && d.y === wy) ? <span style={{ fontSize: Math.floor(CELL * 0.6), filter: "drop-shadow(0 0 4px #9B7EDE)" }}>🕳️</span>
-                                    : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerMapSprite("idle", "down", 0, CELL, false), filter: "brightness(0.15)", opacity: 0.5, animation: "float 2s ease infinite" }} />
+                                    : (mysteryPos && wx === mysteryPos.x && wy === mysteryPos.y) ? <div style={{ ...playerCircle("🌙", "#111", "#000", CELL), filter: "brightness(0.3)", opacity: 0.4, animation: "float 2s ease infinite" }} />
                                     : null}
           </div>;
         })).flat()}
