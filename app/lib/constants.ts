@@ -130,6 +130,35 @@ export interface PlayerStats {
 }
 export const BAG_LIMIT = 20;
 
+// ─── EQUIPMENT ───
+export type EquipSlot = "arme" | "armure" | "amulette" | "bottes";
+
+export interface Equipment {
+  id: string;
+  name: string;
+  emoji: string;
+  slot: EquipSlot;
+  stats: Partial<PlayerStats>;
+  biome: string; // where to find it
+  recipe: Record<string, number>; // craft recipe
+}
+
+export const EQUIPMENTS: Equipment[] = [
+  // ARMES
+  { id: "epee_bois", name: "Épée en bois", emoji: "🗡️", slot: "arme", stats: { atk: 2 }, biome: "garrigue", recipe: { branche: 3, pierre: 1 } },
+  { id: "epee_fer", name: "Épée de fer", emoji: "⚔️", slot: "arme", stats: { atk: 5 }, biome: "mines", recipe: { fer: 3, branche: 1 } },
+  { id: "trident", name: "Trident de corail", emoji: "🔱", slot: "arme", stats: { atk: 7, mag: 3 }, biome: "mer", recipe: { corail: 3, perle: 1, fer: 1 } },
+  // ARMURES
+  { id: "tunique_cuir", name: "Tunique de cuir", emoji: "🧥", slot: "armure", stats: { def: 2 }, biome: "garrigue", recipe: { herbe: 4, branche: 2 } },
+  { id: "cotte_ecailles", name: "Cotte d'écailles", emoji: "🐟", slot: "armure", stats: { def: 5 }, biome: "mer", recipe: { coquillage: 4, fer: 2 } },
+  // AMULETTES
+  { id: "amulette_herbes", name: "Amulette d'herbes", emoji: "📿", slot: "amulette", stats: { mag: 2 }, biome: "garrigue", recipe: { lavande: 3, herbe: 2 } },
+  { id: "collier_perles", name: "Collier de perles", emoji: "💎", slot: "amulette", stats: { mag: 5, def: 2 }, biome: "mer", recipe: { perle: 3, cristal: 1 } },
+  // BOTTES
+  { id: "sandales", name: "Sandales", emoji: "👡", slot: "bottes", stats: { vit: 2 }, biome: "garrigue", recipe: { herbe: 3, branche: 1 } },
+  { id: "bottes_vent", name: "Bottes du Mistral", emoji: "💨", slot: "bottes", stats: { vit: 5 }, biome: "restanques", recipe: { cristal: 2, ocre: 2, perle: 1 } },
+];
+
 export function countBagItems(inv: string[]): number {
   return inv.filter((id) => id !== "pain" && id !== "potion").length;
 }

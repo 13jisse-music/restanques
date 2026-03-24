@@ -5,9 +5,9 @@ import { supabase } from "../lib/supabase";
 import { genWorld } from "../lib/world";
 import { createGrid, findMatches, swapGems, applyGravity } from "../lib/match3";
 import {
-  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF,
+  COLORS as C, GEMS, RES, TOOLS, CARD_RECIPES, GUARDS, QUESTS_DEF, EQUIPMENTS,
   TILES, MW, MH, CAMP_POS, CAMP_RADIUS, BAG_LIMIT, countBagItems, isBagFull,
-  type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats,
+  type GameWorld, type GameNode, type CombatState, type CombatCard, type Quest, type Village, type PlayerStats, type EquipSlot,
 } from "../lib/constants";
 import { sounds } from "../lib/sounds";
 import {
@@ -116,7 +116,9 @@ function GameContent() {
   const [alertedEnemies, setAlertedEnemies] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState<PlayerStats>({ atk: 1, def: 0, mag: 0, vit: 1 });
   const [chest, setChest] = useState<string[]>([]);
-  const [campPanel, setCampPanel] = useState<"" | "rest" | "chest" | "craft">("");
+  const [campPanel, setCampPanel] = useState<"" | "rest" | "chest" | "craft" | "equip">("");
+  const [equipped, setEquipped] = useState<Record<EquipSlot, string | null>>({ arme: null, armure: null, amulette: null, bottes: null });
+  const [ownedEquip, setOwnedEquip] = useState<string[]>([]);
   const [charPanel, setCharPanel] = useState(false);
   const [tutoStep, setTutoStep] = useState(-1);
   const [levelUpChoice, setLevelUpChoice] = useState(false);
@@ -166,7 +168,7 @@ function GameContent() {
       const w = genWorld(session.seed); setWorld(w); worldRef.current = w; setPos(w.spawn);
       if (session.collected_nodes && Array.isArray(session.collected_nodes)) { for (const idx of session.collected_nodes) { if (w.nodes[idx]) w.nodes[idx].done = true; } }
       const { data: ep } = await supabase.from("players").select("*").eq("session_id", session.id).eq("name", pName).single();
-      if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); }
+      if (ep) { setPlayerId(ep.id); setPos({ x: ep.x, y: ep.y }); setHp(ep.hp); setMaxHp(ep.max_hp); setLvl(ep.lvl); setXp(ep.xp); setInv(ep.inventory || []); setTools(ep.tools || []); setCards(ep.cards || []); setUnlocked(ep.unlocked_biomes || ["garrigue"]); setBosses(ep.bosses_defeated || []); setChest(ep.chest || []); if (ep.stats) setStats(ep.stats); if (ep.owned_equip) setOwnedEquip(ep.owned_equip); if (ep.equipped) setEquipped(ep.equipped); }
       else { const { data: np } = await supabase.from("players").insert({ session_id: session.id, name: pName, emoji: pEmoji, x: w.spawn.x, y: w.spawn.y }).select().single(); if (np) setPlayerId(np.id); }
       // Intro sequence OR tutorial (never both at once)
       if (!ep?.intro_seen) {
@@ -185,8 +187,8 @@ function GameContent() {
   useEffect(() => {
     if (!playerId) return;
     if (syncRef.current) clearTimeout(syncRef.current);
-    syncRef.current = setTimeout(() => { supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, chest, stats, updated_at: new Date().toISOString() }).eq("id", playerId); }, 250);
-  }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, chest, stats, playerId]);
+    syncRef.current = setTimeout(() => { supabase.from("players").update({ x: pos.x, y: pos.y, hp, max_hp: maxHp, lvl, xp, inventory: inv, tools, cards, unlocked_biomes: unlocked, bosses_defeated: bosses, chest, stats, owned_equip: ownedEquip, equipped, updated_at: new Date().toISOString() }).eq("id", playerId); }, 250);
+  }, [pos, hp, maxHp, lvl, xp, inv, tools, cards, unlocked, bosses, chest, stats, ownedEquip, equipped, playerId]);
 
   const doneRef = useRef(0);
   useEffect(() => {
@@ -381,6 +383,21 @@ function GameContent() {
   const startCombat = (node: GameNode) => { setDialog(null); const g = node.guard || GUARDS[node.biome]; setCombat({ grid: createGrid(), enemy: { ...g }, enemyHp: g.hp, enemyMaxHp: g.hp, playerHp: hpRef.current, node, sel: null, combo: 0, totalDmg: 0, msg: "Ton tour ! Aligne 3 gemmes.", won: false, lost: false, animating: false }); setEnemyTurnMsg(""); setUsedSpells(new Set()); setSpellBonus(0); sounds.playCombatMusic(!!node.boss); };
 
   // ─── CAST SPELL ───
+  // Total stats = base + equipment bonuses
+  const totalStats = useMemo(() => {
+    const s = { ...stats };
+    Object.values(equipped).forEach((eId) => {
+      if (!eId) return;
+      const eq = EQUIPMENTS.find((e) => e.id === eId);
+      if (eq) { Object.entries(eq.stats).forEach(([k, v]) => { s[k as keyof PlayerStats] += v || 0; }); }
+    });
+    // Tool bonuses
+    if (tools.includes("serpe")) s.atk += 2;
+    if (tools.includes("pioche")) s.atk += 1;
+    if (tools.includes("baton")) s.def += 1;
+    return s;
+  }, [stats, equipped, tools]);
+
   const castSpell = (card: CombatCard) => {
     if (!combat || combat.won || combat.lost || combat.animating || usedSpells.has(card.n)) return;
     setUsedSpells((s) => new Set(s).add(card.n));
@@ -394,7 +411,7 @@ function GameContent() {
           const gemType = Math.floor(Math.random() * 6);
           const g = p.grid.map((r) => r.map((c) => c === gemType ? -1 : c));
           const count = p.grid.flat().filter((c) => c === gemType).length;
-          const dmg = count + stats.atk;
+          const dmg = count + totalStats.atk;
           const newEHp = Math.max(0, p.enemyHp - dmg);
           setTimeout(() => {
             setCombat((c) => c ? { ...c, grid: g.map((r) => r.map((c2) => c2 === -1 ? Math.floor(Math.random() * 6) : c2)), animating: false } : c);
@@ -405,7 +422,7 @@ function GameContent() {
           // Annule le prochain tour ennemi (on met animating = false sans tour ennemi)
           return { ...p, msg: "🛡️ Bouclier activé ! Tour ennemi annulé." };
         case "Éclat": {
-          const dmg = stats.atk + stats.mag + 3;
+          const dmg = totalStats.atk + totalStats.mag + 3;
           const newEHp = Math.max(0, p.enemyHp - dmg);
           setEnemyShaking(true); setTimeout(() => setEnemyShaking(false), 400);
           if (newEHp <= 0) {
@@ -449,7 +466,7 @@ function GameContent() {
   };
 
   const processMatches = (grid: number[][], matches: { x: number; y: number }[], combo: number) => {
-    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + stats.atk + stats.mag + spellBonus; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
+    const cc = cardsRef.current; const dmg = matches.length + combo * 2 + totalStats.atk + totalStats.mag + spellBonus; const bd = cc.reduce((a, c) => a + (c.pow || 0), 0); const td = dmg + Math.floor(bd / 2);
     if (spellBonus > 0) setSpellBonus(0); // Marée consumed
     const cm = combo > 0 ? ` COMBO x${combo + 1} !` : "";
     const g = grid.map((r) => [...r]); matches.forEach(({ x, y }) => { g[y][x] = -1; });
@@ -472,7 +489,7 @@ function GameContent() {
           setUsedSpells((s) => { const ns = new Set(s); ns.delete("Bouclier"); return ns; }); // consume shield
           return { ...p, grid: filled, enemyHp: newEHp, sel: null, combo: 0, totalDmg: p.totalDmg + td, msg: `💥 -${td}${cm} 🛡️ Tour ennemi bloqué !`, animating: false };
         }
-        const ed = Math.ceil(p.enemy.hp / 5); const rd = Math.max(1, ed - stats.def);
+        const ed = Math.ceil(p.enemy.hp / 5); const rd = Math.max(1, ed - totalStats.def);
         const atks = ["charge", "frappe", "mord", "griffe", "souffle"]; setEnemyTurnMsg(`${p.enemy.e} ${p.enemy.n} ${atks[Math.floor(Math.random() * atks.length)]} !`);
         setTimeout(() => { setPlayerShaking(true); sounds.hit(); setTimeout(() => setPlayerShaking(false), 400);
           setCombat((c) => { if (!c) return c; const np = c.playerHp - rd; setHp(Math.max(0, np)); setEnemyTurnMsg("");
@@ -764,9 +781,9 @@ function GameContent() {
           </div>
           {/* Tabs */}
           <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-            {(["rest", "chest", "craft"] as const).map((tab) => (
-              <button key={tab} onClick={() => setCampPanel(tab)} style={{ flex: 1, padding: "6px 4px", fontSize: 11, fontWeight: "bold", background: campPanel === tab ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F" }}>
-                {tab === "rest" ? "🛏️ Repos" : tab === "chest" ? "📦 Coffre" : "🔨 Établi"}
+            {(["rest", "chest", "craft", "equip"] as const).map((tab) => (
+              <button key={tab} onClick={() => setCampPanel(tab)} style={{ flex: 1, padding: "6px 3px", fontSize: 10, fontWeight: "bold", background: campPanel === tab ? "#E8A317" : "#E8D5A3", border: "2px solid #8B7355", borderRadius: 6, cursor: "pointer", color: "#3D2B1F" }}>
+                {tab === "rest" ? "🛏️" : tab === "chest" ? "📦" : tab === "craft" ? "🔨" : "⚔️"}
               </button>
             ))}
           </div>
@@ -823,6 +840,45 @@ function GameContent() {
               </div>;
             })}
           </div>}
+          {/* EQUIP */}
+          {campPanel === "equip" && <div>
+            <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 6 }}>⚔️ Équipement</div>
+            {/* Currently equipped */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
+              {(["arme", "armure", "amulette", "bottes"] as EquipSlot[]).map((slot) => {
+                const eqId = equipped[slot];
+                const eq = eqId ? EQUIPMENTS.find((e) => e.id === eqId) : null;
+                return <div key={slot} style={{ padding: 6, background: eq ? "#7A9E3F22" : "#FFF8E7", borderRadius: 6, border: `1px solid ${eq ? "#7A9E3F" : "#D4C5A9"}`, textAlign: "center", fontSize: 11 }}>
+                  <div style={{ fontSize: 8, color: "#8B7355", textTransform: "uppercase" }}>{slot}</div>
+                  {eq ? <div><span style={{ fontSize: 16 }}>{eq.emoji}</span><div style={{ fontSize: 10, fontWeight: "bold" }}>{eq.name}</div><div style={{ fontSize: 9, color: "#7A9E3F" }}>{Object.entries(eq.stats).map(([k, v]) => `${k.toUpperCase()}+${v}`).join(" ")}</div></div>
+                    : <div style={{ fontSize: 10, color: "#8B7355" }}>— vide —</div>}
+                </div>;
+              })}
+            </div>
+            {/* Craft & equip */}
+            <div style={{ fontSize: 12, fontWeight: "bold", marginBottom: 4 }}>🔧 Forger un équipement</div>
+            {EQUIPMENTS.map((eq) => {
+              const owned = ownedEquip.includes(eq.id);
+              const isEquipped = Object.values(equipped).includes(eq.id);
+              const canCraft = !owned && Object.entries(eq.recipe).every(([res, cnt]) => inv.filter((i) => i === res).length >= cnt);
+              return <div key={eq.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, marginBottom: 4, background: owned ? "#7A9E3F11" : "#FFF8E7", borderRadius: 6, border: `1px solid ${owned ? "#7A9E3F44" : "#D4C5A9"}` }}>
+                <span style={{ fontSize: 18 }}>{eq.emoji}</span>
+                <div style={{ flex: 1, fontSize: 10 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 11 }}>{eq.name}</div>
+                  <div style={{ color: "#7A9E3F" }}>{Object.entries(eq.stats).map(([k, v]) => `${k.toUpperCase()}+${v}`).join(" ")}</div>
+                  {!owned && <div style={{ color: "#8B7355" }}>{Object.entries(eq.recipe).map(([r, n]) => `${RES[r]?.e}×${n}`).join(" ")}</div>}
+                </div>
+                {isEquipped ? <span style={{ fontSize: 9, color: "#7A9E3F", fontWeight: "bold" }}>Équipé ✅</span>
+                  : owned ? <button onClick={() => { setEquipped((e) => ({ ...e, [eq.slot]: eq.id })); sounds.equip(); }} style={{ ...UI.btn("#2E86AB", "#FFF", true), padding: "4px 8px", fontSize: 10 }}>Équiper</button>
+                    : canCraft ? <button onClick={() => {
+                        Object.entries(eq.recipe).forEach(([r, n]) => { for (let i = 0; i < n; i++) { const idx = inv.indexOf(r); if (idx >= 0) setInv((p) => { const x = [...p]; x.splice(idx, 1); return x; }); } });
+                        setOwnedEquip((p) => [...p, eq.id]); setEquipped((e) => ({ ...e, [eq.slot]: eq.id }));
+                        sounds.craft(); notify(`⚔️ ${eq.emoji} ${eq.name} !`);
+                      }} style={{ ...UI.btn("#7A9E3F", "#FFF", true), padding: "4px 8px", fontSize: 10 }}>Forger</button>
+                      : <span style={{ fontSize: 9, color: "#8B7355" }}>Manque</span>}
+              </div>;
+            })}
+          </div>}
         </div>
       </div>}
 
@@ -837,13 +893,13 @@ function GameContent() {
           <div style={{ fontSize: 13, textAlign: "center", marginBottom: 8 }}>Nv.{lvl} · ❤️{hp}/{maxHp} · XP {xp}/{lvl * 50}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
             <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>⚔️ ATK</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.atk}</div>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>⚔️ ATK</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.atk}</div>
             </div>
             <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>🛡️ DEF</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.def}</div>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>🛡️ DEF</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.def}</div>
             </div>
             <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#8B7355" }}>✨ MAG</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.mag}</div>
+              <div style={{ fontSize: 10, color: "#8B7355" }}>✨ MAG</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{totalStats.mag}</div>
             </div>
             <div style={{ background: "#FFF8E7", padding: 6, borderRadius: 6, border: "1px solid #D4C5A9", textAlign: "center" }}>
               <div style={{ fontSize: 10, color: "#8B7355" }}>💚 VIT</div><div style={{ fontSize: 16, fontWeight: "bold" }}>{stats.vit}</div>
