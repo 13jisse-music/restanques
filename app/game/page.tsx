@@ -727,9 +727,9 @@ function GameContent() {
     setCombat((prev) => {
       if (prev?.lost) {
         setHp(Math.floor(maxHp * 0.5));
-        setDeathScreen(true);
-        setFatigueUntil(Date.now() + 120000); // 2 min fatigue
-        setTimeout(() => { setDeathScreen(false); setPos({ x: CAMP_POS.x, y: CAMP_POS.y }); }, 2500);
+        setDeathScreen(true); sounds.playMusic("gameover");
+        setFatigueUntil(Date.now() + 120000);
+        setTimeout(() => { setDeathScreen(false); setPos({ x: CAMP_POS.x, y: CAMP_POS.y }); sounds.playMusic(currentBiome); }, 2500);
       }
       return null;
     });
@@ -794,6 +794,7 @@ function GameContent() {
       {/* STORY TRANSITION (boss defeated, biome change, ending) */}
       {storySequence && <StorySequence
         slides={storySequence.slides}
+        musicId={storySequence.key === "ending" ? "ending" : "story"}
         onComplete={() => {
           const key = storySequence.key;
           setStorySequence(null);

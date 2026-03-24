@@ -1,14 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
+import { sounds } from "../../lib/sounds";
 
 interface Slide { image?: string; text: string; }
 
-export function StorySequence({ slides, onComplete }: { slides: Slide[]; onComplete: () => void }) {
+export function StorySequence({ slides, onComplete, musicId = "story" }: { slides: Slide[]; onComplete: () => void; musicId?: string }) {
   const [idx, setIdx] = useState(0);
   const [textVisible, setTextVisible] = useState(false);
   const [imgFailed, setImgFailed] = useState<Set<number>>(new Set());
 
-  useEffect(() => { setTimeout(() => setTextVisible(true), 300); }, []);
+  useEffect(() => { setTimeout(() => setTextVisible(true), 300); sounds.playMusic(musicId); }, [musicId]);
 
   const next = () => {
     setTextVisible(false);

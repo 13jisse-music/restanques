@@ -119,6 +119,10 @@ class GameSounds {
       boss:       { drones: [[82, 0.04]], notes: [196, 233, 262, 294, 262, 233, 196, 147], type: "sawtooth", speed: 200, vol: 0.05 },
       house:      { drones: [[175, 0.02], [262, 0.02]], notes: [349, 440, 523, 440, 349, 262], type: "triangle", speed: 700, vol: 0.05 },
       intro:      { drones: [[220, 0.02], [330, 0.015]], notes: [], type: "sine", speed: 0, vol: 0 },
+      theme:      { drones: [[220, 0.03], [330, 0.02], [440, 0.01]], notes: [220, 330, 440, 523, 440, 330], type: "triangle", speed: 1200, vol: 0.05 },
+      story:      { drones: [[175, 0.02], [262, 0.015]], notes: [262, 330, 392, 330], type: "sine", speed: 1500, vol: 0.03 },
+      ending:     { drones: [[262, 0.03], [392, 0.03], [523, 0.02]], notes: [262, 330, 392, 440, 523, 659, 784], type: "triangle", speed: 800, vol: 0.06 },
+      gameover:   { drones: [[110, 0.03]], notes: [330, 262, 220, 175], type: "triangle", speed: 1000, vol: 0.04 },
     };
 
     const cfg = configs[id] || configs.garrigue;

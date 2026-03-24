@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "./lib/supabase";
+import { sounds } from "./lib/sounds";
 import { GameGuide } from "./game/components/GameGuide";
 
 export default function Home() {
@@ -13,7 +14,13 @@ export default function Home() {
   const [showOptions, setShowOptions] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  useEffect(() => { setTimeout(() => setVisible(true), 300); }, []);
+  useEffect(() => {
+    setTimeout(() => setVisible(true), 300);
+    // Play theme music on first interaction
+    const startTheme = () => { sounds.init(); sounds.playMusic("theme"); document.removeEventListener("click", startTheme); };
+    document.addEventListener("click", startTheme);
+    return () => document.removeEventListener("click", startTheme);
+  }, []);
 
   const play = (player: string, cls = "aventurier") => {
     const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
