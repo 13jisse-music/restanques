@@ -62,6 +62,26 @@ export const BOSSES: Record<string, Boss> = {
   restanques:{name:"Mistral",emoji:"🌪️",lv:28,hp:350,atk:55,drop:"couronne_mistral",tool:"",sous:500,ability:"Tempête !"},
 };
 
+// ─── DEMI-BOSS (3 par biome, fragment de cle) ───
+export interface DemiBoss { id:string; name:string; emoji:string; biome:string; lv:number; hp:number; atk:number; drop:string; sous:number; }
+export const DEMI_BOSSES: DemiBoss[] = [
+  {id:"db_g1",name:"Loup Gris",emoji:"🐺",biome:"garrigue",lv:4,hp:35,atk:10,drop:"fragment_garrigue",sous:25},
+  {id:"db_g2",name:"Vipere",emoji:"🐍",biome:"garrigue",lv:5,hp:40,atk:12,drop:"fragment_garrigue",sous:30},
+  {id:"db_g3",name:"Aigle Noir",emoji:"🦅",biome:"garrigue",lv:6,hp:45,atk:14,drop:"fragment_garrigue",sous:35},
+  {id:"db_c1",name:"Murene",emoji:"🐍",biome:"calanques",lv:8,hp:55,atk:15,drop:"fragment_calanques",sous:40},
+  {id:"db_c2",name:"Pieuvre",emoji:"🐙",biome:"calanques",lv:9,hp:60,atk:17,drop:"fragment_calanques",sous:45},
+  {id:"db_c3",name:"Raie Geante",emoji:"🦈",biome:"calanques",lv:10,hp:65,atk:19,drop:"fragment_calanques",sous:50},
+  {id:"db_m1",name:"Ver Geant",emoji:"🪱",biome:"mines",lv:13,hp:75,atk:22,drop:"fragment_mines",sous:55},
+  {id:"db_m2",name:"Golem Cristal",emoji:"💎",biome:"mines",lv:14,hp:85,atk:24,drop:"fragment_mines",sous:60},
+  {id:"db_m3",name:"Basilic",emoji:"🦎",biome:"mines",lv:15,hp:90,atk:26,drop:"fragment_mines",sous:65},
+  {id:"db_s1",name:"Sirene",emoji:"🧜",biome:"mer",lv:18,hp:100,atk:28,drop:"fragment_mer",sous:70},
+  {id:"db_s2",name:"Leviathan Jr",emoji:"🐋",biome:"mer",lv:19,hp:110,atk:30,drop:"fragment_mer",sous:80},
+  {id:"db_s3",name:"Triton",emoji:"🔱",biome:"mer",lv:20,hp:120,atk:32,drop:"fragment_mer",sous:90},
+  {id:"db_r1",name:"Ombre Errante",emoji:"👤",biome:"restanques",lv:23,hp:140,atk:36,drop:"fragment_restanques",sous:100},
+  {id:"db_r2",name:"Chevalier Maudit",emoji:"⚔️",biome:"restanques",lv:24,hp:150,atk:38,drop:"fragment_restanques",sous:110},
+  {id:"db_r3",name:"Dragon de Pierre",emoji:"🐲",biome:"restanques",lv:25,hp:160,atk:40,drop:"fragment_restanques",sous:120},
+];
+
 // ─── RESOURCES (CDC Part 2 §7.1-7.5) ───
 export const RES: Record<string, { name: string; emoji: string; hp: number }> = {
   branche:{name:"Branche",emoji:"🪵",hp:12}, herbe:{name:"Herbe",emoji:"🌿",hp:5},
