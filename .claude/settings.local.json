@@ -5,7 +5,8 @@
       "Bash(npm --version)",
       "Bash(curl:*)",
       "Bash(npx next:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(ls:*)"
     ]
   }
 }

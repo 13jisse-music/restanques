@@ -3,7 +3,11 @@
 // Chaque biome a ses propres tiles, nodes, villages, portails
 // ═══════════════════════════════════════════════════════════
 
-import { MW, MH, TILES, GUARDS, BIOME_MOBS, FORTRESSES, VILLAGES, CAMP_POS, monsterHp, monsterAtk, type GameNode, type Gate, type Village, type GameWorld } from './constants';
+import { TILES, GUARDS, BIOME_MOBS, FORTRESSES, CAMP_POS, monsterHp, monsterAtk, type GameNode, type Gate, type Village, type GameWorld } from './constants';
+
+// v5.0: Maps are now 150×150 (up from 100×100) per CDC spec
+const MW = 150;
+const MH = 150;
 
 function makeRng(seed: number) {
   let s = seed | 0;
@@ -68,6 +72,7 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
   const nodes: GameNode[] = [];
   const gates: Gate[] = [];
   const villages: Village[] = [];
+  const center = 75; // center of 150×150 map
 
   const S = (x: number, y: number, t: string) => { if (x >= 0 && x < MW && y >= 0 && y < MH) m[y][x] = t; };
 
@@ -92,60 +97,60 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
       else cx += cx < x2 ? 1 : -1;
     }
   };
-  drawPath(5, 50, 95, 50); // horizontal
-  drawPath(50, 5, 50, 95); // vertical
-  drawPath(20, 20, 80, 80); // diagonal
+  drawPath(10, center, 140, center); // horizontal
+  drawPath(center, 10, center, 140); // vertical
+  drawPath(30, 30, 120, 120); // diagonal
 
   // Portals (gates on edges)
   const portalDefs = PORTALS[biomeId] || [];
   for (const p of portalDefs) {
-    let gx = 50, gy = 50;
-    if (p.side === "N") { gx = 50; gy = 1; }
-    if (p.side === "S") { gx = 50; gy = 98; }
-    if (p.side === "E") { gx = 98; gy = 50; }
-    if (p.side === "W") { gx = 1; gy = 50; }
+    let gx = center, gy = center;
+    if (p.side === "N") { gx = center; gy = 1; }
+    if (p.side === "S") { gx = center; gy = 148; }
+    if (p.side === "E") { gx = 148; gy = center; }
+    if (p.side === "W") { gx = 1; gy = center; }
     S(gx, gy, "gt");
     gates.push({ x: gx, y: gy, b: p.target });
-    // Clear path to portal
-    drawPath(50, 50, gx, gy);
+    drawPath(center, center, gx, gy);
   }
   // Restanques portal (if not restanques)
   if (biomeId !== "restanques") {
-    const rx = biomeId === "garrigue" ? 95 : biomeId === "calanques" ? 95 : biomeId === "mines" ? 5 : 5;
-    const ry = biomeId === "garrigue" ? 95 : biomeId === "calanques" ? 5 : biomeId === "mines" ? 95 : 95;
+    const rx = biomeId === "garrigue" ? 140 : biomeId === "calanques" ? 140 : biomeId === "mines" ? 10 : 10;
+    const ry = biomeId === "garrigue" ? 140 : biomeId === "calanques" ? 10 : biomeId === "mines" ? 140 : 140;
     S(rx, ry, "gt");
     gates.push({ x: rx, y: ry, b: "restanques" });
-    drawPath(50, 50, rx, ry);
+    drawPath(center, center, rx, ry);
   }
 
-  // Villages
+  // Villages (scaled positions for 150×150)
   const bVillages = BIOME_VILLAGES[biomeId] || [];
-  for (const v of bVillages) {
+  for (const vdef of bVillages) {
+    // Scale village positions to 150×150 (original was for 100×100)
+    const v = { ...vdef, x: Math.floor(vdef.x * 1.5), y: Math.floor(vdef.y * 1.5) };
     S(v.x, v.y, "vi"); S(v.x + 1, v.y, "vi"); S(v.x, v.y + 1, "vi"); S(v.x + 1, v.y + 1, "vi");
     villages.push(v);
-    drawPath(50, 50, v.x, v.y);
+    drawPath(center, center, v.x, v.y);
   }
 
   // Resource nodes in CLUSTERS (groups of similar resources)
   const res = BIOME_RES[biomeId] || ["branche"];
   const mobs = BIOME_MOBS[biomeId] || BIOME_MOBS.garrigue;
 
-  // Generate clusters: each cluster = 4-8 nodes of the same type in a radius of 4-6
-  const clusterCount = 8 + Math.floor(rng() * 4); // 8-12 clusters
+  // More clusters for the bigger map: 12-18
+  const clusterCount = 12 + Math.floor(rng() * 7);
   for (let ci = 0; ci < clusterCount; ci++) {
     const clusterRes = res[Math.floor(rng() * res.length)];
-    const cx = 10 + Math.floor(rng() * 80);
-    const cy = 10 + Math.floor(rng() * 80);
-    const clusterSize = 4 + Math.floor(rng() * 5); // 4-8 nodes per cluster
+    const cx = 15 + Math.floor(rng() * 120);
+    const cy = 15 + Math.floor(rng() * 120);
+    const clusterSize = 5 + Math.floor(rng() * 4); // 5-8 nodes per cluster
     const radius = 4 + Math.floor(rng() * 3); // radius 4-6
     for (let ni = 0; ni < clusterSize; ni++) {
       const angle = rng() * Math.PI * 2;
       const dist = rng() * radius;
       const x = Math.round(cx + Math.cos(angle) * dist);
       const y = Math.round(cy + Math.sin(angle) * dist);
-      if (x < 2 || x > 97 || y < 2 || y > 97) continue;
+      if (x < 2 || x > 147 || y < 2 || y > 147) continue;
       if (!TILES[m[y][x]]?.w || nodes.find(n => n.x === x && n.y === y)) continue;
-      // 30% chance of guard on resource
       let guard = null;
       if (rng() < 0.3) {
         const mob = mobs[Math.floor(rng() * mobs.length)];
@@ -155,20 +160,19 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     }
   }
 
-  // Also scatter some individual resources (10-15)
-  const scatterCount = 10 + Math.floor(rng() * 5);
+  // Scatter individual resources (15-20)
+  const scatterCount = 15 + Math.floor(rng() * 6);
   for (let i = 0; i < scatterCount; i++) {
     let tries = 0;
     while (tries < 80) {
-      const x = 5 + Math.floor(rng() * 90);
-      const y = 5 + Math.floor(rng() * 90);
+      const x = 5 + Math.floor(rng() * 140);
+      const y = 5 + Math.floor(rng() * 140);
       if (TILES[m[y][x]]?.w && !nodes.find((n) => n.x === x && n.y === y)) {
         const r = res[Math.floor(rng() * res.length)];
         const hasGuard = rng() < 0.25;
         let guard = null;
         if (hasGuard) {
           const mob = mobs[Math.floor(rng() * mobs.length)];
-          // Progressive HP: exponential scaling
           const mobHp = Math.ceil(4 + mob.lv * 2.5 + Math.pow(mob.lv, 1.3));
           guard = { n: mob.n, e: mob.e, hp: mobHp, d: `${mob.e} ${mob.n} attaque !` };
         }
@@ -179,20 +183,25 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     }
   }
 
-  // Additional roaming monsters (NOT guarding resources) — 80-100 per biome
+  // Roaming monsters — 80-100 per biome, distributed by distance from center
+  // CDC: 0-20 radius = 0 monsters (safe), 20-50 = nv1-2, 50-90 = nv2-3, 90-120 = nv3-4, 120+ = nv4-5
   const monsterCount = 80 + Math.floor(rng() * 20);
   for (let i = 0; i < monsterCount; i++) {
     let tries = 0;
     while (tries < 60) {
-      const x = 5 + Math.floor(rng() * 90);
-      const y = 5 + Math.floor(rng() * 90);
-      // Don't place near camp (garrigue only, radius 15 is safe-ish zone with weak mobs)
-      const distFromCamp = biomeId === "garrigue" ? Math.abs(x - CAMP_POS.x) + Math.abs(y - CAMP_POS.y) : 999;
+      const x = 5 + Math.floor(rng() * 140);
+      const y = 5 + Math.floor(rng() * 140);
+      const distFromCenter = Math.sqrt(Math.pow(x - center, 2) + Math.pow(y - center, 2));
+      // No monsters within 20 tiles of center (safe zone)
+      if (distFromCenter < 20) { tries++; continue; }
       if (TILES[m[y][x]]?.w && !nodes.find((n) => n.x === x && n.y === y)) {
-        // Stronger mobs further from camp / center
-        const distFromCenter = Math.abs(x - 50) + Math.abs(y - 50);
-        const mobIdx = distFromCamp < 20 ? 0 : distFromCenter > 50 ? mobs.length - 1 : Math.floor(rng() * mobs.length);
-        const mob = mobs[Math.min(mobIdx, mobs.length - 1)];
+        // Select mob based on distance
+        let mobIdx: number;
+        if (distFromCenter < 50) mobIdx = Math.min(1, mobs.length - 1); // nv1-2
+        else if (distFromCenter < 90) mobIdx = Math.min(Math.floor(rng() * 2) + 1, mobs.length - 1); // nv2-3
+        else if (distFromCenter < 120) mobIdx = Math.min(Math.floor(rng() * 2) + 2, mobs.length - 1); // nv3-4
+        else mobIdx = mobs.length - 1; // nv4+
+        const mob = mobs[mobIdx];
         const mhp = monsterHp(mob.lv);
         nodes.push({ x, y, biome: biomeId, res: null, guard: { n: mob.n, e: mob.e, hp: mhp, d: `${mob.e} ${mob.n} attaque !` }, done: false });
         break;
@@ -201,23 +210,31 @@ export function genBiome(seed: number, biomeId: string): GameWorld {
     }
   }
 
-  // Boss in FORTRESS (not at center, not patrolling)
+  // Boss in FORTRESS (far corner from center)
   const fort = FORTRESSES[biomeId];
   if (fort) {
-    // Mark fortress tiles
-    for (let fy = -1; fy <= 1; fy++) for (let fx = -1; fx <= 1; fx++) { S(fort.x + fx, fort.y + fy, tiles.path); }
-    drawPath(50, 50, fort.x, fort.y);
-    nodes.push({ x: fort.x, y: fort.y, biome: biomeId, res: null, guard: GUARDS[biomeId], boss: true, done: false });
+    // Scale fortress position to 150×150
+    const fx = Math.min(140, Math.floor(fort.x * 1.5));
+    const fy = Math.min(140, Math.floor(fort.y * 1.5));
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { S(fx + dx, fy + dy, tiles.path); }
+    drawPath(center, center, fx, fy);
+    nodes.push({ x: fx, y: fy, biome: biomeId, res: null, guard: GUARDS[biomeId], boss: true, done: false });
   }
 
-  // Camp (only in garrigue)
-  const spawn = biomeId === "garrigue" ? { x: CAMP_POS.x, y: CAMP_POS.y } : { x: 50, y: 50 };
+  // Camp / Maison de Mélanie (position 75,75 = center of 150×150 map)
+  const spawn = { x: center, y: center };
   if (biomeId === "garrigue") {
-    S(CAMP_POS.x, CAMP_POS.y, "camp");
-    drawPath(CAMP_POS.x, CAMP_POS.y, 50, 50);
+    S(center, center, "camp");
+    // Safe zone around camp
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const sx = center + dx, sy = center + dy;
+      if (sx >= 0 && sx < MW && sy >= 0 && sy < MH && m[sy][sx] !== "camp") {
+        S(sx, sy, tiles.path);
+      }
+    }
   }
 
-  return { m, nodes, gates, villages, Z: { [biomeId]: { cx: 50, cy: 50, r: 45 } }, spawn };
+  return { m, nodes, gates, villages, Z: { [biomeId]: { cx: center, cy: center, r: 70 } }, spawn };
 }
 
 // Legacy function — generates garrigue as default

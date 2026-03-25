@@ -75,11 +75,11 @@ export const BIOME_MOBS: Record<string, { n: string; e: string; lv: number }[]> 
 
 // Forteresses boss (positions fixes, pas de patrouille)
 export const FORTRESSES: Record<string, { x: number; y: number; name: string }> = {
-  garrigue:   { x: 85, y: 85, name: "Tanière du Sanglier" },
-  calanques:  { x: 15, y: 85, name: "Nid de la Mouette" },
-  mines:      { x: 85, y: 15, name: "Caverne de la Tarasque" },
-  mer:        { x: 15, y: 15, name: "Abysse de la Pieuvre" },
-  restanques: { x: 50, y: 50, name: "Trône du Mistral" },
+  garrigue:   { x: 130, y: 130, name: "Tanière du Sanglier" },
+  calanques:  { x: 20, y: 130, name: "Nid de la Mouette" },
+  mines:      { x: 130, y: 20, name: "Caverne de la Tarasque" },
+  mer:        { x: 20, y: 20, name: "Abysse de la Pieuvre" },
+  restanques: { x: 75, y: 75, name: "Trône du Mistral" },
 };
 
 export const GUARDS: Record<string, { n: string; e: string; hp: number; atk: number; d: string }> = {
@@ -110,11 +110,11 @@ export function monsterAtk(lv: number): number {
 
 // Arena positions (1 per biome, near a village)
 export const ARENA_POS: Record<string, { x: number; y: number }> = {
-  garrigue: { x: 30, y: 30 },
-  calanques: { x: 70, y: 30 },
-  mines: { x: 30, y: 70 },
-  mer: { x: 70, y: 70 },
-  restanques: { x: 50, y: 30 },
+  garrigue: { x: 45, y: 45 },
+  calanques: { x: 105, y: 45 },
+  mines: { x: 45, y: 105 },
+  mer: { x: 105, y: 105 },
+  restanques: { x: 75, y: 45 },
 };
 
 // Night monster variants
@@ -157,8 +157,8 @@ export const VILLAGES = [
   { x: 135, y: 135, name: "Phare du Corail", items: [{ sell: "potion", cost: ["perle"] }, { sell: "pain", cost: ["poisson"] }] },
 ];
 
-export const MW = 100;
-export const MH = 100;
+export const MW = 150;
+export const MH = 150;
 // CELL est calculé dynamiquement dans le composant
 
 export const TILES: Record<string, { bg: string; w: number; c: string }> = {
@@ -184,8 +184,8 @@ export const TILES: Record<string, { bg: string; w: number; c: string }> = {
   camp: { bg: "#8FBE4A", w: 1, c: "⛺" },
 };
 
-export const CAMP_POS = { x: 50, y: 46 };
-export const CAMP_RADIUS = 2; // safe zone 5×5 around camp
+export const CAMP_POS = { x: 75, y: 75 };
+export const CAMP_RADIUS = 3; // safe zone around camp/maison
 
 export interface PlayerStats {
   atk: number;
