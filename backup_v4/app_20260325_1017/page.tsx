@@ -78,9 +78,9 @@ export default function Home() {
   };
 
   const CLASSES = [
-    { id: "paladin", emoji: "🎸", name: "PALADIN", desc: "Explore + Combat. Ne craft pas. Achète chez Mélanie.", color: "#6B8E23", color2: "#556B2F" },
-    { id: "artisane", emoji: "🎨", name: "ARTISANE", desc: "Maison + Jardin + Craft tout. Fragile dehors.", color: "#B5658A", color2: "#8E4466" },
-    { id: "ombre", emoji: "🌙", name: "L'OMBRE", desc: "Autonome : fait tout, moins bien. 10% échec craft.", color: "#444", color2: "#1a1a2e", locked: false },
+    { id: "aventurier", emoji: "🎸", name: "AVENTURIER", desc: "Combat +20%, explore loin, Rage du guerrier", color: "#6B8E23", color2: "#556B2F" },
+    { id: "artisane", emoji: "🎨", name: "ARTISANE", desc: "Récolte ×2, Jardin, Cuisine, Fusion d'items", color: "#B5658A", color2: "#8E4466" },
+    { id: "ombre", emoji: "🌙", name: "L'OMBRE", desc: "Vitesse +30%, critiques ×3 — Mode avancé", color: "#444", color2: "#1a1a2e", locked: false },
   ];
 
   const btnStyle = (bg: string, delay = 0): React.CSSProperties => ({

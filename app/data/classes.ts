@@ -6,52 +6,91 @@ export interface PlayerClass {
   emoji: string;
   description: string;
   baseStats: PlayerStats;
+  startingSous: number;
   perks: string[];
-  combatBonus: number;  // multiplier on damage
-  harvestSpeed: number; // multiplier on harvest (lower = faster)
-  doubleLoot: number;   // chance of double loot on craft (0-1)
-  detectRange: number;  // monster detection range on minimap
-  hidden: boolean;      // not selectable until unlocked
+  combatBonus: number;
+  harvestSpeed: number;
+  doubleLoot: number;
+  detectRange: number;
+  canCraft: boolean;
+  canGarden: boolean;
+  canCook: boolean;
+  craftFailChance: number;
+  hidden: boolean;
 }
 
 export const CLASSES: Record<string, PlayerClass> = {
-  aventurier: {
-    id: "aventurier",
-    name: "L'Aventurier",
+  paladin: {
+    id: "paladin",
+    name: "Paladin",
     emoji: "🎸",
-    description: "Spécialiste du combat et de l'exploration",
+    description: "Combat + Exploration. Ne craft pas.",
     baseStats: { atk: 3, def: 1, mag: 0, vit: 2 },
-    perks: ["Dégâts +20% en combat", "Détecte les monstres à 5 cases"],
+    startingSous: 50,
+    perks: ["Dégâts ×1.2", "Voit monstres à 6 cases", "Rage: combo ×3 → ATK ×1.5", "XP combat +25%"],
     combatBonus: 1.2,
     harvestSpeed: 1.0,
     doubleLoot: 0,
-    detectRange: 5,
+    detectRange: 6,
+    canCraft: false,
+    canGarden: false,
+    canCook: false,
+    craftFailChance: 0,
     hidden: false,
   },
   artisane: {
     id: "artisane",
-    name: "L'Artisane",
+    name: "Artisane",
     emoji: "🎨",
-    description: "Spécialiste du craft et de la récolte",
+    description: "Maison + Jardin + Craft tout. Fragile dehors.",
     baseStats: { atk: 1, def: 1, mag: 2, vit: 1 },
-    perks: ["Récolte 2× plus vite", "30% de chance de double loot au craft"],
+    startingSous: 100,
+    perks: ["Récolte -3/tap", "+50% loot", "Graines 50% drop", "Jardin ×2", "Puzzle 4×4", "10% recette secrète"],
     combatBonus: 1.0,
-    harvestSpeed: 0.5,
-    doubleLoot: 0.3,
-    detectRange: 3,
+    harvestSpeed: 0.33,
+    doubleLoot: 0.5,
+    detectRange: 4,
+    canCraft: true,
+    canGarden: true,
+    canCook: true,
+    craftFailChance: 0,
     hidden: false,
   },
   ombre: {
     id: "ombre",
-    name: "L'Ombre",
+    name: "Ombre",
     emoji: "🌙",
-    description: "Maître des donjons (débloqué après la victoire)",
+    description: "Autonome. Fait tout, moins bien. 10% échec craft.",
     baseStats: { atk: 2, def: 0, mag: 1, vit: 3 },
-    perks: ["Invisible 5s après un kill", "Dégâts critiques ×3 (15%)", "Vitesse +30%"],
+    startingSous: 75,
+    perks: ["Vitesse ×1.5", "Discrétion: détecté à 3 cases", "Critique 15% ×3", "Voit nuit à 5 cases"],
     combatBonus: 1.0,
     harvestSpeed: 0.8,
     doubleLoot: 0,
-    detectRange: 4,
-    hidden: true,
+    detectRange: 3,
+    canCraft: true,
+    canGarden: true,
+    canCook: true,
+    craftFailChance: 0.1,
+    hidden: false,
+  },
+  // Backward compat alias
+  aventurier: {
+    id: "paladin",
+    name: "Paladin",
+    emoji: "🎸",
+    description: "Combat + Exploration. Ne craft pas.",
+    baseStats: { atk: 3, def: 1, mag: 0, vit: 2 },
+    startingSous: 50,
+    perks: ["Dégâts ×1.2", "Voit monstres à 6 cases", "Rage: combo ×3 → ATK ×1.5", "XP combat +25%"],
+    combatBonus: 1.2,
+    harvestSpeed: 1.0,
+    doubleLoot: 0,
+    detectRange: 6,
+    canCraft: false,
+    canGarden: false,
+    canCook: false,
+    craftFailChance: 0,
+    hidden: false,
   },
 };

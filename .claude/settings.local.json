@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la public/splash.png public/music/*.mp3 public/story/*.png)",
+      "Bash(npm --version)",
+      "Bash(curl:*)",
+      "Bash(npx next:*)"
+    ]
+  }
+}
