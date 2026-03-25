@@ -12,11 +12,11 @@ function TabJouer() {
     <div style={S.h}>🌿 RÉCOLTE</div>
     <p style={S.p}>Marchez vers une ressource et tapez dessus. Équipez le bon outil pour récolter 2× plus vite.</p>
     <div style={S.h}>⚔️ COMBAT</div>
-    <p style={S.p}>Les monstres patrouillent ! Si vous êtes trop près, ils vous chassent. Le combat se joue en match-3 : alignez 3 gemmes identiques.</p>
+    <p style={S.p}>Les monstres patrouillent ! Combat PUYO PUYO vs créatures : des paires de gemmes tombent, connectez 4+ gemmes identiques pour attaquer. Combos = multiplicateur de dégâts ! Combat BOSS en Match-3 double grille : 2 grilles simultanées, le boss et vous.</p>
     <div style={S.h}>💀 DÉFAITE</div>
-    <p style={S.p}>KO = retour au camp avec 50% de PV. Malus Fatigue 2 min. Vous ne perdez rien !</p>
-    <div style={S.h}>🏠 LE CAMP</div>
-    <p style={S.p}>🛏️ Repos : restaure vos PV<br/>📦 Coffre : stockez (40 places)<br/>🔨 Établi : forgez outils et sorts</p>
+    <p style={S.p}>KO = retour à la maison avec 50% de PV. Fatigue 2 min. Perte 10% des Sous.</p>
+    <div style={S.h}>🏡 MAISON (Mélanie)</div>
+    <p style={S.p}>✨ Salon : craft 14 sorts (nv1→nv3)<br/>🍳 Cuisine : potions + plats buffs<br/>⚔️ Armurerie : armes, armures, outils<br/>🛏️ Chambre : dormir, enlever debuffs<br/>🏪 Comptoir : vente au Paladin<br/>🌱 Jardin : 16 parcelles, graines</p>
   </div>;
 }
 

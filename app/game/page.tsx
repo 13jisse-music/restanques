@@ -513,16 +513,16 @@ function GameContent() {
         setWorld(newWorld); worldRef.current = newWorld;
         setCurrentBiome(bio);
         // Place player at opposite edge
-        const entryMap: Record<string, { x: number; y: number }> = { N: { x: 50, y: 95 }, S: { x: 50, y: 5 }, E: { x: 5, y: 50 }, W: { x: 95, y: 50 } };
+        const entryMap: Record<string, { x: number; y: number }> = { N: { x: 75, y: 140 }, S: { x: 75, y: 10 }, E: { x: 10, y: 75 }, W: { x: 140, y: 75 } };
         // Find which side we came from
         const portal = world.gates.find((g) => g.x === nx && g.y === ny);
         let entry = newWorld.spawn;
         if (portal) {
           // We came from a portal on the current map, enter at the opposite side of the target
-          if (nx <= 5) entry = entryMap.E; // we were at west edge → enter east
-          else if (nx >= 95) entry = entryMap.W;
-          else if (ny <= 5) entry = entryMap.S;
-          else if (ny >= 95) entry = entryMap.N;
+          if (nx <= 10) entry = entryMap.E; // we were at west edge → enter east
+          else if (nx >= 140) entry = entryMap.W;
+          else if (ny <= 10) entry = entryMap.S;
+          else if (ny >= 140) entry = entryMap.N;
         }
         setPos(entry);
         setEnemyPositions({});
