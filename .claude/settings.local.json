@@ -10,7 +10,9 @@
       "Bash(gh auth:*)",
       "Bash(git config:*)",
       "Read(//c/Users/Ecole13Jisse/**)",
-      "Bash(GIT_TERMINAL_PROMPT=0 git push origin master)"
+      "Bash(GIT_TERMINAL_PROMPT=0 git push origin master)",
+      "Bash(xargs wc:*)",
+      "Bash(cd:*)"
     ]
   }
 }
