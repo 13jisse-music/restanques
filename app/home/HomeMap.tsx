@@ -9,43 +9,129 @@ import { SpellSalon } from "./SpellSalon";
 import { BedroomPanel } from "./BedroomPanel";
 import { ShopCounter } from "./ShopCounter";
 
-// Home is 20×20 tiles, 5 rooms + garden
-const HW = 20, HH = 20, HT = 28;
+// Home is 100×100 tiles: maison + jardin + zone safe
+const HW = 100, HH = 100, HT = 28;
 type Room = "garden"|"kitchen"|"armory"|"salon"|"bedroom"|"shop"|null;
 
-interface HomeTile { type: "floor"|"wall"|"door"|"garden"|"furniture"; room: Room; emoji?: string }
+interface HomeTile { type: "floor"|"wall"|"door"|"garden"|"furniture"|"outdoor"|"resource"|"coffre"|"portail"; room: Room; emoji?: string }
 
 function genHome(): HomeTile[][] {
-  const m: HomeTile[][] = Array.from({length:HH}, () => Array.from({length:HW}, () => ({type:"floor" as const, room: null})));
-  // Walls border
-  for (let i = 0; i < HW; i++) { m[0][i] = {type:"wall",room:null}; m[HH-1][i] = {type:"wall",room:null}; }
-  for (let i = 0; i < HH; i++) { m[i][0] = {type:"wall",room:null}; m[i][HW-1] = {type:"wall",room:null}; }
-  // Room definitions: [y1,y2,x1,x2,room,emoji]
-  const rooms: [number,number,number,number,Room,string][] = [
-    [1,6,1,9,"kitchen","🍳"], [1,6,10,19,"armory","⚔️"],
-    [7,13,1,9,"salon","✨"], [7,13,10,19,"bedroom","🛏️"],
-    [14,19,1,9,"shop","💰"], [14,19,10,19,"garden","🌿"],
-  ];
-  for (const [y1,y2,x1,x2,room,emoji] of rooms) {
-    for (let y = y1; y < y2; y++) for (let x = x1; x < x2; x++) {
-      m[y][x] = { type: room === "garden" ? "garden" : "floor", room, emoji: undefined };
+  const m: HomeTile[][] = Array.from({length:HH}, () => Array.from({length:HW}, () => ({type:"outdoor" as const, room: null})));
+
+  // ── Zone safe border (~30x30 around center) ──
+  const safeX1 = 35, safeY1 = 30, safeX2 = 65, safeY2 = 70;
+
+  // Fill zone safe with outdoor ground + scattered resources
+  const rng = () => Math.random();
+  for (let y = safeY1; y < safeY2; y++) {
+    for (let x = safeX1; x < safeX2; x++) {
+      const r = rng();
+      if (r < 0.04) {
+        m[y][x] = {type:"resource", room:null, emoji:"🌿"}; // herbe
+      } else if (r < 0.07) {
+        m[y][x] = {type:"resource", room:null, emoji:"🪵"}; // branche
+      } else if (r < 0.09) {
+        m[y][x] = {type:"resource", room:null, emoji:"💜"}; // lavande
+      } else if (r < 0.105) {
+        m[y][x] = {type:"resource", room:null, emoji:"🪨"}; // pierre
+      } else {
+        m[y][x] = {type:"outdoor", room:null};
+      }
     }
-    // Room walls (horizontal dividers)
-    if (y1 > 1) for (let x = x1; x < x2; x++) m[y1][x] = {type:"wall",room};
-    // Room label
-    m[y1+1][x1+1] = {type:"furniture",room,emoji};
-    // Door in wall
-    const doorX = Math.floor((x1+x2)/2);
-    if (y1 > 1) m[y1][doorX] = {type:"door",room};
   }
-  // Vertical divider
-  for (let y = 1; y < HH-1; y++) {
-    if (m[y][9].type !== "door") m[y][9] = {type:"wall",room:m[y][9].room};
+
+  // ── MAISON at center (~50,50), 20×15 interior ──
+  const houseX1 = 40, houseY1 = 38, houseX2 = 60, houseY2 = 53;
+
+  // Outer walls of the house
+  for (let x = houseX1; x <= houseX2; x++) {
+    m[houseY1][x] = {type:"wall", room:null};
+    m[houseY2][x] = {type:"wall", room:null};
   }
-  // Doors in vertical wall
-  m[4][9] = {type:"door",room:"kitchen"};
-  m[10][9] = {type:"door",room:"salon"};
-  m[16][9] = {type:"door",room:"shop"};
+  for (let y = houseY1; y <= houseY2; y++) {
+    m[y][houseX1] = {type:"wall", room:null};
+    m[y][houseX2] = {type:"wall", room:null};
+  }
+
+  // Fill interior with floor
+  for (let y = houseY1+1; y < houseY2; y++) {
+    for (let x = houseX1+1; x < houseX2; x++) {
+      m[y][x] = {type:"floor", room:null};
+    }
+  }
+
+  // ── Room definitions inside the house ──
+  // Top-left: Salon (40-49, 38-44)
+  for (let y = houseY1+1; y <= 44; y++) for (let x = houseX1+1; x <= 49; x++) m[y][x] = {type:"floor", room:"salon"};
+  m[houseY1+1][houseX1+1] = {type:"furniture", room:"salon", emoji:"✨"};
+  // Horizontal wall at y=45
+  for (let x = houseX1+1; x < houseX2; x++) m[45][x] = {type:"wall", room:null};
+
+  // Top-right: Cuisine (51-59, 38-44)
+  for (let y = houseY1+1; y <= 44; y++) for (let x = 51; x < houseX2; x++) m[y][x] = {type:"floor", room:"kitchen"};
+  m[houseY1+1][51] = {type:"furniture", room:"kitchen", emoji:"🍳"};
+
+  // Vertical wall at x=50 (top half)
+  for (let y = houseY1+1; y <= 44; y++) m[y][50] = {type:"wall", room:null};
+  // Door between salon and cuisine
+  m[42][50] = {type:"door", room:"salon"};
+
+  // Bottom-left: Armurerie (40-49, 46-52)
+  for (let y = 46; y < houseY2; y++) for (let x = houseX1+1; x <= 49; x++) m[y][x] = {type:"floor", room:"armory"};
+  m[46][houseX1+1] = {type:"furniture", room:"armory", emoji:"⚔️"};
+
+  // Bottom-right split: Chambre (51-59, 46-48) + Comptoir (51-59, 50-52)
+  for (let y = 46; y <= 48; y++) for (let x = 51; x < houseX2; x++) m[y][x] = {type:"floor", room:"bedroom"};
+  m[46][51] = {type:"furniture", room:"bedroom", emoji:"🛏️"};
+
+  // Wall at y=49 (right side only)
+  for (let x = 51; x < houseX2; x++) m[49][x] = {type:"wall", room:null};
+
+  for (let y = 50; y < houseY2; y++) for (let x = 51; x < houseX2; x++) m[y][x] = {type:"floor", room:"shop"};
+  m[50][51] = {type:"furniture", room:"shop", emoji:"💰"};
+
+  // Vertical wall at x=50 (bottom half)
+  for (let y = 46; y < houseY2; y++) m[y][50] = {type:"wall", room:null};
+  // Door between armory and shop
+  m[48][50] = {type:"door", room:"armory"};
+
+  // Doors in horizontal wall y=45
+  m[45][45] = {type:"door", room:"salon"};   // salon → armory
+  m[45][55] = {type:"door", room:"kitchen"}; // kitchen → bedroom
+
+  // Front door (south wall) to exit the house
+  m[houseY2][50] = {type:"door", room:null};
+
+  // ── JARDIN south of house (4×4 parcelles, each 3×3) ──
+  const gardenStartX = 43, gardenStartY = 55;
+  for (let py = 0; py < 4; py++) {
+    for (let px = 0; px < 4; px++) {
+      const gx = gardenStartX + px * 4;
+      const gy = gardenStartY + py * 4;
+      for (let dy = 0; dy < 3; dy++) {
+        for (let dx = 0; dx < 3; dx++) {
+          if (gy+dy < HH && gx+dx < HW) {
+            m[gy+dy][gx+dx] = {type:"garden", room:"garden", emoji: (dy === 1 && dx === 1) ? "🌱" : undefined};
+          }
+        }
+      }
+    }
+  }
+
+  // ── COFFRE outside near the door ──
+  m[houseY2+1][52] = {type:"coffre", room:null, emoji:"📦"};
+
+  // ── PORTAIL at edge of zone safe ──
+  m[safeY2-1][50] = {type:"portail", room:null, emoji:"🚪"};
+
+  // ── Nuisibles spawn points (visual markers) ──
+  const nuisibleSpots = [[37,35],[63,35],[37,65],[63,65],[50,32],[50,68],[36,50],[64,50]];
+  for (const [nx,ny] of nuisibleSpots) {
+    if (m[ny] && m[ny][nx] && m[ny][nx].type === "outdoor") {
+      m[ny][nx] = {type:"outdoor", room:null, emoji:"🐛"};
+    }
+  }
+
   return m;
 }
 
@@ -61,8 +147,8 @@ interface HomeMapProps {
 
 export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCraft, craftFail }: HomeMapProps) {
   const [homeMap] = useState(() => genHome());
-  const [hx, setHx] = useState(10 * HT);
-  const [hy, setHy] = useState(10 * HT);
+  const [hx, setHx] = useState(50 * HT);
+  const [hy, setHy] = useState(50 * HT);
   const [activeRoom, setActiveRoom] = useState<Room>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
@@ -112,6 +198,16 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
                 setActiveRoom(t.room);
               }
             }
+            // Coffre interaction
+            if (t.type === "coffre") {
+              sounds.open();
+              // Could open inventory or chest panel
+            }
+            // Portail → exit
+            if (t.type === "portail") {
+              sounds.open();
+              onExit();
+            }
           }
         }
       }
@@ -130,7 +226,7 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
     if (!ctx) return;
     const W = cvs.width, H = cvs.height;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#2A1A0A"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#3A5A2A"; ctx.fillRect(0, 0, W, H); // outdoor green background
     const cx = hx - W/2, cy = hy - H/2;
     for (let ty = 0; ty < HH; ty++) for (let tx = 0; tx < HW; tx++) {
       const t = homeMap[ty][tx];
@@ -142,6 +238,10 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
         case "door": ctx.fillStyle = "#8B6F47"; break;
         case "garden": ctx.fillStyle = "#6D9E2A"; break;
         case "furniture": ctx.fillStyle = "#D4B896"; break;
+        case "outdoor": ctx.fillStyle = (tx+ty)%2===0 ? "#4A7A3A" : "#3E6E30"; break;
+        case "resource": ctx.fillStyle = "#4A7A3A"; break;
+        case "coffre": ctx.fillStyle = "#4A7A3A"; break;
+        case "portail": ctx.fillStyle = "#6A4A2A"; break;
       }
       ctx.fillRect(sx, sy, HT, HT);
       if (t.emoji) { ctx.font = "18px serif"; ctx.textAlign = "center"; ctx.fillText(t.emoji, sx+HT/2, sy+HT/2+6); }
@@ -176,7 +276,7 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
   const closeRoom = () => { setActiveRoom(null); sounds.close(); };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"#2A1A0A",touchAction:"none"}}>
+    <div style={{position:"fixed",inset:0,background:"#3A5A2A",touchAction:"none"}}>
       <canvas ref={canvasRef} style={{position:"absolute",inset:0}} />
       {/* HUD */}
       <div style={{position:"absolute",top:0,left:0,right:0,zIndex:10,padding:"6px 10px",display:"flex",justifyContent:"space-between",background:"linear-gradient(rgba(0,0,0,.7),transparent)"}}>

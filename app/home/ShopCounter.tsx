@@ -24,8 +24,8 @@ export function ShopCounter({ gs, onUpdateGs, onClose }: Props) {
   };
 
   return (
-    <Panel title="💰 Comptoir" onClose={onClose}>
-      <div style={{color:"#FFD700",fontSize:14,textAlign:"center",marginBottom:10}}>💰 {gs.sous} sous</div>
+    <Panel title="☀️ Comptoir" onClose={onClose}>
+      <div style={{color:"#FFD700",fontSize:14,textAlign:"center",marginBottom:10}}>☀️ {gs.sous} sous</div>
       <div style={{fontSize:13,color:"#DAA520",marginBottom:6,fontWeight:"bold"}}>Acheter</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
         {SHOP_ITEMS.map(item => (
@@ -35,7 +35,7 @@ export function ShopCounter({ gs, onUpdateGs, onClose }: Props) {
             border: gs.sous >= item.price ? "1px solid #4CAF50" : "1px solid rgba(255,255,255,.1)",
             opacity: gs.sous >= item.price ? 1 : 0.5,
           }}>
-            <span style={{fontSize:18}}>{item.emoji}</span> {item.name} — <span style={{color:"#FFD700"}}>{item.price}💰</span>
+            <span style={{fontSize:18}}>{item.emoji}</span> {item.name} — <span style={{color:"#FFD700"}}>{item.price}☀️</span>
           </button>
         ))}
       </div>
@@ -48,7 +48,7 @@ export function ShopCounter({ gs, onUpdateGs, onClose }: Props) {
               padding:6,borderRadius:6,fontSize:12,color:"#FFF",textAlign:"left",cursor:"pointer",
               background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
             }}>
-              {RES[id]?.emoji} {RES[id]?.name} ×{qty} → <span style={{color:"#FFD700"}}>{price}💰</span>
+              {RES[id]?.emoji} {RES[id]?.name} ×{qty} → <span style={{color:"#FFD700"}}>{price}☀️</span>
             </button>
           );
         })}

@@ -18,7 +18,7 @@ import { CombatScreen } from "./CombatScreen";
 import { GameHUD } from "./GameHUD";
 import { Onboarding } from "./Onboarding";
 import { Bestiaire } from "./Bestiaire";
-import { QuickMessages, MessageOverlay } from "./MultiPlayer";
+import { useMultiPlayer, QuickMessages, MessageOverlay } from "./MultiPlayer";
 import { SwipeMenu } from "./SwipeMenu";
 import { NewGamePlus } from "./NewGamePlus";
 import { MysteryCharacter } from "./MysteryCharacter";
@@ -120,7 +120,7 @@ function GameInner() {
   const [storyIdx, setStoryIdx] = useState(0);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
-  const [inHome, setInHome] = useState(false);
+  const [inHome, setInHome] = useState(playerClassId === "artisane");
   const [quickMsgs, setQuickMsgs] = useState<{from:string;text:string;t:number}[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(true);
 
@@ -130,6 +130,13 @@ function GameInner() {
   const frameRef = useRef(0);
   const lastTRef = useRef(0);
   const fIdRef = useRef(0);
+  const [sessionId] = useState(() => typeof window !== "undefined" ? `s_${Date.now().toString(36)}` : "");
+  const { drawOthers, sendMessage, messages: mpMessages } = useMultiPlayer({
+    sessionId: sessionId || "",
+    playerName: playerName,
+    playerClass: playerClassId,
+    px, py, canvasRef
+  });
 
   const updateGs = useCallback((u: Partial<GameState>) => setGs(prev => ({...prev,...u})), []);
   const addFloat = useCallback((x: number, y: number, text: string, color: string) => {
@@ -279,9 +286,11 @@ function GameInner() {
     ctx.font="28px serif";ctx.textAlign="center";ctx.fillText(playerClass.emoji,W/2,H/2+8);
     ctx.font="bold 11px sans-serif";ctx.fillStyle="#FFF";ctx.strokeStyle="#000";ctx.lineWidth=2;
     ctx.strokeText(playerName,W/2,H/2-18);ctx.fillText(playerName,W/2,H/2-18);
+    // Draw other multiplayer characters
+    drawOthers(ctx, camX, camY);
     if (dayPhase==="night"){ctx.fillStyle="rgba(0,0,30,0.4)";ctx.fillRect(0,0,W,H);}
     else if (dayPhase==="dusk"||dayPhase==="dawn"){ctx.fillStyle="rgba(0,0,30,0.2)";ctx.fillRect(0,0,W,H);}
-  }, [px, py, dayPhase, playerClass, playerName]);
+  }, [px, py, dayPhase, playerClass, playerName, drawOthers]);
 
   const startCombat = useCallback((mob: Mob) => {
     if (combat) return; sounds.hit();
@@ -324,7 +333,7 @@ function GameInner() {
   return (
     <div style={{position:"fixed",inset:0,background:"#000",overflow:"hidden",touchAction:"none"}}>
       <canvas ref={canvasRef} style={{position:"absolute",inset:0}} />
-      <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} />
+      <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} timeOfDay={(gameTime%600)/600} />
       {!combat && panel==="none" && (
         <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
           <button onClick={()=>{sounds.click();setPanel("bag")}} style={hudBtn}>🎒</button>
@@ -382,8 +391,8 @@ function GameInner() {
       {panel==="ngplus" && <NewGamePlus gs={gs} onStart={()=>{updateGs({newGamePlus:gs.newGamePlus+1,bossesDefeated:[],questsDone:[]});setPanel("none");}} onClose={()=>setPanel("none")} />}
       {panel==="mystery" && <MysteryCharacter onClose={()=>setPanel("none")} bossesDefeated={gs.bossesDefeated} />}
       {!combat && panel==="none" && showOnboarding && gs.onboardingStep < 5 && <Onboarding gs={gs} onClose={()=>setShowOnboarding(false)} />}
-      {!combat && panel==="none" && <QuickMessages onSend={(text)=>setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}])} />}
-      <MessageOverlay messages={quickMsgs} />
+      {!combat && panel==="none" && <QuickMessages onSend={(text)=>{sendMessage(text);setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}]);}} />}
+      <MessageOverlay messages={[...quickMsgs,...mpMessages]} />
     </div>
   );
 }

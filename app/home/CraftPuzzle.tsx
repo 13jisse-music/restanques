@@ -4,7 +4,8 @@ import { sounds } from "../lib/sounds";
 
 // Mini puzzle: align 3 items in a 4x4 grid to craft
 const PW = 4, PH = 4;
-const CRAFT_COLORS = ["🔴","🔵","🟢","🟡"];
+const CRAFT_EMOJIS = ["💜","🌿","🪨","🍄"];
+const CRAFT_BG = ["#B39DDB", "#A5D6A7", "#BCAAA4", "#FFCC80"];
 
 interface Props { onSuccess: () => void; onFail: () => void; onClose: () => void }
 
@@ -62,17 +63,18 @@ export function CraftPuzzle({ onSuccess, onFail, onClose }: Props) {
   return (
     <div style={{position:"fixed",inset:0,zIndex:150,background:"rgba(0,0,0,.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .2s"}}>
       <div style={{color:"#DAA520",fontSize:16,fontWeight:"bold",marginBottom:8}}>🔨 Puzzle Craft</div>
-      <div style={{color:"#AAA",fontSize:12,marginBottom:12}}>Alignez 3 couleurs ! Coups: {moves}</div>
+      <div style={{color:"#AAA",fontSize:12,marginBottom:12}}>Alignez 3 ingredients ! Coups: {moves}</div>
       <div style={{display:"grid",gridTemplateColumns:`repeat(${PW},56px)`,gridTemplateRows:`repeat(${PH},56px)`,gap:3}}>
         {grid.map((row, y) => row.map((c, x) => (
           <button key={`${x}-${y}`} onClick={() => tap(x, y)} style={{
             width:56,height:56,borderRadius:10,fontSize:28,cursor:"pointer",
+            display:"flex",alignItems:"center",justifyContent:"center",
             border: selected?.x === x && selected?.y === y ? "3px solid #FFD700" : "2px solid rgba(255,255,255,.15)",
-            background: [`#E53935`,`#1E88E5`,`#43A047`,`#FDD835`][c],
+            background: CRAFT_BG[c],
             transform: selected?.x === x && selected?.y === y ? "scale(1.1)" : "scale(1)",
             transition:"transform .1s",
           }}>
-            {CRAFT_COLORS[c]}
+            {CRAFT_EMOJIS[c]}
           </button>
         )))}
       </div>

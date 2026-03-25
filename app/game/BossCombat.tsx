@@ -106,16 +106,35 @@ export function BossCombat({ biome, playerHp: initHp, maxHp, stats, combatMul, o
         <div style={{color:"#F88",fontSize:11}}>HP {bHp}/{boss.hp}</div>
       </div>
       {msg && <div style={{color:"#FFD700",fontSize:13,marginBottom:6,textAlign:"center"}}>{msg}</div>}
-      {/* Player grid */}
-      <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},38px)`,gridTemplateRows:`repeat(${PUYO_H},38px)`,gap:2,padding:4,borderRadius:8,border:"2px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.03)"}}>
-        {pGrid.map((row,y) => row.map((gem,x) => (
-          <button key={`${x}-${y}`} onClick={() => select(x,y)} style={{
-            width:38,height:38,borderRadius:7,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-            border:selected?.x===x&&selected?.y===y?"3px solid #FFD700":"1px solid rgba(255,255,255,.08)",
-            background:gem.color>=0?["#E53935","#1E88E5","#43A047","#FDD835","#8E24AA","#FF6D00"][gem.color]:"#222",
-            transform:selected?.x===x&&selected?.y===y?"scale(1.12)":"scale(1)",transition:"transform .1s",
-          }}>{gem.color>=0?GEM_COLORS[gem.color]:""}</button>
-        )))}
+      {/* Two grids side by side */}
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",justifyContent:"center",width:"100%",maxWidth:600,padding:"0 8px"}}>
+        {/* Player grid - LEFT (70%) */}
+        <div style={{flex:"0 0 70%",display:"flex",flexDirection:"column",alignItems:"center"}}>
+          <div style={{color:"#4CAF50",fontSize:11,fontWeight:"bold",marginBottom:4}}>MA GRILLE</div>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},38px)`,gridTemplateRows:`repeat(${PUYO_H},38px)`,gap:2,padding:4,borderRadius:8,border:"2px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.03)"}}>
+            {pGrid.map((row,y) => row.map((gem,x) => (
+              <button key={`${x}-${y}`} onClick={() => select(x,y)} style={{
+                width:38,height:38,borderRadius:7,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+                border:selected?.x===x&&selected?.y===y?"3px solid #FFD700":"1px solid rgba(255,255,255,.08)",
+                background:gem.color>=0?["#E53935","#1E88E5","#43A047","#FDD835","#8E24AA","#FF6D00"][gem.color]:"#222",
+                transform:selected?.x===x&&selected?.y===y?"scale(1.12)":"scale(1)",transition:"transform .1s",
+              }}>{gem.color>=0?GEM_COLORS[gem.color]:""}</button>
+            )))}
+          </div>
+        </div>
+        {/* Boss grid - RIGHT (30%) */}
+        <div style={{flex:"0 0 30%",display:"flex",flexDirection:"column",alignItems:"center",opacity:0.85}}>
+          <div style={{color:"#F44336",fontSize:11,fontWeight:"bold",marginBottom:4}}>SA GRILLE</div>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},24px)`,gridTemplateRows:`repeat(${PUYO_H},24px)`,gap:1,padding:3,borderRadius:6,border:"2px solid rgba(255,80,80,.2)",background:"rgba(255,0,0,.03)"}}>
+            {bGrid.map((row,y) => row.map((gem,x) => (
+              <div key={`b${x}-${y}`} style={{
+                width:24,height:24,borderRadius:5,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",
+                border:"1px solid rgba(255,255,255,.06)",
+                background:gem.color>=0?["#E53935","#1E88E5","#43A047","#FDD835","#8E24AA","#FF6D00"][gem.color]:"#222",
+              }}>{gem.color>=0?GEM_COLORS[gem.color]:""}</div>
+            )))}
+          </div>
+        </div>
       </div>
       {/* Player HP */}
       <div style={{marginTop:8,textAlign:"center"}}>
