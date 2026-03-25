@@ -16,6 +16,12 @@ import { Panel, hudBtn, menuBtn } from "../components/Panel";
 import { HomeMap } from "../home/HomeMap";
 import { CombatScreen } from "./CombatScreen";
 import { GameHUD } from "./GameHUD";
+import { Onboarding } from "./Onboarding";
+import { Bestiaire } from "./Bestiaire";
+import { QuickMessages, MessageOverlay } from "./MultiPlayer";
+import { SwipeMenu } from "./SwipeMenu";
+import { NewGamePlus } from "./NewGamePlus";
+import { MysteryCharacter } from "./MysteryCharacter";
 
 // ═══════════════════════════════════════════════════════
 // MAP GENERATION
@@ -108,13 +114,15 @@ function GameInner() {
   const [gameTime, setGameTime] = useState(0);
   const [dayPhase, setDayPhase] = useState<"day"|"dusk"|"night"|"dawn">("day");
   const [combat, setCombat] = useState<CombatState|null>(null);
-  const [panel, setPanel] = useState<"none"|"bag"|"craft"|"npc"|"shop"|"story"|"map"|"menu">("none");
+  const [panel, setPanel] = useState<"none"|"bag"|"craft"|"npc"|"shop"|"story"|"map"|"menu"|"bestiaire"|"ngplus"|"mystery">("none");
   const [npcDialog, setNpcDialog] = useState<{name:string;emoji:string;text:string}|null>(null);
   const [storyText, setStoryText] = useState<string[]>([]);
   const [storyIdx, setStoryIdx] = useState(0);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
   const [inHome, setInHome] = useState(false);
+  const [quickMsgs, setQuickMsgs] = useState<{from:string;text:string;t:number}[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef({active:false,dx:0,dy:0});
@@ -321,6 +329,7 @@ function GameInner() {
         <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
           <button onClick={()=>{sounds.click();setPanel("bag")}} style={hudBtn}>🎒</button>
           <button onClick={()=>{sounds.click();setPanel("craft")}} style={hudBtn}>🔨</button>
+          <button onClick={()=>{sounds.click();setPanel("bestiaire")}} style={hudBtn}>📖</button>
           <button onClick={()=>{sounds.click();setPanel("map")}} style={hudBtn}>🗺️</button>
           <button onClick={()=>{sounds.click();setPanel("menu")}} style={hudBtn}>⚙️</button>
         </div>
@@ -357,6 +366,8 @@ function GameInner() {
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           <button onClick={()=>sounds.cycleVol()} style={menuBtn}>{sounds.volIcon()} Volume</button>
           <button onClick={()=>setShowMinimap(m=>!m)} style={menuBtn}>🗺️ Minimap: {showMinimap?"ON":"OFF"}</button>
+          <button onClick={()=>{setPanel("mystery");sounds.click()}} style={menuBtn}>🎭 Personnage Mystere</button>
+          {gs.bossesDefeated.length>=5 && <button onClick={()=>{setPanel("ngplus");sounds.click()}} style={{...menuBtn,border:"1px solid #DAA520"}}>🌟 New Game+</button>}
           <div style={{fontSize:12,color:"#888",textAlign:"center",marginTop:10}}>{playerClass.emoji} {playerName} | Lv{gs.lv} | {biomeEmoji} {biomeName}<br/>ATK:{gs.stats.atk} DEF:{gs.stats.def} MAG:{gs.stats.mag} VIT:{gs.stats.vit}</div>
           <button onClick={()=>{sounds.close();router.push("/")}} style={{...menuBtn,background:"rgba(139,0,0,.3)",borderColor:"#F44"}}>🚪 Quitter</button>
         </div>
@@ -367,6 +378,12 @@ function GameInner() {
           <div style={{color:"#888",fontSize:12,marginTop:20}}>{storyIdx<storyText.length-1?"Touchez pour continuer...":"Touchez pour commencer"}</div>
         </div>
       )}
+      {panel==="bestiaire" && <Bestiaire discovered={gs.bestiaire} onClose={()=>setPanel("none")} />}
+      {panel==="ngplus" && <NewGamePlus gs={gs} onStart={()=>{updateGs({newGamePlus:gs.newGamePlus+1,bossesDefeated:[],questsDone:[]});setPanel("none");}} onClose={()=>setPanel("none")} />}
+      {panel==="mystery" && <MysteryCharacter onClose={()=>setPanel("none")} bossesDefeated={gs.bossesDefeated} />}
+      {!combat && panel==="none" && showOnboarding && gs.onboardingStep < 5 && <Onboarding gs={gs} onClose={()=>setShowOnboarding(false)} />}
+      {!combat && panel==="none" && <QuickMessages onSend={(text)=>setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}])} />}
+      <MessageOverlay messages={quickMsgs} />
     </div>
   );
 }
