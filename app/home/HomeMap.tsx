@@ -216,23 +216,8 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
           const t = homeMap[ty][tx];
           if (t.type !== "wall") {
             setHx(nx); setHy(ny);
-            // Check room interaction
-            if (t.type === "door" || t.type === "furniture") {
-              if (t.room && !activeRoom) {
-                sounds.open();
-                setActiveRoom(t.room);
-              }
-            }
-            // Coffre interaction
-            if (t.type === "coffre") {
-              sounds.open();
-              // Could open inventory or chest panel
-            }
-            // Portail → exit
-            if (t.type === "portail") {
-              sounds.open();
-              onExit();
-            }
+            // Portail → exit (auto on step)
+            if (t.type === "portail") { sounds.open(); onExit(); }
           }
         }
       }
@@ -342,9 +327,35 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
 
   const closeRoom = () => { setActiveRoom(null); sounds.close(); };
 
+  // TAP on canvas to interact with furniture/coffre/resource
+  const handleCanvasTap = useCallback((clientX: number, clientY: number) => {
+    if (activeRoom || nuisibleCombat) return;
+    const cvs = canvasRef.current; if (!cvs) return;
+    const rect = cvs.getBoundingClientRect();
+    const tapWorldX = (clientX - rect.left) + hx - cvs.width/2;
+    const tapWorldY = (clientY - rect.top) + hy - cvs.height/2;
+    const tx = Math.floor(tapWorldX / HT), ty = Math.floor(tapWorldY / HT);
+    if (tx < 0 || tx >= HW || ty < 0 || ty >= HH) return;
+    // Must be adjacent (within 2 tiles)
+    const ptx = Math.floor(hx / HT), pty = Math.floor(hy / HT);
+    if (Math.abs(tx - ptx) > 2 || Math.abs(ty - pty) > 2) return;
+    const t = homeMap[ty][tx];
+    if (t.type === "furniture" && t.room) { sounds.open(); setActiveRoom(t.room); }
+    if (t.type === "coffre") { sounds.open(); /* chest panel */ }
+    if (t.type === "resource" && t.emoji) {
+      // Harvest resource
+      homeMap[ty][tx] = { type: "outdoor", room: null };
+      const resMap: Record<string, string> = { "🌿": "herbe", "🪵": "branche", "💜": "lavande", "🪨": "pierre" };
+      const resId = resMap[t.emoji] || "herbe";
+      onUpdateGs({ bag: { ...gs.bag, [resId]: (gs.bag[resId] || 0) + 1 } });
+      sounds.harvest();
+    }
+  }, [activeRoom, nuisibleCombat, hx, hy, homeMap, gs, onUpdateGs]);
+
   return (
     <div style={{position:"fixed",inset:0,background:"#3A5A2A",touchAction:"none"}}>
-      <canvas ref={canvasRef} style={{position:"absolute",inset:0}} />
+      <canvas ref={canvasRef} style={{position:"absolute",inset:0}}
+        onClick={(e) => handleCanvasTap(e.clientX, e.clientY)} />
       {/* HUD */}
       <div style={{position:"absolute",top:0,left:0,right:0,zIndex:10,padding:"6px 10px",display:"flex",justifyContent:"space-between",background:"linear-gradient(rgba(0,0,0,.7),transparent)"}}>
         <span style={{color:"#DAA520",fontSize:14,fontWeight:"bold"}}>🏠 Maison Mélanie</span>

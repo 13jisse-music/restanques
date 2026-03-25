@@ -277,8 +277,10 @@ export function CombatScreen({ combat, setCombat, stats, playerClass, maxHp, lv,
   };
 
   // Render grid cells
-  const CELL = Math.floor(Math.min((typeof window!=="undefined"?window.innerWidth:360) * 0.45 / PUYO_W, 28));
-  const ECELL = Math.floor(CELL * 0.5);
+  // Player grid = GRAND (presque plein ecran), ennemi = petit en bas a droite
+  const screenW = typeof window!=="undefined"?window.innerWidth:360;
+  const CELL = Math.floor(Math.min((screenW - 20) / PUYO_W, 44));
+  const ECELL = Math.floor(Math.min(screenW * 0.12, 16));
   const eHpPct = combat.enemy.maxHp > 0 ? Math.max(0, eHp/combat.enemy.maxHp)*100 : 0;
   const pHpPct = maxHp > 0 ? Math.max(0, pHp/maxHp)*100 : 0;
 
@@ -313,14 +315,11 @@ export function CombatScreen({ combat, setCombat, stats, playerClass, maxHp, lv,
       {/* Message */}
       {msg && <div style={{color:"#FFD700",fontSize:12,marginBottom:4,textAlign:"center",fontWeight:"bold"}}>{msg}</div>}
 
-      {/* Two grids side by side */}
-      <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-        {/* Player grid */}
-        <div style={{padding:3,background:"rgba(255,255,255,.05)",borderRadius:8,border:"2px solid rgba(255,215,0,.3)"}}>
-          <div style={{fontSize:8,textAlign:"center",color:"#FFD700",marginBottom:2}}>MA GRILLE</div>
-          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},${CELL}px)`,gap:1}}>
+      {/* Player grid = GRAND, centré */}
+      <div style={{position:"relative"}}>
+        <div style={{padding:4,background:"rgba(255,255,255,.05)",borderRadius:10,border:"2px solid rgba(255,215,0,.3)"}}>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},${CELL}px)`,gap:2}}>
             {pGrid.map((row,y)=>row.map((val,x)=>{
-              // Check if current pair is here
               let pairColor: number|null = null;
               const y1=Math.floor(pair.y);
               if(pair.x===x && y1===y) pairColor=pair.c1;
@@ -331,10 +330,10 @@ export function CombatScreen({ combat, setCombat, stats, playerClass, maxHp, lv,
             }))}
           </div>
         </div>
-        {/* Enemy grid (preview) */}
-        <div style={{padding:2,background:"rgba(255,255,255,.03)",borderRadius:6,border:"1px solid rgba(255,0,0,.2)",opacity:.75}}>
-          <div style={{fontSize:7,textAlign:"center",color:"#F88",marginBottom:1}}>{combat.enemy.emoji} GRILLE</div>
-          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},${ECELL}px)`,gap:1}}>
+        {/* Enemy grid = petit overlay en bas à droite */}
+        <div style={{position:"absolute",bottom:-4,right:-4,padding:2,background:"rgba(0,0,0,.8)",borderRadius:6,border:"1px solid #F44"}}>
+          <div style={{fontSize:7,textAlign:"center",color:"#F88",marginBottom:1}}>{combat.enemy.emoji}</div>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},${ECELL}px)`,gap:0}}>
             {eGrid.map((row,y)=>row.map((val,x)=>
               <div key={`e${x}${y}`}>{renderCell(val, ECELL)}</div>
             ))}

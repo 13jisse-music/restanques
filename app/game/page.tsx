@@ -216,35 +216,24 @@ function GameInner() {
       if (k.has("arrowup")||k.has("z")||k.has("w")) dy-=1;
       if (k.has("arrowdown")||k.has("s")) dy+=1;
       const j=joyRef.current; if (j.active){dx+=j.dx;dy+=j.dy;}
-      // Tile-by-tile movement with cooldown (no sliding)
-      const moveCd = Math.max(80, 140 - playerClass.speed * 20);
-      if ((dx||dy) && time - moveCdRef.current >= moveCd) {
-        moveCdRef.current = time;
-        const tdx = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : -1) : 0;
-        const tdy = tdx === 0 ? (dy > 0 ? 1 : -1) : 0;
-        const nx=px+tdx*TILE_PX, ny=py+tdy*TILE_PX;
+      // Smooth movement with collision check per-tile
+      if (dx||dy) {
+        const len=Math.sqrt(dx*dx+dy*dy);
+        const spd=playerClass.speed*90*dt; // pixels per frame
+        const ndx=(dx/len)*spd, ndy=(dy/len)*spd;
+        const nx=px+ndx, ny=py+ndy;
         const tx=Math.floor(nx/TILE_PX), ty=Math.floor(ny/TILE_PX);
         if (tx>=0&&tx<MAP_W&&ty>=0&&ty<MAP_H) {
           const tile=map[ty][tx];
           if (tile.type!=="block"&&tile.type!=="water") {
-            setPx(nx); setPy(ny); sounds.step();
-            // Harvest on step (not frame-based)
-            if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0) {
-              tile.resHp-=playerClass.harvestTap;
-              addFloat(nx,ny-20,`-${playerClass.harvestTap}`, "#FFA726");
-              if (tile.resHp<=0) { addToBag(tile.resId); sounds.harvest(); addFloat(nx,ny-40,`+1 ${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
-            }
+            setPx(nx); setPy(ny);
+            if (frameRef.current%8===0) sounds.step();
+            // Auto interactions on step
             if (tile.type==="portal"&&tile.portalTo) {
               const zones=[{id:"garrigue",cx:37,cy:37},{id:"calanques",cx:112,cy:37},{id:"mines",cx:37,cy:112},{id:"mer",cx:112,cy:112},{id:"restanques",cx:75,cy:75}];
               const z=zones.find(z=>z.id===tile.portalTo); if(z){setPx(z.cx*TILE_PX);setPy(z.cy*TILE_PX);sounds.open();}
             }
-            if (tile.type==="npc"&&tile.npcId) {
-              const npc=NPCS.find(n=>n.id===tile.npcId); if(npc){sounds.open();setNpcDialog({name:npc.name,emoji:npc.emoji,text:npc.quest});setPanel("npc");}
-            }
-            if (tile.type==="fortress") {
-              const boss=BOSSES[tile.biome]; if(boss) startCombat({id:"boss_"+tile.biome,mId:"boss",x:px,y:py,hp:boss.hp,maxHp:boss.hp,atk:boss.atk,lv:boss.lv,drops:[boss.drop],sous:[boss.sous,boss.sous],emoji:boss.emoji,name:boss.name,dir:0,moveT:0,isBoss:true});
-            }
-            if (tile.type==="home") { setInHome(true); sounds.open(); }
+            if (tile.type==="home"&&frameRef.current%30===0) { setInHome(true); sounds.open(); }
           }
         }
       }
@@ -341,7 +330,41 @@ function GameInner() {
 
   return (
     <div style={{position:"fixed",inset:0,background:"#000",overflow:"hidden",touchAction:"none"}}>
-      <canvas ref={canvasRef} style={{position:"absolute",inset:0}} />
+      <canvas ref={canvasRef} style={{position:"absolute",inset:0}} onClick={(e) => {
+        if (combat || panel !== "none") return;
+        const map = mapRef.current; if (!map) return;
+        const cvs = canvasRef.current; if (!cvs) return;
+        const rect = cvs.getBoundingClientRect();
+        const worldX = (e.clientX - rect.left) + px - cvs.width/2;
+        const worldY = (e.clientY - rect.top) + py - cvs.height/2;
+        const tx = Math.floor(worldX/TILE_PX), ty = Math.floor(worldY/TILE_PX);
+        if (tx<0||tx>=MAP_W||ty<0||ty>=MAP_H) return;
+        const ptx = Math.floor(px/TILE_PX), pty = Math.floor(py/TILE_PX);
+        const dist = Math.abs(tx-ptx)+Math.abs(ty-pty);
+        if (dist > 3) return; // must be nearby
+        const tile = map[ty][tx];
+        // TAP resource → harvest
+        if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0) {
+          tile.resHp -= playerClass.harvestTap;
+          addFloat(tx*TILE_PX, ty*TILE_PX-20, `-${playerClass.harvestTap}`, "#FFA726");
+          sounds.harvest();
+          if (tile.resHp<=0) { addToBag(tile.resId); addFloat(tx*TILE_PX,ty*TILE_PX-40,`+${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
+        }
+        // TAP NPC → dialog
+        if (tile.type==="npc"&&tile.npcId) {
+          const npc=NPCS.find(n=>n.id===tile.npcId); if(npc){sounds.open();setNpcDialog({name:npc.name,emoji:npc.emoji,text:npc.quest});setPanel("npc");}
+        }
+        // TAP fortress → boss
+        if (tile.type==="fortress") {
+          const boss=BOSSES[tile.biome]; if(boss) startCombat({id:"boss_"+tile.biome,mId:"boss",x:px,y:py,hp:boss.hp,maxHp:boss.hp,atk:boss.atk,lv:boss.lv,drops:[boss.drop],sous:[boss.sous,boss.sous],emoji:boss.emoji,name:boss.name,dir:0,moveT:0,isBoss:true});
+        }
+        // TAP mob → combat
+        for (const mob of mobsRef.current) {
+          if (mob.hp<=0) continue;
+          const mx=Math.floor(mob.x/TILE_PX), my=Math.floor(mob.y/TILE_PX);
+          if (mx===tx&&my===ty) { startCombat(mob); break; }
+        }
+      }} />
       <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} timeOfDay={(gameTime%600)/600} />
       {!combat && panel==="none" && (
         <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
