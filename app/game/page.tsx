@@ -392,6 +392,8 @@ function GameInner() {
       {panel==="mystery" && <MysteryCharacter onClose={()=>setPanel("none")} bossesDefeated={gs.bossesDefeated} />}
       {!combat && panel==="none" && showOnboarding && gs.onboardingStep < 5 && <Onboarding gs={gs} onClose={()=>setShowOnboarding(false)} />}
       {!combat && panel==="none" && <QuickMessages onSend={(text)=>{sendMessage(text);setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}]);}} />}
+      {/* Sort de Rappel — Artisane : retour maison permanent */}
+      {!combat && !inHome && playerClassId==="artisane" && <button onClick={()=>{setInHome(true);sounds.teleport();}} style={{position:"absolute",bottom:80,right:10,zIndex:10,padding:"8px 14px",background:"linear-gradient(135deg,#9B59B6,#6A1B9A)",color:"#FFF",border:"2px solid #DAA520",borderRadius:10,fontSize:12,fontWeight:"bold",cursor:"pointer",boxShadow:"0 0 10px rgba(155,89,182,.4)"}}>🏠 Rappel</button>}
       <MessageOverlay messages={[...quickMsgs,...mpMessages]} />
     </div>
   );

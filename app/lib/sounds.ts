@@ -25,6 +25,7 @@ class S {
   click() { this.o(600, "square", .08, .03); }
   open() { this.o(300, "sine", .06, .15, 0, 600); }
   close() { this.o(600, "sine", .06, .15, 0, 300); }
+  teleport() { this.o(300, "sine", .08, .4, 0, 2000); this.o(600, "triangle", .06, .3, .1, 1200); }
   craft() { [800, 1000, 1200, 1600].forEach((f, i) => this.o(f, "triangle", .10, .12, i * .08)); }
   equip() { this.o(1000, "triangle", .08, .1); this.o(1500, "triangle", .06, .1, .05); }
   lvlUp() { this.o(400, "sine", .12, .5, 0, 1200); }

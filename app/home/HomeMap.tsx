@@ -135,6 +135,15 @@ function genHome(): HomeTile[][] {
   return m;
 }
 
+// Nuisibles de la zone safe
+const NUISIBLES = [
+  {emoji:"🐛",name:"Chenille",hp:4,atk:1,drop:"graine"},
+  {emoji:"🐌",name:"Escargot",hp:5,atk:1,drop:"herbe"},
+  {emoji:"🪲",name:"Scarabee",hp:6,atk:2,drop:"branche"},
+  {emoji:"🐸",name:"Grenouille",hp:7,atk:2,drop:"graine_rare"},
+];
+interface Nuisible { x:number; y:number; type:number; alive:boolean }
+
 interface HomeMapProps {
   gs: GameState;
   onUpdateGs: (u: Partial<GameState>) => void;
@@ -150,6 +159,12 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
   const [hx, setHx] = useState(50 * HT);
   const [hy, setHy] = useState(50 * HT);
   const [activeRoom, setActiveRoom] = useState<Room>(null);
+  // Nuisibles vivants dans la zone safe
+  const [nuisibles, setNuisibles] = useState<Nuisible[]>(() => {
+    const spots = [[38,36],[62,36],[38,64],[62,64],[50,33],[50,67],[37,50],[63,50]];
+    return spots.map(([nx,ny],i) => ({x:nx*HT,y:ny*HT,type:i%4,alive:true}));
+  });
+  const [nuisibleCombat, setNuisibleCombat] = useState<{idx:number;hp:number;maxHp:number}|null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const joyRef = useRef({active:false,dx:0,dy:0});
@@ -246,6 +261,14 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
       ctx.fillRect(sx, sy, HT, HT);
       if (t.emoji) { ctx.font = "18px serif"; ctx.textAlign = "center"; ctx.fillText(t.emoji, sx+HT/2, sy+HT/2+6); }
     }
+    // Nuisibles
+    for (const n of nuisibles) {
+      if (!n.alive) continue;
+      const nx = n.x - cx, ny = n.y - cy;
+      if (nx < -HT || nx > W+HT || ny < -HT || ny > H+HT) continue;
+      ctx.font = "20px serif"; ctx.textAlign = "center";
+      ctx.fillText(NUISIBLES[n.type].emoji, nx+HT/2, ny+HT/2+6);
+    }
     // Player
     ctx.font = "24px serif"; ctx.textAlign = "center";
     ctx.fillText(playerEmoji, W/2, H/2+8);
@@ -253,7 +276,41 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
     ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
     ctx.strokeText(playerName, W/2, H/2-16);
     ctx.fillText(playerName, W/2, H/2-16);
-  }, [hx, hy, homeMap, playerEmoji, playerName]);
+  }, [hx, hy, homeMap, playerEmoji, playerName, nuisibles]);
+
+  // Nuisible movement (slow patrol every 2s)
+  useEffect(() => {
+    if (activeRoom || nuisibleCombat) return;
+    const iv = setInterval(() => {
+      setNuisibles(prev => prev.map(n => {
+        if (!n.alive) return n;
+        const dx = (Math.random()-0.5) * 2 > 0 ? HT : -HT;
+        const dy = (Math.random()-0.5) * 2 > 0 ? HT : -HT;
+        const nx = n.x + (Math.random()>0.5?dx:0);
+        const ny = n.y + (Math.random()>0.5?dy:0);
+        const tx = Math.floor(nx/HT), ty = Math.floor(ny/HT);
+        if (tx>=35&&tx<=65&&ty>=30&&ty<=70&&homeMap[ty]?.[tx]?.type==="outdoor") return {...n,x:nx,y:ny};
+        return n;
+      }));
+    }, 2000);
+    return () => clearInterval(iv);
+  }, [activeRoom, nuisibleCombat, homeMap]);
+
+  // Check collision with nuisibles
+  useEffect(() => {
+    if (activeRoom || nuisibleCombat) return;
+    const ptx = Math.floor(hx/HT), pty = Math.floor(hy/HT);
+    for (let i=0; i<nuisibles.length; i++) {
+      const n = nuisibles[i]; if (!n.alive) continue;
+      const ntx = Math.floor(n.x/HT), nty = Math.floor(n.y/HT);
+      if (Math.abs(ptx-ntx)<=1 && Math.abs(pty-nty)<=1) {
+        const nui = NUISIBLES[n.type];
+        setNuisibleCombat({idx:i, hp:nui.hp, maxHp:nui.hp});
+        sounds.hit();
+        break;
+      }
+    }
+  }, [hx, hy, nuisibles, activeRoom, nuisibleCombat]);
 
   const joyStart = (e: React.TouchEvent) => {
     joyRef.current.active = true;
@@ -290,6 +347,45 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.25)"}} />
         </div>
       )}
+      {/* Nuisible combat — simplified Puyo (tap to attack) */}
+      {nuisibleCombat && (() => {
+        const nui = NUISIBLES[nuisibles[nuisibleCombat.idx].type];
+        return <div style={{position:"absolute",inset:0,zIndex:100,background:"rgba(0,0,0,.85)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <div style={{fontSize:48,marginBottom:8}}>{nui.emoji}</div>
+          <div style={{color:"#FFF",fontSize:16,fontWeight:"bold"}}>{nui.name}</div>
+          <div style={{width:120,height:8,background:"#333",borderRadius:4,margin:"8px auto"}}>
+            <div style={{height:"100%",background:"#F44336",borderRadius:4,width:`${(nuisibleCombat.hp/nuisibleCombat.maxHp)*100}%`,transition:"width .2s"}} />
+          </div>
+          <div style={{color:"#F88",fontSize:12,marginBottom:16}}>HP {nuisibleCombat.hp}/{nuisibleCombat.maxHp}</div>
+          <div style={{color:"#AAA",fontSize:11,marginBottom:8}}>Tapez pour attaquer !</div>
+          <button onClick={() => {
+            const dmg = Math.max(1, gs.stats.atk + gs.stats.mag);
+            const newHp = nuisibleCombat.hp - dmg;
+            sounds.hit();
+            if (newHp <= 0) {
+              // Victory
+              sounds.victory();
+              setNuisibles(prev => prev.map((n,i) => i===nuisibleCombat.idx ? {...n,alive:false} : n));
+              // Drop loot
+              const drop = nui.drop;
+              onUpdateGs({bag:{...gs.bag,[drop]:(gs.bag[drop]||0)+1}, sous:gs.sous+2});
+              setNuisibleCombat(null);
+              // Respawn nuisible in 3 minutes
+              const idx = nuisibleCombat.idx;
+              setTimeout(() => setNuisibles(prev => prev.map((n,i) => i===idx ? {...n,alive:true} : n)), 180000);
+            } else {
+              // Enemy attacks back
+              const eDmg = Math.max(1, nui.atk - gs.stats.def);
+              onUpdateGs({hp: Math.max(1, gs.hp - eDmg)});
+              setNuisibleCombat({...nuisibleCombat, hp:newHp});
+            }
+          }} style={{padding:"14px 40px",background:"linear-gradient(135deg,#E53935,#C62828)",color:"#FFF",border:"2px solid #FFD700",borderRadius:12,fontSize:18,fontWeight:"bold",cursor:"pointer"}}>
+            ⚔️ Attaquer !
+          </button>
+          <button onClick={() => setNuisibleCombat(null)} style={{marginTop:8,padding:"8px 20px",background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,color:"#AAA",fontSize:12,cursor:"pointer"}}>🏃 Fuir</button>
+        </div>;
+      })()}
+
       {/* Room panels */}
       {activeRoom === "garden" && <GardenPanel gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} />}
       {activeRoom === "kitchen" && <KitchenPanel gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} />}
