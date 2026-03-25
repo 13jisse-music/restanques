@@ -323,6 +323,39 @@ function GameInner() {
 
   const biomeName=BIOMES[currentBiome]?.name||"?", biomeEmoji=BIOMES[currentBiome]?.emoji||"?";
 
+  // TAP handler for world interactions (harvest, NPC, fortress, mob)
+  const handleWorldTap = useCallback((clientX: number, clientY: number) => {
+    if (combat || panel !== "none") return;
+    const map = mapRef.current; if (!map) return;
+    const cvs = canvasRef.current; if (!cvs) return;
+    const rect = cvs.getBoundingClientRect();
+    const worldX = (clientX - rect.left) + px - cvs.width/2;
+    const worldY = (clientY - rect.top) + py - cvs.height/2;
+    const tx = Math.floor(worldX/TILE_PX), ty = Math.floor(worldY/TILE_PX);
+    if (tx<0||tx>=MAP_W||ty<0||ty>=MAP_H) return;
+    const ptx = Math.floor(px/TILE_PX), pty = Math.floor(py/TILE_PX);
+    const dist = Math.abs(tx-ptx)+Math.abs(ty-pty);
+    if (dist > 3) return;
+    const tile = map[ty][tx];
+    if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0) {
+      tile.resHp -= playerClass.harvestTap;
+      addFloat(tx*TILE_PX, ty*TILE_PX-20, `-${playerClass.harvestTap}`, "#FFA726");
+      sounds.harvest();
+      if (tile.resHp<=0) { addToBag(tile.resId); addFloat(tx*TILE_PX,ty*TILE_PX-40,`+${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
+    }
+    if (tile.type==="npc"&&tile.npcId) {
+      const npc=NPCS.find(n=>n.id===tile.npcId); if(npc){sounds.open();setNpcDialog({name:npc.name,emoji:npc.emoji,text:npc.quest});setPanel("npc");}
+    }
+    if (tile.type==="fortress") {
+      const boss=BOSSES[tile.biome]; if(boss) startCombat({id:"boss_"+tile.biome,mId:"boss",x:px,y:py,hp:boss.hp,maxHp:boss.hp,atk:boss.atk,lv:boss.lv,drops:[boss.drop],sous:[boss.sous,boss.sous],emoji:boss.emoji,name:boss.name,dir:0,moveT:0,isBoss:true});
+    }
+    for (const mob of mobsRef.current) {
+      if (mob.hp<=0) continue;
+      const mx=Math.floor(mob.x/TILE_PX), my=Math.floor(mob.y/TILE_PX);
+      if (mx===tx&&my===ty) { startCombat(mob); break; }
+    }
+  }, [combat, panel, px, py, playerClass, addFloat, addToBag, startCombat]);
+
   // HOME MODE
   if (inHome) {
     return <HomeMap gs={gs} onUpdateGs={updateGs} onExit={()=>{setInHome(false);sounds.close();}} playerEmoji={playerClass.emoji} playerName={playerName} canCraft={playerClass.canCraft} craftFail={playerClass.craftFail} />;
@@ -330,41 +363,9 @@ function GameInner() {
 
   return (
     <div style={{position:"fixed",inset:0,background:"#000",overflow:"hidden",touchAction:"none"}}>
-      <canvas ref={canvasRef} style={{position:"absolute",inset:0}} onClick={(e) => {
-        if (combat || panel !== "none") return;
-        const map = mapRef.current; if (!map) return;
-        const cvs = canvasRef.current; if (!cvs) return;
-        const rect = cvs.getBoundingClientRect();
-        const worldX = (e.clientX - rect.left) + px - cvs.width/2;
-        const worldY = (e.clientY - rect.top) + py - cvs.height/2;
-        const tx = Math.floor(worldX/TILE_PX), ty = Math.floor(worldY/TILE_PX);
-        if (tx<0||tx>=MAP_W||ty<0||ty>=MAP_H) return;
-        const ptx = Math.floor(px/TILE_PX), pty = Math.floor(py/TILE_PX);
-        const dist = Math.abs(tx-ptx)+Math.abs(ty-pty);
-        if (dist > 3) return; // must be nearby
-        const tile = map[ty][tx];
-        // TAP resource → harvest
-        if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0) {
-          tile.resHp -= playerClass.harvestTap;
-          addFloat(tx*TILE_PX, ty*TILE_PX-20, `-${playerClass.harvestTap}`, "#FFA726");
-          sounds.harvest();
-          if (tile.resHp<=0) { addToBag(tile.resId); addFloat(tx*TILE_PX,ty*TILE_PX-40,`+${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
-        }
-        // TAP NPC → dialog
-        if (tile.type==="npc"&&tile.npcId) {
-          const npc=NPCS.find(n=>n.id===tile.npcId); if(npc){sounds.open();setNpcDialog({name:npc.name,emoji:npc.emoji,text:npc.quest});setPanel("npc");}
-        }
-        // TAP fortress → boss
-        if (tile.type==="fortress") {
-          const boss=BOSSES[tile.biome]; if(boss) startCombat({id:"boss_"+tile.biome,mId:"boss",x:px,y:py,hp:boss.hp,maxHp:boss.hp,atk:boss.atk,lv:boss.lv,drops:[boss.drop],sous:[boss.sous,boss.sous],emoji:boss.emoji,name:boss.name,dir:0,moveT:0,isBoss:true});
-        }
-        // TAP mob → combat
-        for (const mob of mobsRef.current) {
-          if (mob.hp<=0) continue;
-          const mx=Math.floor(mob.x/TILE_PX), my=Math.floor(mob.y/TILE_PX);
-          if (mx===tx&&my===ty) { startCombat(mob); break; }
-        }
-      }} />
+      <canvas ref={canvasRef} style={{position:"absolute",inset:0}}
+        onTouchEnd={(e) => { const t=e.changedTouches[0]; if(t) handleWorldTap(t.clientX,t.clientY); }}
+        onClick={(e) => handleWorldTap(e.clientX,e.clientY)} />
       <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} timeOfDay={(gameTime%600)/600} />
       {!combat && panel==="none" && (
         <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
