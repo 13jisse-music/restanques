@@ -33,6 +33,15 @@ import { generateDungeon, DUNGEON_ENTRANCES, type Dungeon } from "../lib/dungeon
 import { CLASSES } from "../data/classes";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { HomeMap } from "./components/home/HomeMap";
+import { GardenPanel } from "./components/home/GardenPanel";
+import { KitchenPanel } from "./components/home/KitchenPanel";
+import { SpellSalon } from "./components/home/SpellSalon";
+import { ArmoryPanel } from "./components/home/ArmoryPanel";
+import { BedroomPanel } from "./components/home/BedroomPanel";
+import { ShopCounter } from "./components/home/ShopCounter";
+import { PuyoCombat } from "./components/world/PuyoCombat";
+import { BossCombat } from "./components/world/BossCombat";
 
 // ═══ TILE COLORS by biome — rich CSS rendering ═══
 const BIOME_RES_LOOT: Record<string, string[]> = {
@@ -87,8 +96,8 @@ function GameContent() {
   const searchParams = useSearchParams();
   const playerParam = searchParams.get("player");
   const pName = playerParam === "melanie" ? "Mélanie" : "Jisse";
-  const classParam = searchParams.get("class") || (playerParam === "melanie" ? "artisane" : "aventurier");
-  const playerClass = CLASSES[classParam] || CLASSES.aventurier;
+  const classParam = searchParams.get("class") || (playerParam === "melanie" ? "artisane" : "paladin");
+  const playerClass = CLASSES[classParam] || CLASSES.paladin;
   const pEmoji = playerClass.emoji;
   const pColor = playerParam === "melanie" ? "#E88EAD" : "#E67E22";
 
@@ -98,6 +107,16 @@ function GameContent() {
   const CELL = Math.floor(Math.min(W / 9, H / 13));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pvpActive, setPvpActive] = useState(false);
+  const isArtisane = classParam === "artisane";
+  const isPaladin = classParam === "paladin";
+  const [inHome, setInHome] = useState(isArtisane); // Artisane starts in home
+  const [homeRoom, setHomeRoom] = useState<string | null>(null); // which room panel is open
+  const [puyoCombat, setPuyoCombat] = useState<{ name: string; emoji: string; hp: number; atk: number; level: number } | null>(null);
+  const [bossCombatActive, setBossCombatActive] = useState<string | null>(null); // biome id
+  const [spellsOwned, setSpellsOwned] = useState<{ id: string; level: number }[]>([]);
+  const [spellsEquipped, setSpellsEquipped] = useState<[string, string, string]>(["", "", ""]);
+  const [sous, setSous] = useState(playerClass.startingSous || 50);
+  const [shopInventory, setShopInventory] = useState<{ id: string; name: string; emoji: string; qty: number; price: number }[]>([]);
   const [torches, setTorches] = useState(0);
   const [torchActive, setTorchActive] = useState(false);
   const [torchEnd, setTorchEnd] = useState(0);
@@ -938,6 +957,155 @@ function GameContent() {
         @keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1px) scale(1.05)}}
         @keyframes enemyAtk{0%{transform:scale(1)}40%{transform:scale(1.3) translateY(-8px)}100%{transform:scale(1)}}
       `}</style>
+
+      {/* ═══ HOME MODE (Artisane) ═══ */}
+      {inHome && !showIntro && !storySequence && !puyoCombat && !bossCombatActive && (
+        <>
+          <HomeMap
+            playerName={pName}
+            playerEmoji={pEmoji}
+            playerClass={classParam}
+            hp={hp}
+            maxHp={maxHp}
+            sous={sous}
+            lvl={lvl}
+            timeOfDay={timeOfDay}
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            garden={garden}
+            otherPlayer={otherPlayer ? { name: otherPlayer.name, emoji: otherPlayer.emoji, x: otherPlayer.x, y: otherPlayer.y } : null}
+            onOpenRoom={(roomId) => setHomeRoom(roomId)}
+            onOpenChest={() => setCampPanel("chest")}
+            onPortal={() => { setInHome(false); notify("🚪 Sortie dans le monde !"); }}
+            onOpenMenu={() => setSettingsOpen(true)}
+            onOpenMap={() => setMmap(true)}
+          />
+          {/* Room panels */}
+          {homeRoom === "salon" && <SpellSalon
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            spellsOwned={spellsOwned}
+            spellsEquipped={spellsEquipped}
+            unlockedBiomes={unlocked}
+            onCraftSpell={(spellId, level) => {
+              setSpellsOwned(prev => {
+                const existing = prev.find(s => s.id === spellId);
+                if (existing) return prev.map(s => s.id === spellId ? { ...s, level } : s);
+                return [...prev, { id: spellId, level }];
+              });
+              notify(`✨ Sort ${spellId} Nv.${level} forgé !`);
+              sounds.craft();
+            }}
+            onEquipSpell={(spellId, slot) => {
+              setSpellsEquipped(prev => { const n = [...prev] as [string, string, string]; n[slot] = spellId; return n; });
+              sounds.equip();
+            }}
+            onClose={() => setHomeRoom(null)}
+          />}
+          {homeRoom === "cuisine" && <KitchenPanel
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            onCraft={(recipeId) => { setInv(p => [...p, recipeId]); notify(`🍳 ${recipeId} cuisiné !`); sounds.craft(); }}
+            onClose={() => setHomeRoom(null)}
+          />}
+          {homeRoom === "armurerie" && <ArmoryPanel
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            ownedEquip={ownedEquip}
+            unlockedBiomes={unlocked}
+            onCraft={(equipId) => { setOwnedEquip(p => [...p, equipId]); notify(`⚔️ ${equipId} forgé !`); sounds.craft(); }}
+            onCraftTool={(toolId) => { setTools(p => [...p, toolId]); notify(`🔧 ${toolId} fabriqué !`); sounds.craft(); }}
+            onClose={() => setHomeRoom(null)}
+          />}
+          {homeRoom === "chambre" && <BedroomPanel
+            hp={hp} maxHp={maxHp} debuffs={[]}
+            fatigueUntil={fatigueUntil}
+            otherPlayerInHome={!!otherPlayer}
+            onSleep={() => {
+              setHp(maxHp);
+              setFatigueUntil(0);
+              setTimeOfDay(0.17); // dawn
+              notify("💤 Bonne nuit ! PV restaurés.");
+              sounds.uiClick();
+              setHomeRoom(null);
+            }}
+            onClose={() => setHomeRoom(null)}
+          />}
+          {homeRoom === "comptoir" && <ShopCounter
+            isArtisane={isArtisane}
+            shopInventory={shopInventory}
+            playerSous={sous}
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            onSetForSale={(itemId, price) => {
+              setShopInventory(p => [...p, { id: itemId, name: itemId, emoji: "📦", qty: 1, price }]);
+              notify(`🏪 ${itemId} mis en vente !`);
+            }}
+            onRemoveFromSale={(itemId) => setShopInventory(p => p.filter(i => i.id !== itemId))}
+            onBuy={(itemId, price) => {
+              if (sous >= price) {
+                setSous(s => s - price);
+                setInv(p => [...p, itemId]);
+                notify(`🛒 ${itemId} acheté !`);
+              }
+            }}
+            onClose={() => setHomeRoom(null)}
+          />}
+          {homeRoom === "garden" && <GardenPanel
+            garden={garden}
+            inventory={inv.map(id => ({ id, qty: inv.filter(i => i === id).length })).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            isArtisane={isArtisane}
+            onPlant={(slot, seedId, growTime) => {
+              setGarden(g => g.map((p, i) => i === slot ? { seed: seedId, plantedAt: Date.now(), growTime } : p));
+              setInv(p => { const idx = p.indexOf(seedId); if (idx >= 0) { const n = [...p]; n.splice(idx, 1); return n; } return p; });
+              notify(`🌱 Planté !`);
+            }}
+            onHarvest={(slot, yields) => {
+              setGarden(g => g.map((p, i) => i === slot ? { seed: null, plantedAt: 0, growTime: 0 } : p));
+              const qty = 2 + Math.floor(Math.random() * 2);
+              for (let i = 0; i < qty; i++) setInv(p => [...p, yields]);
+              notify(`🌾 Récolte : ${yields} ×${qty} !`);
+            }}
+            onClose={() => setHomeRoom(null)}
+          />}
+        </>
+      )}
+
+      {/* ═══ PUYO COMBAT (normal monsters) ═══ */}
+      {puyoCombat && (
+        <PuyoCombat
+          enemy={puyoCombat}
+          playerName={pName}
+          playerEmoji={pEmoji}
+          playerHp={hp}
+          playerMaxHp={maxHp}
+          playerAtk={stats.atk + (equipped.arme ? 2 : 0)}
+          playerDef={stats.def + (equipped.armure ? 2 : 0)}
+          isPaladin={isPaladin}
+          isArtisaneZone={inHome}
+          biomeResources={["herbe", "branche", "lavande"]}
+          timeOfDay={timeOfDay}
+          spells={spellsEquipped.filter(s => s).map(s => ({ id: s, name: s, emoji: "✨", effect: "" }))}
+          potionCount={inv.filter(i => i === "potion").length}
+          onVictory={(xpGain, sousGain, drops, resources) => {
+            gainXp(xpGain);
+            setSous(s => s + sousGain);
+            for (const d of drops) setInv(p => [...p, d]);
+            for (const r of resources) setInv(p => [...p, r]);
+            notify(`🏆 Victoire ! +${xpGain}XP +${sousGain}☀️`);
+            setPuyoCombat(null);
+          }}
+          onDefeat={() => {
+            setHp(Math.ceil(maxHp * 0.5));
+            setSous(s => Math.max(0, s - Math.floor(s * 0.1)));
+            setFatigueUntil(Date.now() + 120000);
+            setInHome(true);
+            setPuyoCombat(null);
+            notify("💀 K.O. — Respawn maison");
+          }}
+          onFlee={() => { setPuyoCombat(null); notify("🏃 Fuite !"); }}
+          onUsePotion={() => {
+            const idx = inv.indexOf("potion");
+            if (idx >= 0) { setInv(p => { const n = [...p]; n.splice(idx, 1); return n; }); setHp(h => Math.min(maxHp, h + 10)); }
+          }}
+          onCastSpell={(spellId) => { notify(`✨ ${spellId} lancé !`); }}
+        />
+      )}
 
       {/* BIOME TRANSITION — black fade */}
       {biomeTransition && <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#F4D03F", fontFamily: "'Crimson Text', Georgia, serif", fontSize: 20 }}>Changement de biome...</div>}
