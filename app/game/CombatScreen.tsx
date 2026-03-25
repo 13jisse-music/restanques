@@ -122,7 +122,7 @@ export function CombatScreen({ combat, setCombat, stats, playerClass, maxHp, lv,
   const [phase, setPhase] = useState<"play"|"win"|"lose">("play");
   const [combo, setCombo] = useState(0);
 
-  const dropMs = playerClass.id === "artisane" ? 1000 : 650;
+  const dropMs = playerClass.id === "artisane" ? 1800 : 1200; // Slow enough for mobile
   const lastDrop = useRef(performance.now());
   const raf = useRef(0);
   const pGridRef = useRef(pGrid); pGridRef.current = pGrid;
@@ -277,7 +277,7 @@ export function CombatScreen({ combat, setCombat, stats, playerClass, maxHp, lv,
   };
 
   // Render grid cells
-  const CELL = Math.floor(Math.min((typeof window!=="undefined"?window.innerWidth:360) * 0.55 / PUYO_W, 32));
+  const CELL = Math.floor(Math.min((typeof window!=="undefined"?window.innerWidth:360) * 0.45 / PUYO_W, 28));
   const ECELL = Math.floor(CELL * 0.5);
   const eHpPct = combat.enemy.maxHp > 0 ? Math.max(0, eHp/combat.enemy.maxHp)*100 : 0;
   const pHpPct = maxHp > 0 ? Math.max(0, pHp/maxHp)*100 : 0;

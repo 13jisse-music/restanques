@@ -129,6 +129,7 @@ function GameInner() {
   const keysRef = useRef<Set<string>>(new Set());
   const frameRef = useRef(0);
   const lastTRef = useRef(0);
+  const moveCdRef = useRef(0);
   const fIdRef = useRef(0);
   const [sessionId] = useState(() => typeof window !== "undefined" ? `s_${Date.now().toString(36)}` : "");
   const { drawOthers, sendMessage, messages: mpMessages } = useMultiPlayer({
@@ -208,36 +209,42 @@ function GameInner() {
       if (!running) return;
       const dt = lastTRef.current ? (time-lastTRef.current)/1000 : 0.016;
       lastTRef.current = time;
-      let dx=0, dy=0; const spd=playerClass.speed*120*dt;
+      let dx=0, dy=0;
       const k=keysRef.current;
       if (k.has("arrowleft")||k.has("a")||k.has("q")) dx-=1;
       if (k.has("arrowright")||k.has("d")) dx+=1;
       if (k.has("arrowup")||k.has("z")||k.has("w")) dy-=1;
       if (k.has("arrowdown")||k.has("s")) dy+=1;
       const j=joyRef.current; if (j.active){dx+=j.dx;dy+=j.dy;}
-      if (dx||dy) {
-        const len=Math.sqrt(dx*dx+dy*dy); dx=(dx/len)*spd; dy=(dy/len)*spd;
-        const nx=px+dx, ny=py+dy, tx=Math.floor(nx/TILE_PX), ty=Math.floor(ny/TILE_PX);
+      // Tile-by-tile movement with cooldown (no sliding)
+      const moveCd = Math.max(80, 140 - playerClass.speed * 20);
+      if ((dx||dy) && time - moveCdRef.current >= moveCd) {
+        moveCdRef.current = time;
+        const tdx = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : -1) : 0;
+        const tdy = tdx === 0 ? (dy > 0 ? 1 : -1) : 0;
+        const nx=px+tdx*TILE_PX, ny=py+tdy*TILE_PX;
+        const tx=Math.floor(nx/TILE_PX), ty=Math.floor(ny/TILE_PX);
         if (tx>=0&&tx<MAP_W&&ty>=0&&ty<MAP_H) {
           const tile=map[ty][tx];
           if (tile.type!=="block"&&tile.type!=="water") {
-            setPx(nx); setPy(ny);
-            if (frameRef.current%12===0) sounds.step();
-            if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0&&frameRef.current%20===0) {
+            setPx(nx); setPy(ny); sounds.step();
+            // Harvest on step (not frame-based)
+            if (tile.type==="resource"&&tile.resId&&tile.resHp&&tile.resHp>0) {
               tile.resHp-=playerClass.harvestTap;
-              if (tile.resHp<=0) { addToBag(tile.resId); sounds.harvest(); addFloat(nx,ny-20,`+1 ${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
+              addFloat(nx,ny-20,`-${playerClass.harvestTap}`, "#FFA726");
+              if (tile.resHp<=0) { addToBag(tile.resId); sounds.harvest(); addFloat(nx,ny-40,`+1 ${RES[tile.resId]?.emoji||""}`, "#4CAF50"); tile.type="ground"; tile.resId=undefined; }
             }
             if (tile.type==="portal"&&tile.portalTo) {
               const zones=[{id:"garrigue",cx:37,cy:37},{id:"calanques",cx:112,cy:37},{id:"mines",cx:37,cy:112},{id:"mer",cx:112,cy:112},{id:"restanques",cx:75,cy:75}];
               const z=zones.find(z=>z.id===tile.portalTo); if(z){setPx(z.cx*TILE_PX);setPy(z.cy*TILE_PX);sounds.open();}
             }
-            if (tile.type==="npc"&&tile.npcId&&frameRef.current%60===0) {
+            if (tile.type==="npc"&&tile.npcId) {
               const npc=NPCS.find(n=>n.id===tile.npcId); if(npc){sounds.open();setNpcDialog({name:npc.name,emoji:npc.emoji,text:npc.quest});setPanel("npc");}
             }
-            if (tile.type==="fortress"&&frameRef.current%60===0) {
+            if (tile.type==="fortress") {
               const boss=BOSSES[tile.biome]; if(boss) startCombat({id:"boss_"+tile.biome,mId:"boss",x:px,y:py,hp:boss.hp,maxHp:boss.hp,atk:boss.atk,lv:boss.lv,drops:[boss.drop],sous:[boss.sous,boss.sous],emoji:boss.emoji,name:boss.name,dir:0,moveT:0,isBoss:true});
             }
-            if (tile.type==="home"&&frameRef.current%30===0) { setInHome(true); sounds.open(); }
+            if (tile.type==="home") { setInHome(true); sounds.open(); }
           }
         }
       }
@@ -270,6 +277,8 @@ function GameInner() {
       const tile=map[ty][tx], biome=BIOMES[tile.biome]||BIOMES.garrigue, sx=tx*TILE_PX-camX, sy=ty*TILE_PX-camY;
       switch(tile.type){case"ground":ctx.fillStyle=(tx+ty)%2===0?biome.colors.ground:biome.colors.alt;break;case"path":ctx.fillStyle=biome.colors.path;break;case"block":ctx.fillStyle=biome.colors.block;break;case"water":ctx.fillStyle="#2471A3";break;default:ctx.fillStyle=biome.colors.ground;}
       ctx.fillRect(sx,sy,TILE_PX,TILE_PX);
+      if (tile.type==="block"){ctx.font="18px serif";ctx.textAlign="center";ctx.fillText(tile.biome==="mer"||tile.biome==="calanques"?"🪨":"🌳",sx+TILE_PX/2,sy+TILE_PX/2+5);}
+      if (tile.type==="water"){ctx.font="14px serif";ctx.textAlign="center";ctx.fillText("〰",sx+TILE_PX/2,sy+TILE_PX/2+4);}
       if (tile.type==="resource"&&tile.resId){ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(RES[tile.resId]?.emoji||"?",sx+TILE_PX/2,sy+TILE_PX/2+6);}
       if (tile.type==="portal"){ctx.font="22px serif";ctx.textAlign="center";ctx.fillText("🌀",sx+TILE_PX/2,sy+TILE_PX/2+7);}
       if (tile.type==="npc"&&tile.npcId){const npc=NPCS.find(n=>n.id===tile.npcId);ctx.font="22px serif";ctx.textAlign="center";ctx.fillText(npc?.emoji||"❓",sx+TILE_PX/2,sy+TILE_PX/2+7);}

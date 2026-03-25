@@ -73,8 +73,10 @@ function genHome(): HomeTile[][] {
 
   // Vertical wall at x=50 (top half)
   for (let y = houseY1+1; y <= 44; y++) m[y][50] = {type:"wall", room:null};
-  // Door between salon and cuisine
+  // Doors between salon and cuisine (wide)
+  m[41][50] = {type:"door", room:"salon"};
   m[42][50] = {type:"door", room:"salon"};
+  m[43][50] = {type:"door", room:"salon"};
 
   // Bottom-left: Armurerie (40-49, 46-52)
   for (let y = 46; y < houseY2; y++) for (let x = houseX1+1; x <= 49; x++) m[y][x] = {type:"floor", room:"armory"};
@@ -92,15 +94,23 @@ function genHome(): HomeTile[][] {
 
   // Vertical wall at x=50 (bottom half)
   for (let y = 46; y < houseY2; y++) m[y][50] = {type:"wall", room:null};
-  // Door between armory and shop
+  // Doors between armory and shop (wide)
+  m[47][50] = {type:"door", room:"armory"};
   m[48][50] = {type:"door", room:"armory"};
+  m[49][50] = {type:"door", room:"armory"};
 
-  // Doors in horizontal wall y=45
-  m[45][45] = {type:"door", room:"salon"};   // salon → armory
-  m[45][55] = {type:"door", room:"kitchen"}; // kitchen → bedroom
+  // Doors in horizontal wall y=45 (wider for easier navigation)
+  m[45][44] = {type:"door", room:"salon"};
+  m[45][45] = {type:"door", room:"salon"};
+  m[45][46] = {type:"door", room:"salon"};
+  m[45][54] = {type:"door", room:"kitchen"};
+  m[45][55] = {type:"door", room:"kitchen"};
+  m[45][56] = {type:"door", room:"kitchen"};
 
-  // Front door (south wall) to exit the house
+  // Front door (south wall) to exit the house — wide
+  m[houseY2][49] = {type:"door", room:null};
   m[houseY2][50] = {type:"door", room:null};
+  m[houseY2][51] = {type:"door", room:null};
 
   // ── JARDIN south of house (4×4 parcelles, each 3×3) ──
   const gardenStartX = 43, gardenStartY = 55;
@@ -157,7 +167,7 @@ interface HomeMapProps {
 export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCraft, craftFail }: HomeMapProps) {
   const [homeMap] = useState(() => genHome());
   const [hx, setHx] = useState(50 * HT);
-  const [hy, setHy] = useState(50 * HT);
+  const [hy, setHy] = useState(44 * HT); // Start in hallway between rooms, not inside a wall
   const [activeRoom, setActiveRoom] = useState<Room>(null);
   // Nuisibles vivants dans la zone safe
   const [nuisibles, setNuisibles] = useState<Nuisible[]>(() => {
