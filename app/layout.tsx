@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Restanques — RPG coopératif provençal",
-  description: "Explorez la Provence à deux ! Puyo Puyo, Match-3, craft et aventure coopérative.",
+  description: "Explorez la Provence à deux ! Puyo Puyo, craft et aventure coopérative.",
 };
 
 export const viewport: Viewport = {

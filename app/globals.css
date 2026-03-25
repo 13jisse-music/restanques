@@ -3,38 +3,24 @@
 @tailwind utilities;
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { overflow: hidden; width: 100%; height: 100%; font-family: 'Crimson Text', Georgia, serif; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-button { -webkit-tap-highlight-color: transparent; }
+html, body { overflow: hidden; width: 100%; height: 100dvh; font-family: 'Crimson Text', Georgia, serif; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+button { -webkit-tap-highlight-color: transparent; font-family: inherit; }
 
-/* Gem match explosion */
-@keyframes gemMatch { 0% { transform: scale(1); opacity: 1 } 30% { transform: scale(1.3) rotate(10deg) } 100% { transform: scale(0); opacity: 0 } }
-.gem-matched { animation: gemMatch 400ms ease-out forwards; pointer-events: none }
-
-/* Gem selection */
-@keyframes gemSelected { 0%,100% { box-shadow: 0 0 0 transparent } 50% { box-shadow: 0 0 12px rgba(255,215,0,0.8) } }
-.gem-selected { animation: gemSelected 0.8s infinite }
-
-/* Gem fall */
-@keyframes gemFall { 0% { transform: translateY(var(--fall-from)) } 70% { transform: translateY(0) } 85% { transform: translateY(-3px) } 100% { transform: translateY(0) } }
-.gem-falling { animation: gemFall 300ms ease-out }
-
-/* Screen shake */
-@keyframes screenShake { 0%,100% { transform: translate(0) } 10% { transform: translate(-4px,2px) } 20% { transform: translate(4px,-2px) } 30% { transform: translate(-3px,-1px) } 40% { transform: translate(3px,1px) } 50% { transform: translate(-2px,2px) } }
-.screen-shake { animation: screenShake 300ms ease-out }
-
-/* Damage float */
-@keyframes damageFloat { 0% { transform: translateY(0); opacity: 1 } 100% { transform: translateY(-40px); opacity: 0 } }
-
-/* Combo text */
-@keyframes comboText { 0% { transform: scale(0) } 50% { transform: scale(1.3) } 100% { transform: scale(1); opacity: 0 } }
-
-/* Panel open */
-@keyframes panelOpen { 0% { transform: scale(0.8) translateY(20px); opacity: 0 } 100% { transform: scale(1) translateY(0); opacity: 1 } }
-.panel-open { animation: panelOpen 200ms ease-out forwards }
-
-/* Health pulse */
-@keyframes healthPulse { 0% { opacity: 0.8 } 100% { opacity: 1; box-shadow: 0 0 8px rgba(244,67,54,0.5) } }
-
-/* Damage flash */
-@keyframes damageFlash { 0% { background: transparent } 20% { background: rgba(255,0,0,0.15) } 100% { background: transparent } }
-.damage-flash { animation: damageFlash 400ms ease-out }
+@keyframes gemMatch { 0%{transform:scale(1);opacity:1} 30%{transform:scale(1.3) rotate(10deg)} 100%{transform:scale(0);opacity:0} }
+@keyframes gemFall { 0%{transform:translateY(var(--from))} 80%{transform:translateY(0)} 90%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
+@keyframes shake { 0%,100%{transform:translate(0)} 10%{transform:translate(-4px,2px)} 20%{transform:translate(4px,-2px)} 30%{transform:translate(-3px,-1px)} 40%{transform:translate(3px,1px)} }
+@keyframes panelOpen { 0%{transform:scale(.85) translateY(20px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
+@keyframes dmgFloat { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-40px);opacity:0} }
+@keyframes pulse { 0%,100%{opacity:.7} 50%{opacity:1} }
+@keyframes comboFlash { 0%{transform:scale(0)} 50%{transform:scale(1.4)} 100%{transform:scale(1);opacity:0} }
+@keyframes screenShake { 0%,100%{transform:translate(0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(6px,-3px)} 75%{transform:translate(-3px,-2px)} }
+@keyframes slideUp { 0%{transform:translateY(100%);opacity:0} 100%{transform:translateY(0);opacity:1} }
+@keyframes slideDown { 0%{transform:translateY(-100%);opacity:0} 100%{transform:translateY(0);opacity:1} }
+@keyframes fadeIn { 0%{opacity:0} 100%{opacity:1} }
+@keyframes fadeOut { 0%{opacity:1} 100%{opacity:0} }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes glow { 0%,100%{box-shadow:0 0 5px rgba(255,200,0,.3)} 50%{box-shadow:0 0 15px rgba(255,200,0,.6)} }
+@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+@keyframes harvestPop { 0%{transform:scale(1)} 50%{transform:scale(1.3)} 100%{transform:scale(0);opacity:0} }
+@keyframes dayNightCycle { 0%,100%{background:rgba(0,0,0,0)} 50%{background:rgba(0,0,30,.4)} }
+@keyframes lvlUpGlow { 0%{box-shadow:0 0 0 rgba(255,215,0,0)} 50%{box-shadow:0 0 30px rgba(255,215,0,.8)} 100%{box-shadow:0 0 0 rgba(255,215,0,0)} }

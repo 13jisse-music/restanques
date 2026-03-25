@@ -1,1932 +1,1029 @@
 "use client";
-
-import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
-import { CLASSES, PlayerClass } from "../data/classes";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { CLASSES } from "../data/classes";
+import {
+  BIOMES, BIOME_ORDER, MONSTERS, BOSSES, RES, BIOME_RES,
+  SPELLS, EQUIPMENT, RECIPES, TOOLS, SEEDS, SHOP_ITEMS,
+  NPCS, STORY, PORTALS, FORTRESS_POS, BAG_SIZES,
+} from "../data/game-data";
 import { sounds } from "../lib/sounds";
 
-// ═══════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════
-const TILE = 32;
-const BASE_SPEED = 2;
-const WORLD_W = 150;
-const WORLD_H = 150;
-const HOME_W = 100;
-const HOME_H = 100;
-const PLAYER_HITBOX = 16;
-const FPS = 60;
-const FRAME_MS = 1000 / FPS;
-
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // TYPES
-// ═══════════════════════════════════════════════════════════════
-type TileType =
-  | "grass" | "tall_grass" | "path" | "tree" | "rock" | "water"
-  | "village" | "gate" | "fortress" | "camp" | "sand" | "dark_ground"
-  | "stone_floor" | "arena";
+// ═══════════════════════════════════════════════════════
+interface Pos { x: number; y: number }
+interface MapTile { biome: string; type: "ground"|"path"|"block"|"water"|"resource"|"portal"|"npc"|"fortress"|"home"; resId?: string; resHp?: number; portalTo?: string; npcId?: string }
+interface Mob { id: string; mId: string; x: number; y: number; hp: number; maxHp: number; atk: number; lv: number; drops: string[]; sous: [number,number]; emoji: string; name: string; dir: number; moveT: number; isBoss?: boolean }
+interface PuyoGem { color: number; x: number; y: number; matched?: boolean; falling?: boolean }
+interface CombatState { enemy: Mob; grid: PuyoGem[][]; playerHp: number; enemyHp: number; turn: number; combo: number; msg: string; phase: "play"|"resolve"|"win"|"lose"; selected: Pos|null; animating: boolean }
+interface FloatMsg { id: number; x: number; y: number; text: string; color: string; t: number }
 
-type BiomeId = "garrigue" | "calanques" | "mines" | "mer" | "restanques";
-
-interface Monster {
-  id: number;
-  x: number; y: number;
-  emoji: string;
-  name: string;
-  lvl: number;
-  hp: number;
-  maxHp: number;
-  atk: number;
-  def: number;
-  biome: BiomeId;
-  alive: boolean;
-  xpReward: number;
-  sousReward: number;
-}
-
-interface ResourceNode {
-  id: number;
-  x: number; y: number;
-  type: string;
-  emoji: string;
-  hp: number;
-  maxHp: number;
-  biome: BiomeId;
-  alive: boolean;
-}
-
-interface NPC {
-  id: number;
-  x: number; y: number;
-  emoji: string;
-  name: string;
-  type: "shop" | "quest" | "info";
-  biome: BiomeId;
-}
-
-interface InvItem {
-  id: string;
-  qty: number;
-}
-
-type GamePhase = "world" | "home" | "combat" | "shop" | "dialogue";
-
-// Puyo gem colors
-const GEM_COLORS = ["#E74C3C", "#3498DB", "#2ECC71", "#F1C40F", "#9B59B6", "#E67E22"];
-const GEM_EMOJIS = ["\u2764", "\u25C6", "\u2605", "\u25CF", "\u25B2", "\u25A0"];
-type GemCell = number | null; // 0-5 color index, null = empty
-
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // SEEDED RNG
-// ═══════════════════════════════════════════════════════════════
-function mulberry32(seed: number) {
-  let s = seed | 0;
-  return () => {
-    s = (s + 0x6D2B79F5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+// ═══════════════════════════════════════════════════════
+function mkRng(s: number) {
+  let v = s;
+  return () => { v = (v * 16807 + 0) % 2147483647; return (v - 1) / 2147483646; };
 }
 
-function hashStr(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-  }
-  return h;
-}
+// ═══════════════════════════════════════════════════════
+// MAP GENERATION 150×150
+// ═══════════════════════════════════════════════════════
+const MAP_W = 150, MAP_H = 150;
+const TILE_PX = 32;
+const GEM_COLORS = ["🔴","🔵","🟢","🟡","🟣","🟠"];
 
-// ═══════════════════════════════════════════════════════════════
-// BIOME DEFINITIONS
-// ═══════════════════════════════════════════════════════════════
-interface BiomeDef {
-  id: BiomeId;
-  name: string;
-  grassColor: string;
-  accentColor: string;
-  pathColor: string;
-  treeColor: string;
-  rockColor: string;
-  waterColor: string;
-  cx: number; cy: number; // center in world coords
-  radius: number;
-  monsters: { emoji: string; name: string; minLvl: number; maxLvl: number; atk: number; def: number }[];
-  resources: { type: string; emoji: string }[];
-}
+function genMap(seed: number): MapTile[][] {
+  const rng = mkRng(seed);
+  const map: MapTile[][] = Array.from({length: MAP_H}, () => Array.from({length: MAP_W}, () => ({ biome: "garrigue", type: "ground" as const })));
 
-const BIOMES: Record<BiomeId, BiomeDef> = {
-  garrigue: {
-    id: "garrigue", name: "Garrigue",
-    grassColor: "#8FBE4A", accentColor: "#A4D65E", pathColor: "#C8B464",
-    treeColor: "#3D6B1E", rockColor: "#888", waterColor: "#4FA4C7",
-    cx: 75, cy: 75, radius: 35,
-    monsters: [
-      { emoji: "\uD83D\uDC17", name: "Sanglier", minLvl: 1, maxLvl: 3, atk: 2, def: 1 },
-      { emoji: "\uD83E\uDD82", name: "Scorpion", minLvl: 2, maxLvl: 4, atk: 3, def: 1 },
-      { emoji: "\uD83D\uDC0D", name: "Serpent", minLvl: 1, maxLvl: 3, atk: 2, def: 0 },
-      { emoji: "\uD83E\uDD85", name: "Aigle", minLvl: 3, maxLvl: 5, atk: 4, def: 1 },
-    ],
-    resources: [
-      { type: "herb", emoji: "\uD83C\uDF3F" },
-      { type: "wood", emoji: "\uD83E\uDEB5" },
-      { type: "stone", emoji: "\uD83E\uDEA8" },
-    ],
-  },
-  calanques: {
-    id: "calanques", name: "Calanques",
-    grassColor: "#E8D5A3", accentColor: "#F0E4BF", pathColor: "#D4C090",
-    treeColor: "#6B8E4E", rockColor: "#B0A080", waterColor: "#1B9AD4",
-    cx: 130, cy: 40, radius: 25,
-    monsters: [
-      { emoji: "\uD83E\uDD80", name: "Crabe", minLvl: 3, maxLvl: 5, atk: 3, def: 3 },
-      { emoji: "\uD83D\uDC19", name: "Poulpe", minLvl: 4, maxLvl: 6, atk: 4, def: 2 },
-      { emoji: "\uD83E\uDD88", name: "Requin", minLvl: 5, maxLvl: 7, atk: 5, def: 2 },
-    ],
-    resources: [
-      { type: "shell", emoji: "\uD83D\uDC1A" },
-      { type: "coral", emoji: "\uD83E\uDE78" },
-      { type: "pearl", emoji: "\u26AA" },
-    ],
-  },
-  mines: {
-    id: "mines", name: "Mines",
-    grassColor: "#5C4033", accentColor: "#6B4E3D", pathColor: "#4A3628",
-    treeColor: "#3A2A1A", rockColor: "#666", waterColor: "#2A5040",
-    cx: 30, cy: 130, radius: 25,
-    monsters: [
-      { emoji: "\uD83E\uDDA7", name: "Chauve-souris", minLvl: 4, maxLvl: 6, atk: 3, def: 1 },
-      { emoji: "\uD83D\uDC80", name: "Squelette", minLvl: 5, maxLvl: 7, atk: 5, def: 3 },
-      { emoji: "\uD83D\uDC7B", name: "Spectre", minLvl: 6, maxLvl: 8, atk: 6, def: 2 },
-    ],
-    resources: [
-      { type: "iron", emoji: "\u2699\uFE0F" },
-      { type: "gem", emoji: "\uD83D\uDC8E" },
-      { type: "coal", emoji: "\u26AB" },
-    ],
-  },
-  mer: {
-    id: "mer", name: "Mer",
-    grassColor: "#1B6E8A", accentColor: "#2080A0", pathColor: "#1A5F78",
-    treeColor: "#0D4A5A", rockColor: "#4A6A7A", waterColor: "#0E4D8A",
-    cx: 130, cy: 130, radius: 25,
-    monsters: [
-      { emoji: "\uD83D\uDC20", name: "Poisson-lune", minLvl: 5, maxLvl: 7, atk: 4, def: 3 },
-      { emoji: "\uD83E\uDDAD", name: "Phoque", minLvl: 6, maxLvl: 8, atk: 5, def: 4 },
-      { emoji: "\uD83D\uDC33", name: "Baleine", minLvl: 8, maxLvl: 10, atk: 7, def: 5 },
-    ],
-    resources: [
-      { type: "algae", emoji: "\uD83C\uDF3F" },
-      { type: "driftwood", emoji: "\uD83E\uDEB5" },
-      { type: "salt", emoji: "\uD83E\uDDC2" },
-    ],
-  },
-  restanques: {
-    id: "restanques", name: "Restanques",
-    grassColor: "#C4A874", accentColor: "#D4B884", pathColor: "#AA9060",
-    treeColor: "#5A7A3A", rockColor: "#9A8A6A", waterColor: "#5A8AA0",
-    cx: 30, cy: 40, radius: 25,
-    monsters: [
-      { emoji: "\uD83D\uDC3A", name: "Loup", minLvl: 3, maxLvl: 5, atk: 4, def: 2 },
-      { emoji: "\uD83E\uDD89", name: "Hibou", minLvl: 4, maxLvl: 6, atk: 3, def: 2 },
-      { emoji: "\uD83D\uDC3B", name: "Ours", minLvl: 6, maxLvl: 9, atk: 6, def: 4 },
-    ],
-    resources: [
-      { type: "vine", emoji: "\uD83C\uDF47" },
-      { type: "clay", emoji: "\uD83E\uDEAF" },
-      { type: "lavender", emoji: "\uD83C\uDF3B" },
-    ],
-  },
-};
-
-// ═══════════════════════════════════════════════════════════════
-// WORLD GENERATION
-// ═══════════════════════════════════════════════════════════════
-function getBiomeAt(tx: number, ty: number): BiomeId {
-  let closest: BiomeId = "garrigue";
-  let minDist = Infinity;
-  for (const b of Object.values(BIOMES)) {
-    const d = Math.hypot(tx - b.cx, ty - b.cy);
-    if (d < minDist) { minDist = d; closest = b.id; }
-  }
-  return closest;
-}
-
-function generateWorld(seed: number) {
-  const rng = mulberry32(seed);
-  const tiles: TileType[][] = [];
-  const biomeMap: BiomeId[][] = [];
-
-  // Generate base terrain
-  for (let y = 0; y < WORLD_H; y++) {
-    tiles[y] = [];
-    biomeMap[y] = [];
-    for (let x = 0; x < WORLD_W; x++) {
-      const biome = getBiomeAt(x, y);
-      biomeMap[y][x] = biome;
-      const r = rng();
-      if (r < 0.05) tiles[y][x] = "tree";
-      else if (r < 0.08) tiles[y][x] = "rock";
-      else if (r < 0.10) tiles[y][x] = "water";
-      else if (r < 0.18) tiles[y][x] = "tall_grass";
-      else if (r < 0.22) tiles[y][x] = "path";
-      else tiles[y][x] = "grass";
-    }
-  }
-
-  // Place camp at center
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const tx = 75 + dx, ty = 75 + dy;
-      if (tx >= 0 && tx < WORLD_W && ty >= 0 && ty < WORLD_H) {
-        tiles[ty][tx] = "camp";
-      }
-    }
-  }
-
-  // Place paths from center outward (cross pattern)
-  for (let i = 0; i < WORLD_W; i++) {
-    if (tiles[75]?.[i] && tiles[75][i] !== "camp") tiles[75][i] = "path";
-    if (tiles[i]?.[75] && tiles[i][75] !== "camp") tiles[i][75] = "path";
-  }
-
-  // Place villages (2 per biome-ish)
-  const villageLocs: { x: number; y: number }[] = [];
-  const biomeKeys = Object.keys(BIOMES) as BiomeId[];
-  for (const bk of biomeKeys) {
-    const b = BIOMES[bk];
-    for (let v = 0; v < 2; v++) {
-      const angle = rng() * Math.PI * 2;
-      const dist = 8 + rng() * (b.radius - 12);
-      const vx = Math.round(b.cx + Math.cos(angle) * dist);
-      const vy = Math.round(b.cy + Math.sin(angle) * dist);
-      if (vx > 2 && vx < WORLD_W - 2 && vy > 2 && vy < WORLD_H - 2) {
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            tiles[vy + dy][vx + dx] = "village";
-          }
-        }
-        villageLocs.push({ x: vx, y: vy });
-      }
-    }
-  }
-
-  // Place fortress in each biome (boss arena)
-  const fortressLocs: { x: number; y: number; biome: BiomeId }[] = [];
-  for (const bk of biomeKeys) {
-    const b = BIOMES[bk];
-    const angle = rng() * Math.PI * 2;
-    const dist = b.radius * 0.7;
-    const fx = Math.round(b.cx + Math.cos(angle) * dist);
-    const fy = Math.round(b.cy + Math.sin(angle) * dist);
-    if (fx > 3 && fx < WORLD_W - 3 && fy > 3 && fy < WORLD_H - 3) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          tiles[fy + dy][fx + dx] = "fortress";
-        }
-      }
-      fortressLocs.push({ x: fx, y: fy, biome: bk });
-    }
-  }
-
-  // Place gates between biomes
-  const gatePairs: [BiomeId, BiomeId][] = [
-    ["garrigue", "calanques"], ["garrigue", "mines"],
-    ["garrigue", "restanques"], ["garrigue", "mer"],
+  // Biome zones (roughly quadrant-based + center)
+  const biomeZones: {id:string;cx:number;cy:number;r:number}[] = [
+    {id:"garrigue",cx:37,cy:37,r:50},
+    {id:"calanques",cx:112,cy:37,r:50},
+    {id:"mines",cx:37,cy:112,r:50},
+    {id:"mer",cx:112,cy:112,r:50},
+    {id:"restanques",cx:75,cy:75,r:25},
   ];
-  for (const [a, ba] of gatePairs) {
-    const bA = BIOMES[a], bB = BIOMES[ba];
-    const gx = Math.round((bA.cx + bB.cx) / 2);
-    const gy = Math.round((bA.cy + bB.cy) / 2);
-    if (gx > 1 && gx < WORLD_W - 1 && gy > 1 && gy < WORLD_H - 1) {
-      tiles[gy][gx] = "gate";
-      tiles[gy][gx - 1] = "path";
-      tiles[gy][gx + 1] = "path";
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      let minD = 999, best = "garrigue";
+      for (const z of biomeZones) {
+        const d = Math.sqrt((x - z.cx) ** 2 + (y - z.cy) ** 2) - z.r * (0.8 + rng() * 0.4);
+        if (d < minD) { minD = d; best = z.id; }
+      }
+      map[y][x].biome = best;
+
+      // Random terrain
+      const r = rng();
+      if (r < 0.08) map[y][x].type = "block";
+      else if (r < 0.12) map[y][x].type = "path";
+      else if (r < 0.18) {
+        const res = BIOME_RES[best];
+        if (res) {
+          const rid = res[Math.floor(rng() * res.length)];
+          map[y][x].type = "resource";
+          map[y][x].resId = rid;
+          map[y][x].resHp = RES[rid]?.hp ?? 10;
+        }
+      }
     }
   }
 
-  // Place arena tile near camp
-  tiles[73][75] = "arena";
+  // Paths between biomes
+  const pathPairs: [Pos,Pos][] = [
+    [{x:37,y:37},{x:75,y:75}], [{x:112,y:37},{x:75,y:75}],
+    [{x:37,y:112},{x:75,y:75}], [{x:112,y:112},{x:75,y:75}],
+    [{x:37,y:37},{x:112,y:37}], [{x:37,y:37},{x:37,y:112}],
+    [{x:112,y:37},{x:112,y:112}],
+  ];
+  for (const [a, b] of pathPairs) {
+    let cx = a.x, cy = a.y;
+    for (let i = 0; i < 300; i++) {
+      if (Math.abs(cx - b.x) > Math.abs(cy - b.y)) cx += cx < b.x ? 1 : -1;
+      else cy += cy < b.y ? 1 : -1;
+      if (rng() < 0.3) { cx += rng() < 0.5 ? 1 : -1; }
+      cx = Math.max(1, Math.min(MAP_W - 2, Math.round(cx)));
+      cy = Math.max(1, Math.min(MAP_H - 2, Math.round(cy)));
+      if (map[cy][cx].type !== "portal" && map[cy][cx].type !== "npc") {
+        map[cy][cx].type = "path";
+        if (rng() < 0.4 && cx + 1 < MAP_W) map[cy][cx + 1].type = "path";
+        if (rng() < 0.4 && cy + 1 < MAP_H) map[cy + 1][cx].type = "path";
+      }
+    }
+  }
 
-  // Generate monsters
-  const monsters: Monster[] = [];
-  let mId = 0;
-  for (const bk of biomeKeys) {
-    const b = BIOMES[bk];
-    const count = 80 + Math.floor(rng() * 21); // 80-100
-    for (let i = 0; i < count; i++) {
-      const angle = rng() * Math.PI * 2;
-      const dist = 3 + rng() * (b.radius - 5);
-      const mx = Math.round(b.cx + Math.cos(angle) * dist);
-      const my = Math.round(b.cy + Math.sin(angle) * dist);
-      if (mx < 0 || mx >= WORLD_W || my < 0 || my >= WORLD_H) continue;
-      if (tiles[my][mx] === "tree" || tiles[my][mx] === "rock" || tiles[my][mx] === "water"
-        || tiles[my][mx] === "camp" || tiles[my][mx] === "village" || tiles[my][mx] === "fortress") continue;
-      const mdef = b.monsters[Math.floor(rng() * b.monsters.length)];
-      const distFromCenter = Math.hypot(mx - b.cx, my - b.cy);
-      const lvlBonus = Math.floor(distFromCenter / 10);
-      const lvl = mdef.minLvl + Math.min(lvlBonus, mdef.maxLvl - mdef.minLvl);
-      const mhp = 8 + lvl * 3;
-      monsters.push({
-        id: mId++, x: mx, y: my,
-        emoji: mdef.emoji, name: mdef.name,
-        lvl, hp: mhp, maxHp: mhp,
-        atk: mdef.atk + lvl, def: mdef.def + Math.floor(lvl / 2),
-        biome: bk, alive: true,
-        xpReward: lvl * 10,
-        sousReward: 5 + lvl * 3,
+  // Portals
+  for (const [biome, portals] of Object.entries(PORTALS)) {
+    for (const p of portals) {
+      const zone = biomeZones.find(z => z.id === biome)!;
+      let px = zone.cx, py = zone.cy;
+      if (p.side === "N") py = zone.cy - 30;
+      if (p.side === "S") py = zone.cy + 30;
+      if (p.side === "E") px = zone.cx + 30;
+      if (p.side === "W") px = zone.cx - 30;
+      px = Math.max(2, Math.min(MAP_W - 3, px));
+      py = Math.max(2, Math.min(MAP_H - 3, py));
+      map[py][px] = { biome, type: "portal", portalTo: p.target };
+    }
+  }
+
+  // NPCs
+  for (const npc of NPCS) {
+    const zone = biomeZones.find(z => z.id === npc.biome)!;
+    let nx = zone.cx + Math.floor(rng() * 20 - 10);
+    let ny = zone.cy + Math.floor(rng() * 20 - 10);
+    nx = Math.max(2, Math.min(MAP_W - 3, nx));
+    ny = Math.max(2, Math.min(MAP_H - 3, ny));
+    map[ny][nx] = { biome: npc.biome, type: "npc", npcId: npc.id };
+  }
+
+  // Fortress (boss rooms)
+  for (const [biome, pos] of Object.entries(FORTRESS_POS)) {
+    const fx = Math.max(2, Math.min(MAP_W - 3, pos.x));
+    const fy = Math.max(2, Math.min(MAP_H - 3, pos.y));
+    map[fy][fx] = { biome, type: "fortress" };
+  }
+
+  // Home (center garrigue)
+  map[35][35] = { biome: "garrigue", type: "home" };
+
+  // Borders = blocks
+  for (let i = 0; i < MAP_W; i++) { map[0][i].type = "block"; map[MAP_H-1][i].type = "block"; }
+  for (let i = 0; i < MAP_H; i++) { map[i][0].type = "block"; map[i][MAP_W-1].type = "block"; }
+
+  return map;
+}
+
+// ═══════════════════════════════════════════════════════
+// SPAWN MOBS
+// ═══════════════════════════════════════════════════════
+function spawnMobs(map: MapTile[][], seed: number): Mob[] {
+  const rng = mkRng(seed + 7777);
+  const mobs: Mob[] = [];
+  let mid = 0;
+  for (let y = 5; y < MAP_H - 5; y += 4) {
+    for (let x = 5; x < MAP_W - 5; x += 4) {
+      if (rng() > 0.15) continue;
+      const tile = map[y][x];
+      if (tile.type !== "ground" && tile.type !== "path") continue;
+      const pool = MONSTERS[tile.biome];
+      if (!pool || pool.length === 0) continue;
+      const m = pool[Math.floor(rng() * pool.length)];
+      mobs.push({
+        id: `m${mid++}`, mId: m.id, x: x * TILE_PX, y: y * TILE_PX,
+        hp: m.hp, maxHp: m.hp, atk: m.atk, lv: m.lv, drops: m.drops,
+        sous: m.sous, emoji: m.emoji, name: m.name, dir: rng() * Math.PI * 2, moveT: 0,
       });
     }
   }
+  return mobs;
+}
 
-  // Generate resources
-  const resources: ResourceNode[] = [];
-  let rId = 0;
-  for (const bk of biomeKeys) {
-    const b = BIOMES[bk];
-    const clusterCount = 5 + Math.floor(rng() * 4); // 5-8
-    for (let c = 0; c < clusterCount; c++) {
-      const angle = rng() * Math.PI * 2;
-      const dist = 5 + rng() * (b.radius - 8);
-      const cx2 = Math.round(b.cx + Math.cos(angle) * dist);
-      const cy2 = Math.round(b.cy + Math.sin(angle) * dist);
-      const rdef = b.resources[Math.floor(rng() * b.resources.length)];
-      const nodeCount = 5 + Math.floor(rng() * 4);
-      for (let n = 0; n < nodeCount; n++) {
-        const nx = cx2 + Math.round((rng() - 0.5) * 6);
-        const ny = cy2 + Math.round((rng() - 0.5) * 6);
-        if (nx < 0 || nx >= WORLD_W || ny < 0 || ny >= WORLD_H) continue;
-        if (tiles[ny][nx] === "tree" || tiles[ny][nx] === "rock" || tiles[ny][nx] === "water"
-          || tiles[ny][nx] === "camp") continue;
-        resources.push({
-          id: rId++, x: nx, y: ny,
-          type: rdef.type, emoji: rdef.emoji,
-          hp: 3, maxHp: 3,
-          biome: bk, alive: true,
-        });
-      }
+// ═══════════════════════════════════════════════════════
+// PUYO GRID HELPERS
+// ═══════════════════════════════════════════════════════
+const PUYO_W = 6, PUYO_H = 8;
+
+function mkGrid(): PuyoGem[][] {
+  const g: PuyoGem[][] = [];
+  for (let y = 0; y < PUYO_H; y++) {
+    g[y] = [];
+    for (let x = 0; x < PUYO_W; x++) {
+      g[y][x] = { color: Math.floor(Math.random() * 5), x, y };
     }
   }
-
-  // Generate NPCs
-  const npcs: NPC[] = [];
-  let nId = 0;
-  for (const vl of villageLocs) {
-    const biome = getBiomeAt(vl.x, vl.y);
-    npcs.push({
-      id: nId++, x: vl.x, y: vl.y - 1,
-      emoji: "\uD83D\uDC71", name: "Marchand",
-      type: "shop", biome,
-    });
-    npcs.push({
-      id: nId++, x: vl.x + 1, y: vl.y,
-      emoji: "\uD83E\uDDD9", name: "Ancien",
-      type: "quest", biome,
-    });
-  }
-  // Camp NPC
-  npcs.push({
-    id: nId++, x: 76, y: 75,
-    emoji: "\uD83C\uDFD5\uFE0F", name: "Feu de camp",
-    type: "info", biome: "garrigue",
-  });
-
-  return { tiles, biomeMap, monsters, resources, npcs, fortressLocs, villageLocs };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TILE COLORS
-// ═══════════════════════════════════════════════════════════════
-function getTileColor(tile: TileType, biome: BiomeId): string {
-  const b = BIOMES[biome];
-  switch (tile) {
-    case "grass": return b.grassColor;
-    case "tall_grass": return b.accentColor;
-    case "path": return b.pathColor;
-    case "tree": return b.treeColor;
-    case "rock": return b.rockColor;
-    case "water": return b.waterColor;
-    case "village": return "#D4A574";
-    case "gate": return "#FFD700";
-    case "fortress": return "#8B0000";
-    case "camp": return "#F4A460";
-    case "sand": return "#E8D5A3";
-    case "dark_ground": return "#3A2A1A";
-    case "stone_floor": return "#A09080";
-    case "arena": return "#CC4444";
-    default: return b.grassColor;
-  }
-}
-
-function getTileEmoji(tile: TileType): string | null {
-  switch (tile) {
-    case "tree": return "\uD83C\uDF33";
-    case "rock": return "\uD83E\uDEA8";
-    case "village": return "\uD83C\uDFE0";
-    case "gate": return "\uD83D\uDEAA";
-    case "fortress": return "\uD83C\uDFF0";
-    case "camp": return "\uD83D\uDD25";
-    case "arena": return "\u2694\uFE0F";
-    case "tall_grass": return "\uD83C\uDF3E";
-    default: return null;
-  }
-}
-
-function isBlocked(tile: TileType): boolean {
-  return tile === "tree" || tile === "rock" || tile === "water";
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PUYO COMBAT ENGINE (inline)
-// ═══════════════════════════════════════════════════════════════
-const PUYO_COLS = 6;
-const PUYO_ROWS = 12;
-
-function createEmptyGrid(): GemCell[][] {
-  return Array.from({ length: PUYO_ROWS }, () => Array(PUYO_COLS).fill(null));
-}
-
-function cloneGrid(g: GemCell[][]): GemCell[][] {
-  return g.map(r => [...r]);
-}
-
-function applyGravity(grid: GemCell[][]): GemCell[][] {
-  const g = cloneGrid(grid);
-  for (let c = 0; c < PUYO_COLS; c++) {
-    const col: GemCell[] = [];
-    for (let r = PUYO_ROWS - 1; r >= 0; r--) {
-      if (g[r][c] !== null) col.push(g[r][c]);
-    }
-    for (let r = PUYO_ROWS - 1; r >= 0; r--) {
-      g[r][c] = col.length > 0 ? col.shift()! : null;
+  // Remove initial matches
+  for (let pass = 0; pass < 5; pass++) {
+    for (let y = 0; y < PUYO_H; y++) for (let x = 0; x < PUYO_W; x++) {
+      if (x >= 2 && g[y][x].color === g[y][x-1].color && g[y][x].color === g[y][x-2].color)
+        g[y][x].color = (g[y][x].color + 1) % 5;
+      if (y >= 2 && g[y][x].color === g[y-1][x].color && g[y][x].color === g[y-2][x].color)
+        g[y][x].color = (g[y][x].color + 1) % 5;
     }
   }
   return g;
 }
 
-function findMatches(grid: GemCell[][]): Set<string> {
+function findMatches(grid: PuyoGem[][]): Set<string> {
   const matched = new Set<string>();
-  const visited = new Set<string>();
-
-  function flood(r: number, c: number, color: number, group: string[]) {
-    const key = `${r},${c}`;
-    if (visited.has(key)) return;
-    if (r < 0 || r >= PUYO_ROWS || c < 0 || c >= PUYO_COLS) return;
-    if (grid[r][c] !== color) return;
-    visited.add(key);
-    group.push(key);
-    flood(r - 1, c, color, group);
-    flood(r + 1, c, color, group);
-    flood(r, c - 1, color, group);
-    flood(r, c + 1, color, group);
-  }
-
-  for (let r = 0; r < PUYO_ROWS; r++) {
-    for (let c = 0; c < PUYO_COLS; c++) {
-      if (grid[r][c] === null) continue;
-      const key = `${r},${c}`;
-      if (visited.has(key)) continue;
-      const group: string[] = [];
-      flood(r, c, grid[r][c]!, group);
-      if (group.length >= 4) {
-        group.forEach(k => matched.add(k));
-      }
+  for (let y = 0; y < PUYO_H; y++) for (let x = 0; x < PUYO_W; x++) {
+    if (x + 2 < PUYO_W && grid[y][x].color === grid[y][x+1].color && grid[y][x].color === grid[y][x+2].color) {
+      matched.add(`${x},${y}`); matched.add(`${x+1},${y}`); matched.add(`${x+2},${y}`);
+    }
+    if (y + 2 < PUYO_H && grid[y][x].color === grid[y+1][x].color && grid[y][x].color === grid[y+2][x].color) {
+      matched.add(`${x},${y}`); matched.add(`${x},${y+1}`); matched.add(`${x},${y+2}`);
     }
   }
   return matched;
 }
 
-function resolveChains(grid: GemCell[][]): { grid: GemCell[][]; totalCleared: number; chains: number } {
-  let g = cloneGrid(grid);
-  let totalCleared = 0;
-  let chains = 0;
-  let loopGuard = 0;
-
-  while (loopGuard < 20) {
-    loopGuard++;
-    g = applyGravity(g);
-    const matches = findMatches(g);
-    if (matches.size === 0) break;
-    chains++;
-    totalCleared += matches.size;
-    for (const key of matches) {
-      const [r, c] = key.split(",").map(Number);
-      g[r][c] = null;
+function applyGravity(grid: PuyoGem[][]): PuyoGem[][] {
+  const ng: PuyoGem[][] = Array.from({length: PUYO_H}, (_, y) => Array.from({length: PUYO_W}, (_, x) => ({color: -1, x, y})));
+  for (let x = 0; x < PUYO_W; x++) {
+    let wy = PUYO_H - 1;
+    for (let y = PUYO_H - 1; y >= 0; y--) {
+      if (grid[y][x].color >= 0) { ng[wy][x].color = grid[y][x].color; wy--; }
     }
+    for (let y = wy; y >= 0; y--) ng[y][x].color = Math.floor(Math.random() * 5);
   }
-  return { grid: g, totalCleared, chains };
+  return ng;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// GAME COMPONENT (inner, uses searchParams)
-// ═══════════════════════════════════════════════════════════════
+function swapGems(grid: PuyoGem[][], a: Pos, b: Pos): PuyoGem[][] {
+  const ng = grid.map(row => row.map(g => ({...g})));
+  const tmp = ng[a.y][a.x].color;
+  ng[a.y][a.x].color = ng[b.y][b.x].color;
+  ng[b.y][b.x].color = tmp;
+  return ng;
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN GAME COMPONENT
+// ═══════════════════════════════════════════════════════
+export default function GamePageWrapper() {
+  return <Suspense fallback={<div style={{position:"fixed",inset:0,background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#DAA520",fontSize:18}}>Chargement...</div>}><GameInner /></Suspense>;
+}
+
 function GameInner() {
   const params = useSearchParams();
-  const playerName = params.get("player") || "Aventurier";
-  const classId = (params.get("class") || "paladin") as keyof typeof CLASSES;
-  const sessionId = params.get("session") || "default";
-  const playerClass: PlayerClass = CLASSES[classId] || CLASSES.paladin;
+  const router = useRouter();
+  const playerName = params.get("player") || "Héros";
+  const playerClassId = params.get("class") || "paladin";
+  const sessionId = params.get("session") || "";
+  const playerClass = CLASSES[playerClassId] || CLASSES.paladin;
 
-  // ─── Core state ───
-  const [pos, setPos] = useState({ x: 75 * TILE, y: 75 * TILE });
-  const [hp, setHp] = useState(playerClass.startHp);
-  const [maxHp, setMaxHp] = useState(playerClass.startHp);
-  const [lvl, setLvl] = useState(1);
+  // ─── STATE ───
+  const [seed] = useState(() => Date.now());
+  const mapRef = useRef<MapTile[][]|null>(null);
+  const mobsRef = useRef<Mob[]>([]);
+  const [px, setPx] = useState(35 * TILE_PX);
+  const [py, setPy] = useState(35 * TILE_PX);
+  const [bag, setBag] = useState<Record<string, number>>({});
+  const [bagSize] = useState(BAG_SIZES[0]);
+  const [hp, setHp] = useState(playerClass.hp);
+  const [maxHp] = useState(playerClass.hp);
+  const [sous, setSous] = useState(playerClass.sous);
+  const [lv, setLv] = useState(1);
   const [xp, setXp] = useState(0);
-  const [xpNext, setXpNext] = useState(50);
-  const [sous, setSous] = useState(playerClass.startSous);
-  const [inventory, setInventory] = useState<InvItem[]>([]);
-  const [bagSize] = useState(8);
-  const [currentBiome, setCurrentBiome] = useState<BiomeId>("garrigue");
-  const [inHome, setInHome] = useState(classId === "artisane");
-  const [phase, setPhase] = useState<GamePhase>(classId === "artisane" ? "home" : "world");
-  const [timeOfDay, setTimeOfDay] = useState(0.3); // 0-1, 0.25=dawn, 0.5=noon, 0.75=dusk, 0=midnight
-  const [dayCount, setDayCount] = useState(1);
+  const [stats, setStats] = useState({...playerClass.baseStats});
+  const [equip, setEquip] = useState<Record<string, string>>({});
+  const [spells, setSpells] = useState<string[]>([]);
+  const [gameTime, setGameTime] = useState(0);
+  const [dayPhase, setDayPhase] = useState<"day"|"dusk"|"night"|"dawn">("day");
+  const [combat, setCombat] = useState<CombatState|null>(null);
+  const [panel, setPanel] = useState<"none"|"bag"|"craft"|"npc"|"shop"|"story"|"map"|"menu">("none");
+  const [npcDialog, setNpcDialog] = useState<{name:string;emoji:string;text:string;quest?:string}|null>(null);
+  const [storyText, setStoryText] = useState<string[]>([]);
+  const [storyIdx, setStoryIdx] = useState(0);
+  const [floats, setFloats] = useState<FloatMsg[]>([]);
+  const [volume, setVolume] = useState(1);
+  const [showMinimap, setShowMinimap] = useState(true);
 
-  // ─── Movement ───
-  const joystickRef = useRef({ dx: 0, dy: 0 });
-  const touchIdRef = useRef<number | null>(null);
-  const joystickCenterRef = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [vpSize, setVpSize] = useState({ w: 800, h: 600 });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const joystickRef = useRef<{active:boolean;dx:number;dy:number;tid:number|null}>({active:false,dx:0,dy:0,tid:null});
+  const keysRef = useRef<Set<string>>(new Set());
+  const frameRef = useRef(0);
+  const lastTRef = useRef(0);
+  const floatIdRef = useRef(0);
 
-  // ─── World data ───
-  const worldData = useMemo(() => {
-    const seed = hashStr(sessionId);
-    return generateWorld(seed);
-  }, [sessionId]);
-
-  const [monsters, setMonsters] = useState<Monster[]>(worldData.monsters);
-  const [resources, setResources] = useState<ResourceNode[]>(worldData.resources);
-
-  // ─── Combat state ───
-  const [combatMonster, setCombatMonster] = useState<Monster | null>(null);
-  const [playerGrid, setPlayerGrid] = useState<GemCell[][]>(createEmptyGrid());
-  const [enemyGrid, setEnemyGrid] = useState<GemCell[][]>(createEmptyGrid());
-  const [fallingPair, setFallingPair] = useState<{ c1: number; c2: number; col: number; row: number; rot: number } | null>(null);
-  const [combatLog, setCombatLog] = useState<string[]>([]);
-  const [playerCombatHp, setPlayerCombatHp] = useState(0);
-  const [enemyCombatHp, setEnemyCombatHp] = useState(0);
-  const [combatTurn, setCombatTurn] = useState(0);
-  const combatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ─── UI state ───
-  const [showInventory, setShowInventory] = useState(false);
-  const [showMinimap, setShowMinimap] = useState(false);
-  const [notification, setNotification] = useState("");
-  const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [volIcon, setVolIcon] = useState("\uD83D\uDD0A");
-
-  // ─── Stats ───
-  const stats = useMemo(() => {
-    const base = playerClass.baseStats;
-    const lvlBonus = lvl - 1;
-    return {
-      atk: base.atk + lvlBonus,
-      def: base.def + Math.floor(lvlBonus / 2),
-      mag: base.mag + Math.floor(lvlBonus / 2),
-      vit: base.vit + Math.floor(lvlBonus / 3),
-    };
-  }, [playerClass, lvl]);
-
-  // ─── Notify ───
-  const notify = useCallback((msg: string) => {
-    setNotification(msg);
-    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-    notifTimerRef.current = setTimeout(() => setNotification(""), 3000);
-  }, []);
-
-  // ─── Initialize sounds ───
+  // ─── INIT MAP ───
   useEffect(() => {
+    if (!mapRef.current) {
+      mapRef.current = genMap(seed);
+      mobsRef.current = spawnMobs(mapRef.current, seed);
+    }
     sounds.init();
-  }, []);
+    // Show intro story
+    setStoryText(STORY.intro);
+    setPanel("story");
+    setStoryIdx(0);
+  }, [seed]);
 
-  // ─── Viewport resize ───
+  // ─── DAY/NIGHT CYCLE ───
   useEffect(() => {
-    const update = () => {
-      setVpSize({ w: window.innerWidth, h: window.innerHeight });
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  // ─── Day/night cycle ───
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeOfDay(t => {
-        const next = t + 0.0002;
-        if (next >= 1) {
-          setDayCount(d => d + 1);
-          return 0;
-        }
-        return next;
+    const iv = setInterval(() => {
+      setGameTime(t => {
+        const nt = t + 1;
+        const cycle = nt % 600; // 10 min cycle
+        if (cycle < 300) setDayPhase("day");
+        else if (cycle < 375) setDayPhase("dusk");
+        else if (cycle < 525) setDayPhase("night");
+        else setDayPhase("dawn");
+        return nt;
       });
-    }, 100);
-    return () => clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(iv);
   }, []);
 
-  // ─── XP / Level up ───
+  // ─── KEYBOARD ───
+  useEffect(() => {
+    const kd = (e: KeyboardEvent) => { keysRef.current.add(e.key.toLowerCase()); e.preventDefault(); };
+    const ku = (e: KeyboardEvent) => keysRef.current.delete(e.key.toLowerCase());
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+    return () => { window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku); };
+  }, []);
+
+  // ─── HELPERS ───
+  const addFloat = useCallback((x: number, y: number, text: string, color: string) => {
+    const id = floatIdRef.current++;
+    setFloats(f => [...f, {id, x, y, text, color, t: Date.now()}]);
+    setTimeout(() => setFloats(f => f.filter(m => m.id !== id)), 1000);
+  }, []);
+
+  const addToBag = useCallback((item: string, qty = 1) => {
+    setBag(b => {
+      const total = Object.values(b).reduce((s, v) => s + v, 0);
+      if (total >= bagSize) return b;
+      return {...b, [item]: (b[item] || 0) + qty};
+    });
+  }, [bagSize]);
+
   const gainXp = useCallback((amount: number) => {
     setXp(prev => {
       const next = prev + amount;
-      if (next >= xpNext) {
-        setLvl(l => l + 1);
-        setMaxHp(mh => mh + 3);
-        setHp(h => h + 3);
-        setXpNext(xn => Math.floor(xn * 1.5));
-        sounds.levelUp();
-        notify(`Niveau ${lvl + 1} !`);
-        return next - xpNext;
+      const need = lv * 20;
+      if (next >= need) {
+        setLv(l => l + 1);
+        setHp(h => Math.min(h + 5, maxHp + lv * 5));
+        setStats(s => ({...s, atk: s.atk + 1, def: s.def + (Math.random() < 0.5 ? 1 : 0)}));
+        sounds.lvlUp();
+        addFloat(px, py, `Niveau ${lv + 1}!`, "#FFD700");
+        return next - need;
       }
       return next;
     });
-  }, [xpNext, lvl, notify]);
+  }, [lv, maxHp, px, py, addFloat]);
 
-  // ═══════════════════════════════════════════════════════════
-  // GAME LOOP — pixel movement
-  // ═══════════════════════════════════════════════════════════
+  // ─── GET CURRENT BIOME ───
+  const currentBiome = useMemo(() => {
+    if (!mapRef.current) return "garrigue";
+    const tx = Math.floor(px / TILE_PX);
+    const ty = Math.floor(py / TILE_PX);
+    if (tx >= 0 && tx < MAP_W && ty >= 0 && ty < MAP_H) return mapRef.current[ty][tx].biome;
+    return "garrigue";
+  }, [px, py]);
+
+  // ─── MUSIC ───
   useEffect(() => {
-    if (phase !== "world") return;
+    if (combat) { sounds.playMusic("combat"); return; }
+    const b = BIOMES[currentBiome];
+    if (b) sounds.playMusic(b.music);
+  }, [currentBiome, combat]);
 
-    let animId: number;
-    let lastTime = 0;
-    let stepAccum = 0;
+  // ─── MAIN GAME LOOP ───
+  useEffect(() => {
+    if (combat || panel !== "none") return;
+    const map = mapRef.current;
+    if (!map) return;
 
-    const loop = (timestamp: number) => {
-      if (!lastTime) lastTime = timestamp;
-      const delta = timestamp - lastTime;
-      lastTime = timestamp;
+    let running = true;
+    const loop = (time: number) => {
+      if (!running) return;
+      const dt = lastTRef.current ? (time - lastTRef.current) / 1000 : 0.016;
+      lastTRef.current = time;
 
-      const { dx, dy } = joystickRef.current;
-      if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
-        const speed = BASE_SPEED * playerClass.speedMult;
-        const frames = delta / FRAME_MS;
-        const moveX = dx * speed * frames;
-        const moveY = dy * speed * frames;
+      // Player movement
+      let dx = 0, dy = 0;
+      const spd = playerClass.speed * 120 * dt;
+      const keys = keysRef.current;
+      if (keys.has("arrowleft") || keys.has("a") || keys.has("q")) dx -= 1;
+      if (keys.has("arrowright") || keys.has("d")) dx += 1;
+      if (keys.has("arrowup") || keys.has("z") || keys.has("w")) dy -= 1;
+      if (keys.has("arrowdown") || keys.has("s")) dy += 1;
 
-        setPos(prev => {
-          let nx = prev.x + moveX;
-          let ny = prev.y + moveY;
+      // Joystick
+      const joy = joystickRef.current;
+      if (joy.active) { dx += joy.dx; dy += joy.dy; }
 
-          // Clamp to world bounds
-          nx = Math.max(PLAYER_HITBOX / 2, Math.min(WORLD_W * TILE - PLAYER_HITBOX / 2, nx));
-          ny = Math.max(PLAYER_HITBOX / 2, Math.min(WORLD_H * TILE - PLAYER_HITBOX / 2, ny));
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.sqrt(dx * dx + dy * dy);
+        dx = (dx / len) * spd;
+        dy = (dy / len) * spd;
 
-          // Collision check: check 4 corners of hitbox
-          const halfHB = PLAYER_HITBOX / 2;
-          const corners = [
-            { cx: nx - halfHB, cy: ny - halfHB },
-            { cx: nx + halfHB, cy: ny - halfHB },
-            { cx: nx - halfHB, cy: ny + halfHB },
-            { cx: nx + halfHB, cy: ny + halfHB },
-          ];
+        const nx = px + dx, ny = py + dy;
+        const tx = Math.floor(nx / TILE_PX), ty = Math.floor(ny / TILE_PX);
+        if (tx >= 0 && tx < MAP_W && ty >= 0 && ty < MAP_H) {
+          const tile = map[ty][tx];
+          if (tile.type !== "block" && tile.type !== "water") {
+            setPx(nx); setPy(ny);
+            if (frameRef.current % 12 === 0) sounds.step();
 
-          for (const corner of corners) {
-            const tx = Math.floor(corner.cx / TILE);
-            const ty = Math.floor(corner.cy / TILE);
-            if (tx < 0 || tx >= WORLD_W || ty < 0 || ty >= WORLD_H) {
-              return prev; // out of bounds
+            // Check tile interactions
+            if (tile.type === "resource" && tile.resId && tile.resHp && tile.resHp > 0) {
+              if (frameRef.current % 20 === 0) {
+                tile.resHp -= playerClass.harvestTap;
+                if (tile.resHp <= 0) {
+                  addToBag(tile.resId);
+                  sounds.harvest();
+                  addFloat(nx, ny - 20, `+1 ${RES[tile.resId]?.emoji || ""}`, "#4CAF50");
+                  tile.type = "ground";
+                  tile.resId = undefined;
+                }
+              }
             }
-            if (isBlocked(worldData.tiles[ty][tx])) {
-              // Try sliding along axes
-              const txOld = Math.floor((prev.x + (corner.cx - nx)) / TILE);
-              const tyOld = Math.floor((prev.y + (corner.cy - ny)) / TILE);
-              // blocked, revert
-              return prev;
+
+            if (tile.type === "portal" && tile.portalTo) {
+              const target = tile.portalTo;
+              const tz = [{id:"garrigue",cx:37,cy:37},{id:"calanques",cx:112,cy:37},{id:"mines",cx:37,cy:112},{id:"mer",cx:112,cy:112},{id:"restanques",cx:75,cy:75}];
+              const z = tz.find(z => z.id === target);
+              if (z) { setPx(z.cx * TILE_PX); setPy(z.cy * TILE_PX); sounds.open(); addFloat(z.cx * TILE_PX, z.cy * TILE_PX, `→ ${BIOMES[target]?.name}`, "#FFD700"); }
+            }
+
+            if (tile.type === "npc" && tile.npcId) {
+              const npc = NPCS.find(n => n.id === tile.npcId);
+              if (npc && frameRef.current % 60 === 0) {
+                sounds.open();
+                setNpcDialog({name: npc.name, emoji: npc.emoji, text: npc.quest, quest: npc.quest});
+                setPanel("npc");
+              }
+            }
+
+            if (tile.type === "fortress") {
+              const boss = BOSSES[tile.biome];
+              if (boss && frameRef.current % 60 === 0) {
+                startCombat({
+                  id: "boss_" + tile.biome, mId: "boss", x: px, y: py,
+                  hp: boss.hp, maxHp: boss.hp, atk: boss.atk, lv: boss.lv,
+                  drops: [boss.drop], sous: [boss.sous, boss.sous],
+                  emoji: boss.emoji, name: boss.name, dir: 0, moveT: 0, isBoss: true,
+                });
+              }
             }
           }
-
-          // Step sound
-          stepAccum += Math.hypot(moveX, moveY);
-          if (stepAccum > TILE * 0.8) {
-            stepAccum = 0;
-            const ptx = Math.floor(nx / TILE);
-            const pty = Math.floor(ny / TILE);
-            const biome = worldData.biomeMap[pty]?.[ptx] || "garrigue";
-            if (biome === "calanques") sounds.stepSand();
-            else if (biome === "mines" || biome === "restanques") sounds.stepStone();
-            else sounds.stepGrass();
-          }
-
-          return { x: nx, y: ny };
-        });
+        }
       }
 
-      animId = requestAnimationFrame(loop);
-    };
+      // Mob movement + collision
+      const mobs = mobsRef.current;
+      for (const mob of mobs) {
+        if (mob.hp <= 0) continue;
+        mob.moveT += dt;
+        if (mob.moveT > 2) {
+          mob.dir = Math.random() * Math.PI * 2;
+          mob.moveT = 0;
+        }
+        const mx = mob.x + Math.cos(mob.dir) * 30 * dt;
+        const my = mob.y + Math.sin(mob.dir) * 30 * dt;
+        const mtx = Math.floor(mx / TILE_PX), mty = Math.floor(my / TILE_PX);
+        if (mtx > 0 && mtx < MAP_W - 1 && mty > 0 && mty < MAP_H - 1 && map[mty][mtx].type !== "block") {
+          mob.x = mx; mob.y = my;
+        } else { mob.dir += Math.PI; }
 
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [phase, playerClass.speedMult, worldData]);
-
-  // ─── Update current biome ───
-  useEffect(() => {
-    const tx = Math.floor(pos.x / TILE);
-    const ty = Math.floor(pos.y / TILE);
-    if (tx >= 0 && tx < WORLD_W && ty >= 0 && ty < WORLD_H) {
-      const b = worldData.biomeMap[ty][tx];
-      if (b !== currentBiome) {
-        setCurrentBiome(b);
-        sounds.playBiomeMusic(b);
-        notify(`Biome: ${BIOMES[b].name}`);
-      }
-    }
-  }, [pos, currentBiome, worldData, notify]);
-
-  // ─── Monster collision check ───
-  useEffect(() => {
-    if (phase !== "world") return;
-    const checkInterval = setInterval(() => {
-      const px = pos.x, py = pos.y;
-      for (const m of monsters) {
-        if (!m.alive) continue;
-        const mx = m.x * TILE + TILE / 2;
-        const my = m.y * TILE + TILE / 2;
-        const dist = Math.hypot(px - mx, py - my);
-        if (dist < TILE * 1.2) {
-          startCombat(m);
+        // Collision with player
+        const ddx = mob.x - px, ddy = mob.y - py;
+        if (ddx * ddx + ddy * ddy < 900) { // ~30px
+          startCombat(mob);
           break;
         }
       }
-    }, 200);
-    return () => clearInterval(checkInterval);
-  }, [phase, pos, monsters]);
 
-  // ─── Resource interaction ───
-  const tryHarvest = useCallback(() => {
-    const px = pos.x, py = pos.y;
-    for (const r of resources) {
-      if (!r.alive) continue;
-      const rx = r.x * TILE + TILE / 2;
-      const ry = r.y * TILE + TILE / 2;
-      const dist = Math.hypot(px - rx, py - ry);
-      if (dist < TILE * 1.5) {
-        const dmg = playerClass.harvestPerTap;
-        setResources(prev => prev.map(res => {
-          if (res.id !== r.id) return res;
-          const newHp = res.hp - dmg;
-          if (newHp <= 0) {
-            sounds.harvestDone();
-            // Add to inventory
-            setInventory(inv => {
-              const existing = inv.find(i => i.id === r.type);
-              if (existing) {
-                return inv.map(i => i.id === r.type ? { ...i, qty: i.qty + 1 } : i);
-              }
-              if (inv.length < bagSize) {
-                return [...inv, { id: r.type, qty: 1 }];
-              }
-              notify("Sac plein !");
-              return inv;
-            });
-            notify(`+1 ${r.emoji} ${r.type}`);
-            return { ...res, hp: 0, alive: false };
-          }
-          sounds.stepStone();
-          return { ...res, hp: newHp };
-        }));
-        return;
-      }
-    }
-  }, [pos, resources, playerClass.harvestPerTap, bagSize, notify]);
-
-  // ─── Tile interaction (camp, village, gate, etc) ───
-  const interactTile = useCallback(() => {
-    const tx = Math.floor(pos.x / TILE);
-    const ty = Math.floor(pos.y / TILE);
-    if (tx < 0 || tx >= WORLD_W || ty < 0 || ty >= WORLD_H) return;
-    const tile = worldData.tiles[ty][tx];
-
-    if (tile === "camp") {
-      setHp(maxHp);
-      notify("Repos au camp ! PV restaures.");
-      sounds.uiOpen();
-    } else if (tile === "village") {
-      notify("Village ! Parlez aux PNJ.");
-      sounds.uiOpen();
-    } else if (tile === "gate") {
-      notify("Porte de biome !");
-      sounds.unlock();
-    } else if (tile === "arena") {
-      notify("Arene PvP ! (bientot)");
-      sounds.locked();
-    } else {
-      tryHarvest();
-    }
-  }, [pos, worldData, maxHp, notify, tryHarvest]);
-
-  // ═══════════════════════════════════════════════════════════
-  // COMBAT
-  // ═══════════════════════════════════════════════════════════
-  const startCombat = useCallback((monster: Monster) => {
-    if (phase !== "world") return;
-    sounds.enemyAlert();
-    setPhase("combat");
-    setCombatMonster(monster);
-    setPlayerGrid(createEmptyGrid());
-    setEnemyGrid(createEmptyGrid());
-    setPlayerCombatHp(hp);
-    setEnemyCombatHp(monster.hp);
-    setCombatLog([`Combat contre ${monster.emoji} ${monster.name} Nv.${monster.lvl} !`]);
-    setCombatTurn(0);
-
-    // Spawn first falling pair
-    spawnNewPair();
-  }, [phase, hp]);
-
-  const spawnNewPair = useCallback(() => {
-    setFallingPair({
-      c1: Math.floor(Math.random() * 6),
-      c2: Math.floor(Math.random() * 6),
-      col: 2, row: 0, rot: 0,
-    });
-  }, []);
-
-  // ─── Puyo controls ───
-  const movePuyo = useCallback((dir: "left" | "right" | "rotate" | "drop") => {
-    if (!fallingPair || phase !== "combat") return;
-
-    setFallingPair(prev => {
-      if (!prev) return null;
-      const p = { ...prev };
-
-      // Get second gem position based on rotation
-      const getSecondPos = (rot: number) => {
-        switch (rot % 4) {
-          case 0: return { dr: -1, dc: 0 }; // above
-          case 1: return { dr: 0, dc: 1 };  // right
-          case 2: return { dr: 1, dc: 0 };  // below
-          case 3: return { dr: 0, dc: -1 }; // left
-          default: return { dr: -1, dc: 0 };
-        }
-      };
-
-      if (dir === "left") {
-        const newCol = p.col - 1;
-        const s = getSecondPos(p.rot);
-        const sc = newCol + s.dc;
-        if (newCol >= 0 && sc >= 0 && newCol < PUYO_COLS && sc < PUYO_COLS) {
-          p.col = newCol;
-        }
-      } else if (dir === "right") {
-        const newCol = p.col + 1;
-        const s = getSecondPos(p.rot);
-        const sc = newCol + s.dc;
-        if (newCol < PUYO_COLS && sc < PUYO_COLS && sc >= 0) {
-          p.col = newCol;
-        }
-      } else if (dir === "rotate") {
-        const newRot = (p.rot + 1) % 4;
-        const s = getSecondPos(newRot);
-        const sc = p.col + s.dc;
-        const sr = p.row + s.dr;
-        if (sc >= 0 && sc < PUYO_COLS && sr >= 0 && sr < PUYO_ROWS) {
-          p.rot = newRot;
-        }
-      } else if (dir === "drop") {
-        // Hard drop
-        const s = getSecondPos(p.rot);
-        let maxDrop = PUYO_ROWS;
-        // Find lowest position
-        for (let r = p.row; r < PUYO_ROWS; r++) {
-          const sr = r + s.dr;
-          if (r >= PUYO_ROWS || sr >= PUYO_ROWS || sr < 0) { maxDrop = r - 1; break; }
-          if (playerGrid[r][p.col] !== null) { maxDrop = r - 1; break; }
-          if (playerGrid[sr]?.[p.col + s.dc] !== null) { maxDrop = r - 1; break; }
-          maxDrop = r;
-        }
-        p.row = Math.max(0, maxDrop);
-      }
-      return p;
-    });
-  }, [fallingPair, phase, playerGrid]);
-
-  // ─── Puyo fall tick ───
-  useEffect(() => {
-    if (phase !== "combat" || !fallingPair) return;
-
-    const getSecondPos = (rot: number) => {
-      switch (rot % 4) {
-        case 0: return { dr: -1, dc: 0 };
-        case 1: return { dr: 0, dc: 1 };
-        case 2: return { dr: 1, dc: 0 };
-        case 3: return { dr: 0, dc: -1 };
-        default: return { dr: -1, dc: 0 };
-      }
+      frameRef.current++;
+      draw();
+      if (running) requestAnimationFrame(loop);
     };
 
-    const tick = setInterval(() => {
-      setFallingPair(prev => {
-        if (!prev) return null;
-        const nextRow = prev.row + 1;
-        const s = getSecondPos(prev.rot);
-        const sr = nextRow + s.dr;
-        const sc = prev.col + s.dc;
+    requestAnimationFrame(loop);
+    return () => { running = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combat, panel, px, py, playerClass]);
 
-        // Check if can fall further
-        const blocked =
-          nextRow >= PUYO_ROWS ||
-          sr >= PUYO_ROWS ||
-          (playerGrid[nextRow]?.[prev.col] !== null) ||
-          (sr >= 0 && playerGrid[sr]?.[sc] !== null);
+  // ─── DRAW ───
+  const draw = useCallback(() => {
+    const cvs = canvasRef.current;
+    if (!cvs || !mapRef.current) return;
+    const ctx = cvs.getContext("2d");
+    if (!ctx) return;
+    const W = cvs.width, H = cvs.height;
+    ctx.clearRect(0, 0, W, H);
 
-        if (blocked) {
-          // Place gems
-          const newGrid = cloneGrid(playerGrid);
-          if (prev.row >= 0 && prev.row < PUYO_ROWS) {
-            newGrid[prev.row][prev.col] = prev.c1;
-          }
-          const s2r = prev.row + s.dr;
-          const s2c = prev.col + s.dc;
-          if (s2r >= 0 && s2r < PUYO_ROWS && s2c >= 0 && s2c < PUYO_COLS) {
-            newGrid[s2r][s2c] = prev.c2;
-          }
+    const map = mapRef.current;
+    const camX = px - W / 2, camY = py - H / 2;
+    const startTX = Math.max(0, Math.floor(camX / TILE_PX) - 1);
+    const startTY = Math.max(0, Math.floor(camY / TILE_PX) - 1);
+    const endTX = Math.min(MAP_W, Math.ceil((camX + W) / TILE_PX) + 1);
+    const endTY = Math.min(MAP_H, Math.ceil((camY + H) / TILE_PX) + 1);
 
-          // Resolve chains
-          const result = resolveChains(newGrid);
-          setPlayerGrid(result.grid);
+    // Draw tiles
+    for (let ty = startTY; ty < endTY; ty++) {
+      for (let tx = startTX; tx < endTX; tx++) {
+        const tile = map[ty][tx];
+        const biome = BIOMES[tile.biome] || BIOMES.garrigue;
+        const sx = tx * TILE_PX - camX, sy = ty * TILE_PX - camY;
 
-          if (result.totalCleared > 0) {
-            sounds.gemMatch(result.chains);
-            const damage = Math.floor(result.totalCleared * result.chains * playerClass.combatBonus * (1 + stats.atk * 0.1));
-            setEnemyCombatHp(ehp => {
-              const newEhp = Math.max(0, ehp - damage);
-              setCombatLog(log => [...log.slice(-5), `Combo x${result.chains} ! ${damage} degats !`]);
-              if (newEhp <= 0) {
-                // Victory
-                setTimeout(() => endCombatVictory(), 500);
-              }
-              return newEhp;
-            });
+        switch (tile.type) {
+          case "ground": ctx.fillStyle = (tx + ty) % 2 === 0 ? biome.colors.ground : biome.colors.alt; break;
+          case "path": ctx.fillStyle = biome.colors.path; break;
+          case "block": ctx.fillStyle = biome.colors.block; break;
+          case "water": ctx.fillStyle = "#2471A3"; break;
+          default: ctx.fillStyle = biome.colors.ground;
+        }
+        ctx.fillRect(sx, sy, TILE_PX, TILE_PX);
 
-            // Enemy sends garbage
-            if (result.chains >= 2) {
-              setCombatLog(log => [...log.slice(-5), `Chain x${result.chains} !`]);
+        // Draw special tiles
+        if (tile.type === "resource" && tile.resId) {
+          ctx.font = "20px serif";
+          ctx.textAlign = "center";
+          ctx.fillText(RES[tile.resId]?.emoji || "?", sx + TILE_PX / 2, sy + TILE_PX / 2 + 6);
+        }
+        if (tile.type === "portal") {
+          ctx.font = "22px serif";
+          ctx.textAlign = "center";
+          ctx.fillText("🌀", sx + TILE_PX / 2, sy + TILE_PX / 2 + 7);
+        }
+        if (tile.type === "npc" && tile.npcId) {
+          const npc = NPCS.find(n => n.id === tile.npcId);
+          ctx.font = "22px serif";
+          ctx.textAlign = "center";
+          ctx.fillText(npc?.emoji || "❓", sx + TILE_PX / 2, sy + TILE_PX / 2 + 7);
+        }
+        if (tile.type === "fortress") {
+          ctx.font = "22px serif";
+          ctx.textAlign = "center";
+          ctx.fillText("🏰", sx + TILE_PX / 2, sy + TILE_PX / 2 + 7);
+        }
+        if (tile.type === "home") {
+          ctx.font = "22px serif";
+          ctx.textAlign = "center";
+          ctx.fillText("🏠", sx + TILE_PX / 2, sy + TILE_PX / 2 + 7);
+        }
+      }
+    }
+
+    // Draw mobs
+    for (const mob of mobsRef.current) {
+      if (mob.hp <= 0) continue;
+      const mx = mob.x - camX, my = mob.y - camY;
+      if (mx < -40 || mx > W + 40 || my < -40 || my > H + 40) continue;
+      ctx.font = "24px serif";
+      ctx.textAlign = "center";
+      ctx.fillText(mob.emoji, mx, my + 8);
+      // HP bar
+      const hpRatio = mob.hp / mob.maxHp;
+      ctx.fillStyle = "#333";
+      ctx.fillRect(mx - 14, my - 18, 28, 4);
+      ctx.fillStyle = hpRatio > 0.5 ? "#4CAF50" : hpRatio > 0.25 ? "#FF9800" : "#F44336";
+      ctx.fillRect(mx - 14, my - 18, 28 * hpRatio, 4);
+    }
+
+    // Draw player
+    const ppx = W / 2, ppy = H / 2;
+    ctx.font = "28px serif";
+    ctx.textAlign = "center";
+    ctx.fillText(playerClass.emoji, ppx, ppy + 8);
+    // Player name
+    ctx.font = "bold 11px sans-serif";
+    ctx.fillStyle = "#FFF";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeText(playerName, ppx, ppy - 18);
+    ctx.fillText(playerName, ppx, ppy - 18);
+
+    // Night overlay
+    if (dayPhase === "night") {
+      ctx.fillStyle = "rgba(0,0,30,0.4)";
+      ctx.fillRect(0, 0, W, H);
+    } else if (dayPhase === "dusk" || dayPhase === "dawn") {
+      ctx.fillStyle = "rgba(0,0,30,0.2)";
+      ctx.fillRect(0, 0, W, H);
+    }
+  }, [px, py, dayPhase, playerClass, playerName]);
+
+  // ─── START COMBAT ───
+  const startCombat = useCallback((mob: Mob) => {
+    if (combat) return;
+    sounds.hit();
+    setCombat({
+      enemy: mob,
+      grid: mkGrid(),
+      playerHp: hp,
+      enemyHp: mob.hp,
+      turn: 0,
+      combo: 0,
+      msg: `${mob.emoji} ${mob.name} apparaît !`,
+      phase: "play",
+      selected: null,
+      animating: false,
+    });
+  }, [combat, hp]);
+
+  // ─── COMBAT: SELECT GEM ───
+  const combatSelect = useCallback((x: number, y: number) => {
+    if (!combat || combat.phase !== "play" || combat.animating) return;
+    if (combat.selected) {
+      const s = combat.selected;
+      const dx = Math.abs(s.x - x), dy = Math.abs(s.y - y);
+      if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+        // Swap
+        let ng = swapGems(combat.grid, s, {x, y});
+        let matches = findMatches(ng);
+        if (matches.size === 0) {
+          // Swap back
+          setCombat({...combat, selected: null, msg: "Pas de match !"});
+          return;
+        }
+        // Resolve chain
+        let totalDmg = 0, combo = 0;
+        const resolve = () => {
+          matches = findMatches(ng);
+          if (matches.size === 0) {
+            // Enemy attacks back
+            const eDmg = Math.max(1, combat.enemy.atk - stats.def);
+            const newPHp = combat.playerHp - eDmg;
+            if (newPHp <= 0) {
+              setCombat({...combat, grid: ng, playerHp: 0, enemyHp: combat.enemyHp - totalDmg, phase: "lose", combo, msg: "💀 K.O.", selected: null, animating: false});
+              sounds.defeat();
+              return;
             }
+            setCombat({...combat, grid: ng, playerHp: newPHp, enemyHp: Math.max(0, combat.enemyHp - totalDmg), turn: combat.turn + 1, combo, msg: totalDmg > 0 ? `💥 ${totalDmg} dmg ! (${combo}×)` : "", selected: null, animating: false});
+            return;
+          }
+          combo++;
+          const matchDmg = matches.size * (stats.atk + stats.mag) * playerClass.combatMul * (1 + combo * 0.25);
+          totalDmg += Math.round(matchDmg);
+          sounds.gemMatch(combo);
+
+          // Clear matches
+          for (const key of matches) {
+            const [mx, my] = key.split(",").map(Number);
+            ng[my][mx].color = -1;
+          }
+          ng = applyGravity(ng);
+
+          // Check win
+          if (combat.enemyHp - totalDmg <= 0) {
+            const drop = combat.enemy.drops[Math.floor(Math.random() * combat.enemy.drops.length)];
+            const sGain = combat.enemy.sous[0] + Math.floor(Math.random() * (combat.enemy.sous[1] - combat.enemy.sous[0]));
+            addToBag(drop);
+            setSous(s => s + sGain);
+            gainXp(combat.enemy.lv * 5);
+            sounds.victory();
+            // Remove mob
+            const mi = mobsRef.current.findIndex(m => m.id === combat.enemy.id);
+            if (mi >= 0) mobsRef.current[mi].hp = 0;
+            setCombat({...combat, grid: ng, enemyHp: 0, combo, phase: "win", msg: `🎉 Victoire ! +${RES[drop]?.emoji || drop} +${sGain}💰`, selected: null, animating: false});
+            return;
           }
 
-          setCombatTurn(t => t + 1);
-
-          // Enemy attacks periodically
-          if (combatTurn > 0 && combatTurn % 3 === 0) {
-            const eDmg = Math.max(1, (combatMonster?.atk || 2) - stats.def);
-            setPlayerCombatHp(php => {
-              const newPhp = Math.max(0, php - eDmg);
-              setCombatLog(log => [...log.slice(-5), `${combatMonster?.emoji} attaque ! -${eDmg} PV`]);
-              sounds.combatHit();
-              if (newPhp <= 0) {
-                setTimeout(() => endCombatDefeat(), 500);
-              }
-              return newPhp;
-            });
-          }
-
-          // Spawn next pair
-          setTimeout(() => spawnNewPair(), 300);
-          return null;
-        }
-
-        return { ...prev, row: nextRow };
-      });
-    }, 600);
-
-    return () => clearInterval(tick);
-  }, [phase, fallingPair, playerGrid, combatTurn, combatMonster, playerClass.combatBonus, stats, spawnNewPair]);
-
-  const endCombatVictory = useCallback(() => {
-    if (!combatMonster) return;
-    sounds.combatVictory();
-    setMonsters(prev => prev.map(m => m.id === combatMonster.id ? { ...m, alive: false } : m));
-    gainXp(combatMonster.xpReward);
-    setSous(s => s + combatMonster.sousReward);
-    setHp(playerCombatHp);
-    notify(`Victoire ! +${combatMonster.xpReward} XP, +${combatMonster.sousReward} sous`);
-    setPhase("world");
-    setCombatMonster(null);
-    setFallingPair(null);
-  }, [combatMonster, gainXp, notify, playerCombatHp]);
-
-  const endCombatDefeat = useCallback(() => {
-    sounds.combatDefeat();
-    setHp(Math.max(1, Math.floor(maxHp / 2)));
-    setSous(s => Math.max(0, s - 10));
-    setPos({ x: 75 * TILE, y: 75 * TILE }); // respawn at camp
-    notify("K.O. ! Retour au camp...");
-    setPhase("world");
-    setCombatMonster(null);
-    setFallingPair(null);
-  }, [maxHp, notify]);
-
-  const fleeCombat = useCallback(() => {
-    sounds.uiClose();
-    setHp(playerCombatHp);
-    setPhase("world");
-    setCombatMonster(null);
-    setFallingPair(null);
-    notify("Fuite !");
-  }, [playerCombatHp, notify]);
-
-  // ═══════════════════════════════════════════════════════════
-  // JOYSTICK HANDLERS
-  // ═══════════════════════════════════════════════════════════
-  const onJoystickStart = useCallback((e: React.TouchEvent) => {
-    if (touchIdRef.current !== null) return;
-    const t = e.changedTouches[0];
-    touchIdRef.current = t.identifier;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    joystickCenterRef.current = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
-    joystickRef.current = { dx: 0, dy: 0 };
-  }, []);
-
-  const onJoystickMove = useCallback((e: React.TouchEvent) => {
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      if (t.identifier === touchIdRef.current) {
-        const cx = joystickCenterRef.current.x;
-        const cy = joystickCenterRef.current.y;
-        let dx = (t.clientX - cx) / 50;
-        let dy = (t.clientY - cy) / 50;
-        const mag = Math.hypot(dx, dy);
-        if (mag > 1) { dx /= mag; dy /= mag; }
-        joystickRef.current = { dx, dy };
+          setTimeout(resolve, 300);
+        };
+        setCombat({...combat, grid: ng, animating: true, selected: null});
+        setTimeout(resolve, 200);
+      } else {
+        setCombat({...combat, selected: {x, y}});
       }
-    }
-  }, []);
-
-  const onJoystickEnd = useCallback((e: React.TouchEvent) => {
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      if (e.changedTouches[i].identifier === touchIdRef.current) {
-        touchIdRef.current = null;
-        joystickRef.current = { dx: 0, dy: 0 };
-      }
-    }
-  }, []);
-
-  // ─── Keyboard movement ───
-  const keysRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (phase !== "world") return;
-    const onDown = (e: KeyboardEvent) => {
-      keysRef.current.add(e.key);
-      updateKeyboardJoystick();
-    };
-    const onUp = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key);
-      updateKeyboardJoystick();
-    };
-    const updateKeyboardJoystick = () => {
-      let dx = 0, dy = 0;
-      if (keysRef.current.has("ArrowLeft") || keysRef.current.has("a") || keysRef.current.has("q")) dx -= 1;
-      if (keysRef.current.has("ArrowRight") || keysRef.current.has("d")) dx += 1;
-      if (keysRef.current.has("ArrowUp") || keysRef.current.has("w") || keysRef.current.has("z")) dy -= 1;
-      if (keysRef.current.has("ArrowDown") || keysRef.current.has("s")) dy += 1;
-      const mag = Math.hypot(dx, dy);
-      if (mag > 0) { dx /= mag; dy /= mag; }
-      joystickRef.current = { dx, dy };
-    };
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    return () => {
-      window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
-      keysRef.current.clear();
-      joystickRef.current = { dx: 0, dy: 0 };
-    };
-  }, [phase]);
-
-  // ─── Keyboard for combat ───
-  useEffect(() => {
-    if (phase !== "combat") return;
-    const onDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") movePuyo("left");
-      else if (e.key === "ArrowRight") movePuyo("right");
-      else if (e.key === "ArrowUp") movePuyo("rotate");
-      else if (e.key === "ArrowDown") movePuyo("drop");
-    };
-    window.addEventListener("keydown", onDown);
-    return () => window.removeEventListener("keydown", onDown);
-  }, [phase, movePuyo]);
-
-  // ═══════════════════════════════════════════════════════════
-  // RENDER HELPERS
-  // ═══════════════════════════════════════════════════════════
-  const cameraPx = useMemo(() => ({
-    x: pos.x - vpSize.w / 2,
-    y: pos.y - vpSize.h / 2,
-  }), [pos, vpSize]);
-
-  const visibleTiles = useMemo(() => {
-    const startTx = Math.max(0, Math.floor(cameraPx.x / TILE) - 1);
-    const startTy = Math.max(0, Math.floor(cameraPx.y / TILE) - 1);
-    const endTx = Math.min(WORLD_W - 1, Math.ceil((cameraPx.x + vpSize.w) / TILE) + 1);
-    const endTy = Math.min(WORLD_H - 1, Math.ceil((cameraPx.y + vpSize.h) / TILE) + 1);
-    return { startTx, startTy, endTx, endTy };
-  }, [cameraPx, vpSize]);
-
-  // Night overlay opacity
-  const nightOpacity = useMemo(() => {
-    // 0.0=midnight, 0.25=dawn, 0.5=noon, 0.75=dusk
-    if (timeOfDay < 0.2) return 0.5;
-    if (timeOfDay < 0.3) return 0.5 - (timeOfDay - 0.2) * 5; // dawn
-    if (timeOfDay < 0.7) return 0;
-    if (timeOfDay < 0.8) return (timeOfDay - 0.7) * 5; // dusk
-    return 0.5;
-  }, [timeOfDay]);
-
-  const timeIcon = useMemo(() => {
-    if (timeOfDay < 0.25 || timeOfDay > 0.8) return "\uD83C\uDF19";
-    if (timeOfDay < 0.35) return "\uD83C\uDF05";
-    if (timeOfDay < 0.7) return "\u2600\uFE0F";
-    return "\uD83C\uDF07";
-  }, [timeOfDay]);
-
-  // ═══════════════════════════════════════════════════════════
-  // COMBAT TOUCH CONTROLS
-  // ═══════════════════════════════════════════════════════════
-  const combatTouchRef = useRef<{ x: number; y: number; time: number } | null>(null);
-
-  const onCombatTouchStart = useCallback((e: React.TouchEvent) => {
-    const t = e.touches[0];
-    combatTouchRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
-  }, []);
-
-  const onCombatTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!combatTouchRef.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - combatTouchRef.current.x;
-    const dy = t.clientY - combatTouchRef.current.y;
-    const dt = Date.now() - combatTouchRef.current.time;
-    combatTouchRef.current = null;
-
-    if (Math.abs(dx) < 15 && Math.abs(dy) < 15 && dt < 300) {
-      movePuyo("rotate");
-    } else if (Math.abs(dx) > Math.abs(dy)) {
-      movePuyo(dx > 0 ? "right" : "left");
     } else {
-      movePuyo(dy > 0 ? "drop" : "rotate");
+      setCombat({...combat, selected: {x, y}});
     }
-  }, [movePuyo]);
+  }, [combat, stats, playerClass, addToBag, gainXp]);
 
-  // ═══════════════════════════════════════════════════════════
-  // RENDER — HOME SCREEN
-  // ═══════════════════════════════════════════════════════════
-  if (phase === "home") {
-    return (
-      <div style={{
-        width: "100vw", height: "100vh",
-        background: "linear-gradient(135deg, #F5E6D0, #E8D5B0)",
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        fontFamily: "monospace", color: "#333", position: "relative",
-      }}>
-        <div style={{ fontSize: 48 }}>{playerClass.emoji}</div>
-        <h1 style={{ fontSize: 24, margin: "12px 0" }}>Maison de {playerName}</h1>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>Artisane - Jardin & Atelier</p>
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(3, 80px)", gap: 8,
-        }}>
-          {["\uD83C\uDF3B Jardin", "\uD83D\uDD28 Atelier", "\uD83D\uDCE6 Stock",
-            "\uD83D\uDECF\uFE0F Repos", "\uD83D\uDCDC Recettes", "\uD83D\uDEAA Sortir"].map(label => (
-            <button
-              key={label}
-              onClick={() => {
-                sounds.uiClick();
-                if (label.includes("Sortir")) {
-                  setPhase("world");
-                  setInHome(false);
-                } else if (label.includes("Repos")) {
-                  setHp(maxHp);
-                  notify("PV restaures !");
-                } else {
-                  notify("Bientot disponible !");
-                }
-              }}
-              style={{
-                padding: "12px 4px", background: "#FFF8F0", border: "2px solid #C4A874",
-                borderRadius: 8, fontSize: 11, cursor: "pointer", textAlign: "center",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+  // ─── COMBAT END ───
+  const endCombat = useCallback(() => {
+    if (combat) {
+      if (combat.phase === "lose") {
+        setHp(Math.max(1, Math.floor(maxHp / 2)));
+        setSous(s => Math.max(0, s - 20));
+        setPx(35 * TILE_PX);
+        setPy(35 * TILE_PX);
+      } else {
+        setHp(combat.playerHp);
+      }
+    }
+    setCombat(null);
+  }, [combat, maxHp]);
 
-        {/* HUD bar */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 40,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center",
-          padding: "0 12px", gap: 12, color: "#fff", fontSize: 12,
-        }}>
-          <span>{playerClass.emoji} {playerName}</span>
-          <span>Nv.{lvl}</span>
-          <span style={{ color: "#F44" }}>{"\u2764\uFE0F"} {hp}/{maxHp}</span>
-          <span>{"\u2600\uFE0F"} {sous}</span>
-        </div>
+  // ─── CRAFT ───
+  const doCraft = useCallback((recipeId: string) => {
+    if (!playerClass.canCraft && playerClassId !== "paladin") return;
+    const allRecipes = [...EQUIPMENT.map(e => ({id: e.id, recipe: e.recipe, type: "equip" as const})), ...RECIPES.map(r => ({id: r.id, recipe: r.recipe, type: "recipe" as const})), ...Object.entries(TOOLS).map(([k, v]) => ({id: k, recipe: v.recipe, type: "tool" as const}))];
+    const rec = allRecipes.find(r => r.id === recipeId);
+    if (!rec) return;
+    // Check materials
+    for (const [item, qty] of Object.entries(rec.recipe)) {
+      if ((bag[item] || 0) < qty) { addFloat(px, py, "Matériaux insuffisants", "#F44336"); return; }
+    }
+    // Craft fail check
+    if (Math.random() < playerClass.craftFail) { addFloat(px, py, "Craft raté !", "#F44336"); sounds.locked(); return; }
+    // Consume
+    const nb = {...bag};
+    for (const [item, qty] of Object.entries(rec.recipe)) nb[item] = (nb[item] || 0) - qty;
+    setBag(nb);
+    if (rec.type === "equip") {
+      const eq = EQUIPMENT.find(e => e.id === recipeId)!;
+      setEquip(prev => ({...prev, [eq.slot]: eq.id}));
+      setStats(s => {
+        const ns = {...s};
+        for (const [k, v] of Object.entries(eq.stats)) ns[k as keyof typeof ns] += v;
+        return ns;
+      });
+      sounds.equip();
+    } else if (rec.type === "recipe") {
+      const r = RECIPES.find(r => r.id === recipeId)!;
+      if (r.effect.stat === "hp") setHp(h => Math.min(maxHp + lv * 5, h + r.effect.val));
+      addToBag(recipeId);
+    } else {
+      addToBag(recipeId);
+    }
+    sounds.craft();
+    addFloat(px, py, "Craft réussi !", "#4CAF50");
+  }, [bag, playerClass, playerClassId, px, py, addFloat, addToBag, maxHp, lv]);
 
-        {notification && (
-          <div style={{
-            position: "absolute", top: 50, left: "50%", transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.8)", color: "#fff", padding: "8px 16px",
-            borderRadius: 8, fontSize: 13, whiteSpace: "nowrap",
-          }}>{notification}</div>
-        )}
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // RENDER — COMBAT SCREEN (Puyo Puyo)
-  // ═══════════════════════════════════════════════════════════
-  if (phase === "combat" && combatMonster) {
-    const cellSize = Math.min(Math.floor((vpSize.w * 0.65) / PUYO_COLS), Math.floor((vpSize.h - 150) / PUYO_ROWS));
-    const smallCell = Math.floor(cellSize * 0.45);
-
-    const getSecondPos = (rot: number) => {
-      switch (rot % 4) {
-        case 0: return { dr: -1, dc: 0 };
-        case 1: return { dr: 0, dc: 1 };
-        case 2: return { dr: 1, dc: 0 };
-        case 3: return { dr: 0, dc: -1 };
-        default: return { dr: -1, dc: 0 };
+  // ─── RESIZE CANVAS ───
+  useEffect(() => {
+    const resize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth;
+        canvasRef.current.height = window.innerHeight;
       }
     };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
-    return (
-      <div
-        style={{
-          width: "100vw", height: "100vh", background: "#1A1A2E",
-          display: "flex", flexDirection: "column", fontFamily: "monospace", color: "#fff",
-          position: "relative", overflow: "hidden", touchAction: "none",
-        }}
-        onTouchStart={onCombatTouchStart}
-        onTouchEnd={onCombatTouchEnd}
-      >
-        {/* Combat HUD */}
-        <div style={{
-          height: 50, display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 12px", background: "rgba(0,0,0,0.5)",
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11 }}>{playerClass.emoji} {playerName} Nv.{lvl}</div>
-            <div style={{
-              height: 8, background: "#333", borderRadius: 4, overflow: "hidden", marginTop: 2,
-            }}>
-              <div style={{
-                height: "100%", width: `${(playerCombatHp / maxHp) * 100}%`,
-                background: playerCombatHp / maxHp > 0.3 ? "#4CAF50" : "#F44",
-                transition: "width 0.3s",
-              }} />
-            </div>
-            <div style={{ fontSize: 10, color: "#aaa" }}>{playerCombatHp}/{maxHp} PV</div>
-          </div>
-          <div style={{ margin: "0 16px", fontSize: 18 }}>VS</div>
-          <div style={{ flex: 1, textAlign: "right" }}>
-            <div style={{ fontSize: 11 }}>{combatMonster.emoji} {combatMonster.name} Nv.{combatMonster.lvl}</div>
-            <div style={{
-              height: 8, background: "#333", borderRadius: 4, overflow: "hidden", marginTop: 2,
-            }}>
-              <div style={{
-                height: "100%", width: `${(enemyCombatHp / combatMonster.maxHp) * 100}%`,
-                background: enemyCombatHp / combatMonster.maxHp > 0.3 ? "#E74C3C" : "#F44",
-                transition: "width 0.3s",
-              }} />
-            </div>
-            <div style={{ fontSize: 10, color: "#aaa" }}>{enemyCombatHp}/{combatMonster.maxHp} PV</div>
-          </div>
-        </div>
+  // ─── TOUCH JOYSTICK ───
+  const joystickStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    const j = joystickRef.current;
+    j.active = true;
+    const cx = t.clientX, cy = t.clientY;
+    const el = e.currentTarget.getBoundingClientRect();
+    const ox = cx - el.left - el.width / 2;
+    const oy = cy - el.top - el.height / 2;
+    const len = Math.sqrt(ox * ox + oy * oy);
+    if (len > 5) { j.dx = ox / len; j.dy = oy / len; }
+  }, []);
 
-        {/* Grids container */}
-        <div style={{
-          flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center",
-          padding: "8px 4px", gap: 8,
-        }}>
-          {/* Player grid (main) */}
-          <div style={{
-            border: "2px solid #444",
-            width: cellSize * PUYO_COLS + 4,
-            height: cellSize * PUYO_ROWS + 4,
-            position: "relative", background: "#0D0D1A",
-          }}>
-            {/* Placed gems */}
-            {playerGrid.map((row, r) =>
-              row.map((cell, c) => {
-                if (cell === null) return null;
-                return (
-                  <div key={`${r}-${c}`} style={{
-                    position: "absolute",
-                    left: c * cellSize + 2,
-                    top: r * cellSize + 2,
-                    width: cellSize - 2,
-                    height: cellSize - 2,
-                    borderRadius: "50%",
-                    background: GEM_COLORS[cell],
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: Math.floor(cellSize * 0.5),
-                    boxShadow: `0 0 6px ${GEM_COLORS[cell]}`,
-                  }}>
-                    {GEM_EMOJIS[cell]}
-                  </div>
-                );
-              })
-            )}
+  const joystickMove = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    const j = joystickRef.current;
+    if (!j.active) return;
+    const el = e.currentTarget.getBoundingClientRect();
+    const ox = t.clientX - el.left - el.width / 2;
+    const oy = t.clientY - el.top - el.height / 2;
+    const len = Math.sqrt(ox * ox + oy * oy);
+    if (len > 5) { j.dx = ox / len; j.dy = oy / len; } else { j.dx = 0; j.dy = 0; }
+  }, []);
 
-            {/* Falling pair */}
-            {fallingPair && (
-              <>
-                <div style={{
-                  position: "absolute",
-                  left: fallingPair.col * cellSize + 2,
-                  top: fallingPair.row * cellSize + 2,
-                  width: cellSize - 2,
-                  height: cellSize - 2,
-                  borderRadius: "50%",
-                  background: GEM_COLORS[fallingPair.c1],
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: Math.floor(cellSize * 0.5),
-                  border: "2px solid rgba(255,255,255,0.5)",
-                  boxShadow: `0 0 8px ${GEM_COLORS[fallingPair.c1]}`,
-                  zIndex: 2,
-                }}>
-                  {GEM_EMOJIS[fallingPair.c1]}
-                </div>
-                {(() => {
-                  const s = getSecondPos(fallingPair.rot);
-                  const sr = fallingPair.row + s.dr;
-                  const sc = fallingPair.col + s.dc;
-                  if (sr < 0 || sr >= PUYO_ROWS || sc < 0 || sc >= PUYO_COLS) return null;
-                  return (
-                    <div style={{
-                      position: "absolute",
-                      left: sc * cellSize + 2,
-                      top: sr * cellSize + 2,
-                      width: cellSize - 2,
-                      height: cellSize - 2,
-                      borderRadius: "50%",
-                      background: GEM_COLORS[fallingPair.c2],
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: Math.floor(cellSize * 0.5),
-                      border: "2px solid rgba(255,255,255,0.3)",
-                      boxShadow: `0 0 8px ${GEM_COLORS[fallingPair.c2]}`,
-                      zIndex: 2,
-                    }}>
-                      {GEM_EMOJIS[fallingPair.c2]}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
+  const joystickEnd = useCallback(() => {
+    const j = joystickRef.current;
+    j.active = false; j.dx = 0; j.dy = 0;
+  }, []);
 
-            {/* Grid lines */}
-            {Array.from({ length: PUYO_COLS + 1 }).map((_, i) => (
-              <div key={`vc${i}`} style={{
-                position: "absolute", left: i * cellSize + 1, top: 0,
-                width: 1, height: "100%", background: "rgba(255,255,255,0.05)",
-              }} />
-            ))}
-            {Array.from({ length: PUYO_ROWS + 1 }).map((_, i) => (
-              <div key={`hr${i}`} style={{
-                position: "absolute", top: i * cellSize + 1, left: 0,
-                height: 1, width: "100%", background: "rgba(255,255,255,0.05)",
-              }} />
-            ))}
-          </div>
-
-          {/* Enemy grid (preview, smaller) */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{
-              border: "1px solid #333",
-              width: smallCell * PUYO_COLS + 2,
-              height: smallCell * PUYO_ROWS + 2,
-              position: "relative", background: "#0D0D1A",
-            }}>
-              {enemyGrid.map((row, r) =>
-                row.map((cell, c) => {
-                  if (cell === null) return null;
-                  return (
-                    <div key={`e${r}-${c}`} style={{
-                      position: "absolute",
-                      left: c * smallCell + 1,
-                      top: r * smallCell + 1,
-                      width: smallCell - 1,
-                      height: smallCell - 1,
-                      borderRadius: "50%",
-                      background: GEM_COLORS[cell],
-                      opacity: 0.7,
-                    }} />
-                  );
-                })
-              )}
-            </div>
-
-            {/* Combat log */}
-            <div style={{
-              width: smallCell * PUYO_COLS + 2,
-              fontSize: 9, color: "#aaa", lineHeight: 1.3,
-              maxHeight: 80, overflow: "hidden",
-            }}>
-              {combatLog.slice(-4).map((msg, i) => (
-                <div key={i} style={{ opacity: 0.5 + i * 0.15 }}>{msg}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Combat controls */}
-        <div style={{
-          height: 80, display: "flex", alignItems: "center", justifyContent: "center",
-          gap: 8, padding: "0 12px", background: "rgba(0,0,0,0.5)",
-        }}>
-          <button onClick={() => movePuyo("left")} style={combatBtnStyle}>{"\u25C0"}</button>
-          <button onClick={() => movePuyo("rotate")} style={combatBtnStyle}>{"\uD83D\uDD04"}</button>
-          <button onClick={() => movePuyo("drop")} style={combatBtnStyle}>{"\u25BC"}</button>
-          <button onClick={() => movePuyo("right")} style={combatBtnStyle}>{"\u25B6"}</button>
-          <div style={{ width: 16 }} />
-          <button onClick={fleeCombat} style={{
-            ...combatBtnStyle, background: "#8B0000", fontSize: 10,
-          }}>{"\uD83C\uDFC3"} Fuir</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // RENDER — WORLD MAP
-  // ═══════════════════════════════════════════════════════════
-  const { startTx, startTy, endTx, endTy } = visibleTiles;
+  // ═══════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════
+  const biomeName = BIOMES[currentBiome]?.name || "?";
+  const biomeEmoji = BIOMES[currentBiome]?.emoji || "?";
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100vw", height: "100vh", overflow: "hidden",
-        position: "relative", background: "#000", fontFamily: "monospace",
-        touchAction: "none", userSelect: "none",
-      }}
-    >
-      {/* World layer */}
-      <div style={{
-        position: "absolute",
-        transform: `translate(${-cameraPx.x}px, ${-cameraPx.y}px)`,
-        width: WORLD_W * TILE,
-        height: WORLD_H * TILE,
-      }}>
-        {/* Tiles */}
-        {(() => {
-          const tileEls: React.ReactNode[] = [];
-          for (let ty = startTy; ty <= endTy; ty++) {
-            for (let tx = startTx; tx <= endTx; tx++) {
-              const tile = worldData.tiles[ty]?.[tx];
-              if (!tile) continue;
-              const biome = worldData.biomeMap[ty][tx];
-              const color = getTileColor(tile, biome);
-              const emoji = getTileEmoji(tile);
-              tileEls.push(
-                <div
-                  key={`t${tx}_${ty}`}
-                  style={{
-                    position: "absolute",
-                    left: tx * TILE,
-                    top: ty * TILE,
-                    width: TILE,
-                    height: TILE,
-                    background: color,
-                  }}
-                >
-                  {emoji && (
-                    <span style={{
-                      position: "absolute", inset: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: TILE * 0.6, lineHeight: 1, pointerEvents: "none",
-                      opacity: tile === "tall_grass" ? 0.4 : 0.8,
-                    }}>
-                      {emoji}
-                    </span>
-                  )}
-                </div>
-              );
-            }
-          }
-          return tileEls;
-        })()}
+    <div style={{position:"fixed",inset:0,background:"#000",overflow:"hidden",touchAction:"none"}}>
+      {/* CANVAS */}
+      <canvas ref={canvasRef} style={{position:"absolute",inset:0}} />
 
-        {/* Resources */}
-        {resources.filter(r => r.alive &&
-          r.x >= startTx && r.x <= endTx && r.y >= startTy && r.y <= endTy
-        ).map(r => (
-          <div
-            key={`r${r.id}`}
-            onClick={() => tryHarvest()}
-            style={{
-              position: "absolute",
-              left: r.x * TILE + 4,
-              top: r.y * TILE + 4,
-              width: TILE - 8,
-              height: TILE - 8,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.15)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: TILE * 0.55, cursor: "pointer",
-            }}
-          >
-            {r.emoji}
-          </div>
-        ))}
-
-        {/* Monsters */}
-        {monsters.filter(m => m.alive &&
-          m.x >= startTx - 1 && m.x <= endTx + 1 && m.y >= startTy - 1 && m.y <= endTy + 1
-        ).map(m => (
-          <div
-            key={`m${m.id}`}
-            style={{
-              position: "absolute",
-              left: m.x * TILE + 2,
-              top: m.y * TILE + 2,
-              width: TILE - 4,
-              height: TILE - 4,
-              borderRadius: "50%",
-              background: `radial-gradient(circle, rgba(200,60,60,0.5), rgba(150,30,30,0.8))`,
-              border: "2px solid rgba(255,80,80,0.6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: TILE * 0.55,
-              zIndex: 5,
-            }}
-          >
-            {m.emoji}
-            <span style={{
-              position: "absolute", top: -6, right: -4,
-              background: "#F44", color: "#fff", borderRadius: 6,
-              padding: "0 3px", fontSize: 8, fontWeight: "bold",
-            }}>
-              {m.lvl}
-            </span>
-          </div>
-        ))}
-
-        {/* NPCs */}
-        {worldData.npcs.filter(n =>
-          n.x >= startTx - 1 && n.x <= endTx + 1 && n.y >= startTy - 1 && n.y <= endTy + 1
-        ).map(n => (
-          <div
-            key={`n${n.id}`}
-            onClick={() => {
-              const dist = Math.hypot(pos.x - (n.x * TILE + TILE / 2), pos.y - (n.y * TILE + TILE / 2));
-              if (dist < TILE * 2) {
-                sounds.uiOpen();
-                notify(`${n.emoji} ${n.name}: "Bienvenue, ${playerName} !"`);
-              }
-            }}
-            style={{
-              position: "absolute",
-              left: n.x * TILE + 2,
-              top: n.y * TILE + 2,
-              width: TILE - 4,
-              height: TILE - 4,
-              borderRadius: "50%",
-              background: `radial-gradient(circle, rgba(100,180,255,0.5), rgba(60,120,200,0.8))`,
-              border: "2px solid rgba(100,200,255,0.6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: TILE * 0.55,
-              cursor: "pointer",
-              zIndex: 6,
-            }}
-          >
-            {n.emoji}
-          </div>
-        ))}
-
-        {/* Player */}
-        <div style={{
-          position: "absolute",
-          left: pos.x - TILE * 0.5,
-          top: pos.y - TILE * 0.5,
-          width: TILE,
-          height: TILE,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, rgba(255,255,100,0.8), rgba(200,180,60,0.9))`,
-          border: "3px solid #FFD700",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: TILE * 0.6,
-          zIndex: 10,
-          boxShadow: "0 0 12px rgba(255,215,0,0.5)",
-          transition: "left 0.016s linear, top 0.016s linear",
-        }}>
-          {playerClass.emoji}
+      {/* HUD TOP */}
+      <div style={{position:"absolute",top:0,left:0,right:0,zIndex:10,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"linear-gradient(rgba(0,0,0,.7),transparent)",pointerEvents:"none"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",pointerEvents:"auto"}}>
+          <span style={{fontSize:13,color:"#FFF"}}>{playerClass.emoji} {playerName}</span>
+          <span style={{fontSize:12,color:"#4CAF50"}}>❤️{hp}/{maxHp + lv * 5}</span>
+          <span style={{fontSize:12,color:"#FFD700"}}>Lv{lv}</span>
+          <span style={{fontSize:12,color:"#FFD700"}}>💰{sous}</span>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center",pointerEvents:"auto"}}>
+          <span style={{fontSize:11,color:"#CCC"}}>{biomeEmoji} {biomeName}</span>
+          <span style={{fontSize:11,color:"#AAA"}}>{dayPhase === "day" ? "☀️" : dayPhase === "night" ? "🌙" : "🌅"}</span>
         </div>
       </div>
 
-      {/* Night overlay */}
-      {nightOpacity > 0 && (
-        <div style={{
-          position: "absolute", inset: 0,
-          background: `rgba(0,0,30,${nightOpacity})`,
-          pointerEvents: "none", zIndex: 15,
-        }} />
-      )}
-
-      {/* ═══ HUD ═══ */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 44,
-        background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center",
-        padding: "0 8px", gap: 8, color: "#fff", fontSize: 11,
-        zIndex: 20, backdropFilter: "blur(4px)",
-      }}>
-        {/* Clock */}
-        <span style={{ minWidth: 50 }}>{timeIcon} J{dayCount}</span>
-
-        {/* HP bar */}
-        <div style={{ flex: 1, maxWidth: 120 }}>
-          <div style={{ fontSize: 9, marginBottom: 1 }}>
-            {playerClass.emoji} Nv.{lvl} {playerName}
-          </div>
-          <div style={{
-            height: 8, background: "#333", borderRadius: 4, overflow: "hidden",
-          }}>
-            <div style={{
-              height: "100%",
-              width: `${(hp / maxHp) * 100}%`,
-              background: hp / maxHp > 0.5 ? "#4CAF50" : hp / maxHp > 0.25 ? "#FFA000" : "#F44",
-              transition: "width 0.3s",
-            }} />
-          </div>
-          <div style={{ fontSize: 8, color: "#aaa" }}>{hp}/{maxHp}</div>
-        </div>
-
-        {/* XP bar */}
-        <div style={{ flex: 1, maxWidth: 80 }}>
-          <div style={{ fontSize: 8, color: "#aaa" }}>XP</div>
-          <div style={{
-            height: 5, background: "#333", borderRadius: 3, overflow: "hidden",
-          }}>
-            <div style={{
-              height: "100%", width: `${(xp / xpNext) * 100}%`,
-              background: "#7B68EE",
-            }} />
-          </div>
-          <div style={{ fontSize: 8, color: "#888" }}>{xp}/{xpNext}</div>
-        </div>
-
-        {/* Sous */}
-        <span style={{ color: "#FFD700" }}>{"\u2600\uFE0F"} {sous}</span>
-
-        {/* Biome */}
-        <span style={{
-          background: "rgba(255,255,255,0.1)", padding: "2px 6px", borderRadius: 4,
-          fontSize: 9,
-        }}>
-          {BIOMES[currentBiome].name}
-        </span>
-
-        {/* Settings */}
-        <button
-          onClick={() => {
-            const icon = sounds.cycleVolume();
-            setVolIcon(sounds.getVolIcon());
-          }}
-          style={{
-            background: "none", border: "none", color: "#fff", fontSize: 16,
-            cursor: "pointer", padding: "2px 4px",
-          }}
-        >
-          {volIcon}
-        </button>
-
-        {/* Minimap toggle */}
-        <button
-          onClick={() => { setShowMinimap(v => !v); sounds.uiClick(); }}
-          style={{
-            background: "none", border: "none", color: "#fff", fontSize: 14,
-            cursor: "pointer", padding: "2px 4px",
-          }}
-        >
-          {"\uD83D\uDDFA\uFE0F"}
-        </button>
-
-        {/* Inventory toggle */}
-        <button
-          onClick={() => { setShowInventory(v => !v); sounds.uiClick(); }}
-          style={{
-            background: "none", border: "none", color: "#fff", fontSize: 14,
-            cursor: "pointer", padding: "2px 4px",
-          }}
-        >
-          {"\uD83C\uDF92"}
-        </button>
+      {/* XP BAR */}
+      <div style={{position:"absolute",top:32,left:10,right:10,zIndex:10,height:3,background:"rgba(255,255,255,.15)",borderRadius:2}}>
+        <div style={{height:"100%",background:"#FFD700",borderRadius:2,width:`${(xp / (lv * 20)) * 100}%`,transition:"width .3s"}} />
       </div>
 
-      {/* ═══ MINIMAP ═══ */}
-      {showMinimap && (
-        <div style={{
-          position: "absolute", top: 50, right: 8, width: 150, height: 150,
-          background: "rgba(0,0,0,0.8)", border: "2px solid #555", borderRadius: 4,
-          zIndex: 25, overflow: "hidden",
-        }}>
-          <canvas
-            ref={(canvas) => {
-              if (!canvas) return;
-              const ctx = canvas.getContext("2d");
-              if (!ctx) return;
-              canvas.width = 150;
-              canvas.height = 150;
-              // Draw biome blobs
-              for (let y = 0; y < WORLD_H; y++) {
-                for (let x = 0; x < WORLD_W; x++) {
-                  const biome = worldData.biomeMap[y][x];
-                  ctx.fillStyle = BIOMES[biome].grassColor;
-                  ctx.fillRect(x, y, 1, 1);
-                }
-              }
-              // Draw player
-              const px = Math.floor(pos.x / TILE);
-              const py = Math.floor(pos.y / TILE);
-              ctx.fillStyle = "#FFD700";
-              ctx.fillRect(px - 1, py - 1, 3, 3);
-            }}
-          />
+      {/* HUD BOTTOM BUTTONS */}
+      {!combat && panel === "none" && (
+        <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
+          <button onClick={() => { sounds.click(); setPanel("bag"); }} style={hudBtn}>🎒</button>
+          <button onClick={() => { sounds.click(); setPanel("craft"); }} style={hudBtn}>🔨</button>
+          <button onClick={() => { sounds.click(); setPanel("map"); }} style={hudBtn}>🗺️</button>
+          <button onClick={() => { sounds.click(); setPanel("menu"); }} style={hudBtn}>⚙️</button>
         </div>
       )}
 
-      {/* ═══ INVENTORY PANEL ═══ */}
-      {showInventory && (
-        <div style={{
-          position: "absolute", top: 50, left: 8, width: 200, maxHeight: vpSize.h - 100,
-          background: "rgba(0,0,0,0.9)", border: "2px solid #666", borderRadius: 8,
-          padding: 12, zIndex: 25, color: "#fff", fontSize: 12,
-          overflowY: "auto",
-        }}>
-          <div style={{ fontWeight: "bold", marginBottom: 8, borderBottom: "1px solid #444", paddingBottom: 4 }}>
-            {"\uD83C\uDF92"} Inventaire ({inventory.length}/{bagSize})
-          </div>
-          {inventory.length === 0 && (
-            <div style={{ color: "#666", fontStyle: "italic" }}>Vide</div>
-          )}
-          {inventory.map(item => (
-            <div key={item.id} style={{
-              display: "flex", justifyContent: "space-between",
-              padding: "4px 0", borderBottom: "1px solid #222",
-            }}>
-              <span>{item.id}</span>
-              <span style={{ color: "#aaa" }}>x{item.qty}</span>
+      {/* JOYSTICK */}
+      {!combat && panel === "none" && (
+        <div
+          onTouchStart={joystickStart} onTouchMove={joystickMove} onTouchEnd={joystickEnd}
+          style={{position:"absolute",bottom:20,left:20,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,.12)",border:"2px solid rgba(255,255,255,.2)",zIndex:10,touchAction:"none"}}
+        >
+          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,.25)"}} />
+        </div>
+      )}
+
+      {/* MINIMAP */}
+      {showMinimap && !combat && panel === "none" && (
+        <MiniMap map={mapRef.current} px={px} py={py} />
+      )}
+
+      {/* FLOATING MESSAGES */}
+      {floats.map(f => (
+        <div key={f.id} style={{position:"absolute",left:f.x - px + (canvasRef.current?.width || 0) / 2,top:f.y - py + (canvasRef.current?.height || 0) / 2 - 30,color:f.color,fontSize:14,fontWeight:"bold",pointerEvents:"none",animation:"dmgFloat 1s forwards",zIndex:50,textShadow:"0 1px 3px #000"}}>
+          {f.text}
+        </div>
+      ))}
+
+      {/* ══════ COMBAT SCREEN ══════ */}
+      {combat && (
+        <div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(0,0,0,.92)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .3s"}}>
+          {/* Enemy info */}
+          <div style={{textAlign:"center",marginBottom:10}}>
+            <div style={{fontSize:40}}>{combat.enemy.emoji}</div>
+            <div style={{color:"#FFF",fontSize:14,fontWeight:"bold"}}>{combat.enemy.name} Lv{combat.enemy.lv}</div>
+            <div style={{width:160,height:8,background:"#333",borderRadius:4,margin:"4px auto"}}>
+              <div style={{height:"100%",background:combat.enemyHp > combat.enemy.maxHp * 0.3 ? "#F44336" : "#D32F2F",borderRadius:4,width:`${(combat.enemyHp / combat.enemy.maxHp) * 100}%`,transition:"width .3s"}} />
             </div>
-          ))}
+            <div style={{color:"#F88",fontSize:11}}>❤️ {combat.enemyHp}/{combat.enemy.maxHp}</div>
+          </div>
 
-          <div style={{ marginTop: 12, borderTop: "1px solid #444", paddingTop: 8 }}>
-            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Stats</div>
-            <div>ATK: {stats.atk} | DEF: {stats.def}</div>
-            <div>MAG: {stats.mag} | VIT: {stats.vit}</div>
+          {/* Message */}
+          {combat.msg && <div style={{color:"#FFD700",fontSize:13,marginBottom:8,textAlign:"center",padding:"0 20px"}}>{combat.msg}</div>}
+
+          {/* Puyo Grid */}
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${PUYO_W},42px)`,gridTemplateRows:`repeat(${PUYO_H},42px)`,gap:2,background:"rgba(255,255,255,.05)",padding:6,borderRadius:10,border:"2px solid rgba(255,255,255,.1)"}}>
+            {combat.grid.map((row, y) => row.map((gem, x) => (
+              <button
+                key={`${x}-${y}`}
+                onClick={() => combatSelect(x, y)}
+                style={{
+                  width:42,height:42,borderRadius:8,border: combat.selected?.x === x && combat.selected?.y === y ? "3px solid #FFD700" : "1px solid rgba(255,255,255,.1)",
+                  background: gem.color >= 0 ? [`#E53935`,`#1E88E5`,`#43A047`,`#FDD835`,`#8E24AA`,`#FF6D00`][gem.color] : "#222",
+                  fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+                  transition:"transform .15s",transform: combat.selected?.x === x && combat.selected?.y === y ? "scale(1.15)" : "scale(1)",
+                }}
+              >
+                {gem.color >= 0 ? GEM_COLORS[gem.color] : ""}
+              </button>
+            )))}
+          </div>
+
+          {/* Player HP in combat */}
+          <div style={{marginTop:10,textAlign:"center"}}>
+            <div style={{color:"#4CAF50",fontSize:13}}>❤️ {combat.playerHp}/{maxHp + lv * 5}</div>
+            <div style={{width:160,height:8,background:"#333",borderRadius:4,margin:"4px auto"}}>
+              <div style={{height:"100%",background:"#4CAF50",borderRadius:4,width:`${(combat.playerHp / (maxHp + lv * 5)) * 100}%`,transition:"width .3s"}} />
+            </div>
+          </div>
+
+          {/* Win/Lose buttons */}
+          {(combat.phase === "win" || combat.phase === "lose") && (
+            <button onClick={endCombat} style={{marginTop:14,padding:"12px 40px",background:combat.phase === "win" ? "linear-gradient(135deg,#6B8E23,#556B2F)" : "linear-gradient(135deg,#8B0000,#5C0000)",color:"#FFF",border:"2px solid #DAA520",borderRadius:12,fontSize:16,fontWeight:"bold",cursor:"pointer"}}>
+              {combat.phase === "win" ? "🎉 Continuer" : "💀 Respawn"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ══════ PANELS ══════ */}
+      {panel === "bag" && (
+        <Panel title="🎒 Inventaire" onClose={() => setPanel("none")}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+            {Object.entries(bag).filter(([,v]) => v > 0).map(([id, qty]) => (
+              <div key={id} style={{background:"rgba(255,255,255,.08)",borderRadius:8,padding:8,textAlign:"center",fontSize:12,color:"#FFF"}}>
+                <div style={{fontSize:22}}>{RES[id]?.emoji || TOOLS[id]?.emoji || "📦"}</div>
+                <div>{RES[id]?.name || TOOLS[id]?.name || id}</div>
+                <div style={{color:"#FFD700"}}>×{qty}</div>
+              </div>
+            ))}
+            {Object.keys(bag).filter(k => bag[k] > 0).length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",color:"#888",padding:20}}>Inventaire vide</div>}
+          </div>
+          <div style={{fontSize:11,color:"#888",marginTop:8,textAlign:"center"}}>{Object.values(bag).reduce((s,v)=>s+v,0)}/{bagSize} slots</div>
+        </Panel>
+      )}
+
+      {panel === "craft" && (
+        <Panel title="🔨 Artisanat" onClose={() => setPanel("none")}>
+          {!playerClass.canCraft && playerClassId === "paladin" ? (
+            <div style={{color:"#F88",textAlign:"center",padding:20}}>Le Paladin ne peut pas crafter !</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:300,overflowY:"auto"}}>
+              {[...Object.entries(TOOLS).map(([k,v]) => ({id:k,name:v.name,emoji:v.emoji,recipe:v.recipe})), ...EQUIPMENT.map(e => ({id:e.id,name:e.name,emoji:e.emoji,recipe:e.recipe})), ...RECIPES.map(r => ({id:r.id,name:r.name,emoji:r.emoji,recipe:r.recipe}))].map(r => {
+                const canMake = Object.entries(r.recipe).every(([item, qty]) => (bag[item] || 0) >= qty);
+                return (
+                  <button key={r.id} onClick={() => canMake && doCraft(r.id)} style={{padding:10,background:canMake ? "rgba(76,175,80,.2)" : "rgba(255,255,255,.05)",border: canMake ? "1px solid #4CAF50" : "1px solid rgba(255,255,255,.1)",borderRadius:8,color:"#FFF",cursor:canMake ? "pointer" : "default",opacity:canMake ? 1 : 0.5,textAlign:"left",fontSize:13}}>
+                    <span style={{fontSize:18,marginRight:6}}>{r.emoji}</span>{r.name}
+                    <div style={{fontSize:10,color:"#AAA",marginTop:2}}>{Object.entries(r.recipe).map(([i,q]) => `${RES[i]?.emoji||i}×${q}`).join(" ")}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+      )}
+
+      {panel === "npc" && npcDialog && (
+        <Panel title={`${npcDialog.emoji} ${npcDialog.name}`} onClose={() => { setPanel("none"); setNpcDialog(null); }}>
+          <div style={{color:"#E8D5A3",fontSize:14,lineHeight:1.6,padding:10}}>{npcDialog.text}</div>
+        </Panel>
+      )}
+
+      {panel === "map" && (
+        <Panel title="🗺️ Carte" onClose={() => setPanel("none")}>
+          <BigMap map={mapRef.current} px={px} py={py} />
+        </Panel>
+      )}
+
+      {panel === "menu" && (
+        <Panel title="⚙️ Menu" onClose={() => setPanel("none")}>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={() => { setVolume(sounds.cycleVol()); }} style={menuBtn}>{sounds.volIcon()} Volume</button>
+            <button onClick={() => setShowMinimap(m => !m)} style={menuBtn}>🗺️ Minimap: {showMinimap ? "ON" : "OFF"}</button>
+            <div style={{fontSize:12,color:"#888",textAlign:"center",marginTop:10}}>
+              {playerClass.emoji} {playerName} | Lv{lv} | {biomeEmoji} {biomeName}
+              <br/>ATK:{stats.atk} DEF:{stats.def} MAG:{stats.mag} VIT:{stats.vit}
+            </div>
+            <button onClick={() => { sounds.close(); router.push("/"); }} style={{...menuBtn,background:"rgba(139,0,0,.3)",borderColor:"#F44"}}>🚪 Quitter</button>
+          </div>
+        </Panel>
+      )}
+
+      {panel === "story" && storyText.length > 0 && (
+        <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:30}} onClick={() => {
+          if (storyIdx < storyText.length - 1) setStoryIdx(i => i + 1);
+          else { setPanel("none"); setStoryText([]); }
+        }}>
+          <div style={{maxWidth:360,color:"#E8D5A3",fontSize:18,lineHeight:1.8,textAlign:"center",fontStyle:"italic",animation:"fadeIn .5s"}}>
+            {storyText[storyIdx]}
+          </div>
+          <div style={{color:"#888",fontSize:12,marginTop:20}}>
+            {storyIdx < storyText.length - 1 ? "Touchez pour continuer..." : "Touchez pour commencer"}
           </div>
         </div>
-      )}
-
-      {/* ═══ NOTIFICATION ═══ */}
-      {notification && (
-        <div style={{
-          position: "absolute", top: 52, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.85)", color: "#fff", padding: "8px 20px",
-          borderRadius: 8, fontSize: 13, whiteSpace: "nowrap",
-          zIndex: 30, border: "1px solid rgba(255,255,255,0.15)",
-          animation: "fadeIn 0.3s",
-        }}>
-          {notification}
-        </div>
-      )}
-
-      {/* ═══ JOYSTICK ═══ */}
-      <div
-        onTouchStart={onJoystickStart}
-        onTouchMove={onJoystickMove}
-        onTouchEnd={onJoystickEnd}
-        style={{
-          position: "absolute",
-          bottom: 24,
-          left: 24,
-          width: 120,
-          height: 120,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.12)",
-          border: "2px solid rgba(255,255,255,0.25)",
-          zIndex: 20,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.3)",
-          border: "2px solid rgba(255,255,255,0.5)",
-          transform: `translate(${joystickRef.current.dx * 30}px, ${joystickRef.current.dy * 30}px)`,
-        }} />
-      </div>
-
-      {/* ═══ ACTION BUTTON ═══ */}
-      <button
-        onClick={interactTile}
-        onTouchStart={(e) => { e.preventDefault(); interactTile(); }}
-        style={{
-          position: "absolute",
-          bottom: 40,
-          right: 32,
-          width: 64,
-          height: 64,
-          borderRadius: "50%",
-          background: "rgba(100,200,100,0.3)",
-          border: "3px solid rgba(100,255,100,0.5)",
-          color: "#fff",
-          fontSize: 24,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          zIndex: 20,
-        }}
-      >
-        {"\u270B"}
-      </button>
-
-      {/* Home button for artisane */}
-      {classId === "artisane" && (
-        <button
-          onClick={() => {
-            setPhase("home");
-            setInHome(true);
-            sounds.uiOpen();
-          }}
-          style={{
-            position: "absolute",
-            bottom: 40,
-            right: 108,
-            width: 48,
-            height: 48,
-            borderRadius: "50%",
-            background: "rgba(200,168,116,0.3)",
-            border: "2px solid rgba(200,168,116,0.5)",
-            color: "#fff",
-            fontSize: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 20,
-          }}
-        >
-          {"\uD83C\uDFE0"}
-        </button>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// COMBAT BUTTON STYLE
-// ═══════════════════════════════════════════════════════════════
-const combatBtnStyle: React.CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: 12,
-  background: "rgba(255,255,255,0.1)",
-  border: "2px solid rgba(255,255,255,0.3)",
-  color: "#fff",
-  fontSize: 20,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
+// ═══════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════════
+const hudBtn: React.CSSProperties = {
+  width:44,height:44,borderRadius:12,background:"rgba(0,0,0,.6)",border:"1px solid rgba(255,255,255,.15)",
+  color:"#FFF",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
 };
 
-// ═══════════════════════════════════════════════════════════════
-// PAGE WRAPPER (Suspense for useSearchParams)
-// ═══════════════════════════════════════════════════════════════
-export default function GamePage() {
+const menuBtn: React.CSSProperties = {
+  padding:"12px 16px",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",
+  borderRadius:10,color:"#FFF",fontSize:14,cursor:"pointer",textAlign:"left",
+};
+
+function Panel({title, onClose, children}: {title:string; onClose:()=>void; children:React.ReactNode}) {
   return (
-    <Suspense fallback={
-      <div style={{
-        width: "100vw", height: "100vh",
-        background: "#1A1A2E", color: "#fff",
-        display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        fontFamily: "monospace",
-      }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>{"\u2694\uFE0F"}</div>
-        <div style={{ fontSize: 18 }}>Chargement des Restanques...</div>
-        <div style={{
-          marginTop: 16, width: 200, height: 4,
-          background: "#333", borderRadius: 2, overflow: "hidden",
-        }}>
-          <div style={{
-            width: "60%", height: "100%", background: "#FFD700",
-            animation: "pulse 1s infinite",
-          }} />
+    <div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn .2s"}} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{background:"linear-gradient(#2A1A0A,#1A0A00)",border:"2px solid #DAA520",borderRadius:14,padding:16,maxWidth:360,width:"92%",maxHeight:"80vh",overflowY:"auto",animation:"panelOpen .3s"}} onClick={e => e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{color:"#DAA520",fontSize:16,fontWeight:"bold"}}>{title}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#888",fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
+        {children}
       </div>
-    }>
-      <GameInner />
-    </Suspense>
+    </div>
   );
+}
+
+function MiniMap({map, px, py}: {map:MapTile[][]|null; px:number; py:number}) {
+  const cvs = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!cvs.current || !map) return;
+    const ctx = cvs.current.getContext("2d");
+    if (!ctx) return;
+    const s = 100;
+    ctx.clearRect(0, 0, s, s);
+    const scale = s / MAP_W;
+    for (let y = 0; y < MAP_H; y += 3) {
+      for (let x = 0; x < MAP_W; x += 3) {
+        const t = map[y][x];
+        const b = BIOMES[t.biome];
+        ctx.fillStyle = t.type === "block" ? b?.colors.block || "#333" : b?.colors.ground || "#666";
+        ctx.fillRect(x * scale, y * scale, 3 * scale, 3 * scale);
+      }
+    }
+    // Player dot
+    ctx.fillStyle = "#FF0";
+    ctx.fillRect((px / TILE_PX) * scale - 2, (py / TILE_PX) * scale - 2, 4, 4);
+  }, [map, px, py]);
+  return <canvas ref={cvs} width={100} height={100} style={{position:"absolute",top:38,right:10,zIndex:10,borderRadius:8,border:"1px solid rgba(255,255,255,.2)",opacity:.8}} />;
+}
+
+function BigMap({map, px, py}: {map:MapTile[][]|null; px:number; py:number}) {
+  const cvs = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!cvs.current || !map) return;
+    const ctx = cvs.current.getContext("2d");
+    if (!ctx) return;
+    const s = 300;
+    ctx.clearRect(0, 0, s, s);
+    const scale = s / MAP_W;
+    for (let y = 0; y < MAP_H; y += 2) {
+      for (let x = 0; x < MAP_W; x += 2) {
+        const t = map[y][x];
+        const b = BIOMES[t.biome];
+        ctx.fillStyle = t.type === "block" ? b?.colors.block || "#333" : t.type === "path" ? b?.colors.path || "#AA8" : b?.colors.ground || "#666";
+        ctx.fillRect(x * scale, y * scale, 2 * scale + 1, 2 * scale + 1);
+      }
+    }
+    // Portals
+    ctx.fillStyle = "#00FFFF";
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+      if (map[y][x].type === "portal") ctx.fillRect(x * scale - 1, y * scale - 1, 4, 4);
+    }
+    // Player
+    ctx.fillStyle = "#FF0";
+    ctx.beginPath();
+    ctx.arc((px / TILE_PX) * scale, (py / TILE_PX) * scale, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }, [map, px, py]);
+  return <canvas ref={cvs} width={300} height={300} style={{width:"100%",borderRadius:8,border:"1px solid rgba(255,255,255,.15)"}} />;
 }
