@@ -105,7 +105,13 @@ function GameInner() {
   const playerClassId = params.get("class") || "paladin";
   const playerClass = CLASSES[playerClassId] || CLASSES.paladin;
 
-  const [seed] = useState(() => Date.now());
+  // Session ID from URL param (shared between players)
+  const sessionParam = params.get("session") || "";
+  const [seed] = useState(() => {
+    // Use session ID hash as seed so both players get the same map
+    let h = 0; for (let i = 0; i < sessionParam.length; i++) h = ((h << 5) - h + sessionParam.charCodeAt(i)) | 0;
+    return Math.abs(h) || Date.now();
+  });
   const mapRef = useRef<MapTile[][]|null>(null);
   const mobsRef = useRef<Mob[]>([]);
   const [px, setPx] = useState(35 * TILE_PX);
@@ -133,7 +139,8 @@ function GameInner() {
   const lastTRef = useRef(0);
   const moveCdRef = useRef(0);
   const fIdRef = useRef(0);
-  const [sessionId] = useState(() => typeof window !== "undefined" ? `s_${Date.now().toString(36)}` : "");
+  // Session ID = from URL (shared between players via Supabase)
+  const sessionId = sessionParam;
   const { drawOthers, sendMessage, messages: mpMessages } = useMultiPlayer({
     sessionId: sessionId || "",
     playerName: playerName,

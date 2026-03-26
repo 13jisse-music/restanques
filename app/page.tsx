@@ -102,7 +102,13 @@ export default function Home() {
       {screen==="class"&&<div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(0,0,0,.9)",display:"flex",alignItems:"center",justifyContent:"center"}}>
         <div style={{...P,maxWidth:360}}>
           <div style={{fontSize:16,fontWeight:"bold",textAlign:"center",marginBottom:4}}>Choisissez votre classe</div>
-          {code&&<div style={{fontSize:13,textAlign:"center",color:"#DAA520",marginBottom:12,letterSpacing:2}}>Code : <strong style={{fontSize:18}}>{code}</strong></div>}
+          {code&&<div style={{textAlign:"center",marginBottom:12}}>
+            <div style={{fontSize:13,color:"#DAA520",letterSpacing:2,marginBottom:6}}>Code : <strong style={{fontSize:18}}>{code}</strong></div>
+            <div style={{display:"flex",gap:6,justifyContent:"center"}}>
+              <button onClick={()=>{navigator.clipboard?.writeText(`${window.location.origin}/join/${code}`);setErr("✅ Lien copié !");setTimeout(()=>setErr(""),2000);}} style={{padding:"6px 12px",background:"#5C4033",color:"#E8D5A3",border:"1px solid #8B7355",borderRadius:8,fontSize:11,cursor:"pointer"}}>📋 Copier lien</button>
+              {typeof navigator!=="undefined"&&navigator.share&&<button onClick={()=>navigator.share({title:"Restanques",text:`Rejoins ma partie ! Code: ${code}`,url:`${window.location.origin}/join/${code}`}).catch(()=>{})} style={{padding:"6px 12px",background:"#6B8E23",color:"#FFF",border:"1px solid #DAA520",borderRadius:8,fontSize:11,cursor:"pointer"}}>📤 Partager</button>}
+            </div>
+          </div>}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {CLS.map(c=>(
               <button key={c.id} onClick={()=>go(c.id)} style={{padding:"12px 16px",borderRadius:12,background:`linear-gradient(135deg,${c.c1},${c.c2})`,color:"#FFF",border:"2px solid #DAA520",cursor:"pointer",fontSize:15,fontWeight:"bold",textAlign:"left"}}>
