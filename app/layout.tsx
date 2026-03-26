@@ -1,32 +1,34 @@
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
+import type { Metadata, Viewport } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: "Restanques — RPG coopératif provençal",
-  description: "Explorez la Provence à deux ! Puyo Puyo, craft et aventure coopérative.",
-};
+  title: 'Restanques — RPG Provençal',
+  description: 'RPG coopératif 2 joueurs dans la Provence. Explore, combats, craft et sauve les Restanques du Mistral.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Restanques',
+  },
+}
 
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-};
+  themeColor: '#e91e8c',
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="apple-touch-icon" href="/splash.png" />
-        <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital@0;1&display=swap" rel="stylesheet" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body style={{ margin: 0, padding: 0, overflow: "hidden", background: "#000" }}>
+      <body data-skin="provence">
         {children}
       </body>
     </html>
-  );
+  )
 }

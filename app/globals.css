@@ -2,26 +2,114 @@
 @tailwind components;
 @tailwind utilities;
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { overflow: hidden; width: 100%; height: 100dvh; font-family: 'Crimson Text', Georgia, serif; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
-button { -webkit-tap-highlight-color: transparent; font-family: inherit; }
+:root {
+  /* Skin Provence (default) */
+  --hud-bg: #5C4033;
+  --hud-btn: #8B6914;
+  --hud-text: #F5ECD7;
+  --hud-accent: #D4537E;
+  --hud-border: 1.5px solid #8B6914;
+  --hud-shadow: inset 0 -2px 0 rgba(0,0,0,0.3);
 
-@keyframes gemMatch { 0%{transform:scale(1);opacity:1} 30%{transform:scale(1.3) rotate(10deg)} 100%{transform:scale(0);opacity:0} }
-@keyframes gemFall { 0%{transform:translateY(var(--from))} 80%{transform:translateY(0)} 90%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
-@keyframes shake { 0%,100%{transform:translate(0)} 10%{transform:translate(-4px,2px)} 20%{transform:translate(4px,-2px)} 30%{transform:translate(-3px,-1px)} 40%{transform:translate(3px,1px)} }
-@keyframes panelOpen { 0%{transform:scale(.85) translateY(20px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
-@keyframes dmgFloat { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-40px);opacity:0} }
-@keyframes pulse { 0%,100%{opacity:.7} 50%{opacity:1} }
-@keyframes comboFlash { 0%{transform:scale(0)} 50%{transform:scale(1.4)} 100%{transform:scale(1);opacity:0} }
-@keyframes screenShake { 0%,100%{transform:translate(0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(6px,-3px)} 75%{transform:translate(-3px,-2px)} }
-@keyframes slideUp { 0%{transform:translateY(100%);opacity:0} 100%{transform:translateY(0);opacity:1} }
-@keyframes slideDown { 0%{transform:translateY(-100%);opacity:0} 100%{transform:translateY(0);opacity:1} }
-@keyframes fadeIn { 0%{opacity:0} 100%{opacity:1} }
-@keyframes fadeOut { 0%{opacity:1} 100%{opacity:0} }
-@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-@keyframes glow { 0%,100%{box-shadow:0 0 5px rgba(255,200,0,.3)} 50%{box-shadow:0 0 15px rgba(255,200,0,.6)} }
-@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-@keyframes harvestPop { 0%{transform:scale(1)} 50%{transform:scale(1.3)} 100%{transform:scale(0);opacity:0} }
-@keyframes dayNightCycle { 0%,100%{background:rgba(0,0,0,0)} 50%{background:rgba(0,0,30,.4)} }
-@keyframes lvlUpGlow { 0%{box-shadow:0 0 0 rgba(255,215,0,0)} 50%{box-shadow:0 0 30px rgba(255,215,0,.8)} 100%{box-shadow:0 0 0 rgba(255,215,0,0)} }
-@keyframes scaleIn { 0%{transform:scale(0);opacity:0} 100%{transform:scale(1);opacity:1} }
+  /* Game colors */
+  --game-bg: linear-gradient(#F5ECD7, #E8D5A3);
+  --game-border: #5C4033;
+  --game-font: Georgia, serif;
+
+  /* Brand */
+  --brand-rose: #e91e8c;
+  --brand-violet: #1a1232;
+  --brand-vert: #7ec850;
+
+  /* Elements */
+  --elem-feu: #e24b4a;
+  --elem-eau: #85B7EB;
+  --elem-lumiere: #F5ECD7;
+  --elem-ombre: #534AB7;
+
+  /* Combat */
+  --atb-color: linear-gradient(90deg, #ef9f27, #e24b4a);
+  --spell-gauge: #7F77DD;
+
+  /* Game dimensions */
+  --tile-size: 16px;
+  --tile-scale: 3;
+  --tile-rendered: 48px;
+  --hud-height: 130px;
+  --topbar-height: 28px;
+}
+
+/* Skin overrides */
+[data-skin="medieval"] {
+  --hud-bg: #1a1a18;
+  --hud-btn: #444441;
+  --hud-text: #E8D5A3;
+  --hud-accent: #854F0B;
+  --hud-border: 2px solid #5F5E5A;
+}
+
+[data-skin="retro"] {
+  --hud-bg: #0F0F23;
+  --hud-btn: #2a2a4e;
+  --hud-text: #a0e0d0;
+  --hud-accent: #ff6b9d;
+  --hud-border: 1px solid #4a4a6e;
+}
+
+/* Reset */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--brand-violet);
+  color: var(--hud-text);
+  font-family: var(--game-font);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Game canvas area */
+.game-canvas {
+  width: 100%;
+  height: calc(100dvh - var(--hud-height) - var(--topbar-height));
+  position: relative;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+/* Controls zone */
+.controls-zone {
+  width: 100%;
+  height: var(--hud-height);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  background: var(--hud-bg);
+  border-top: var(--hud-border);
+}
+
+/* Top bar */
+.top-bar {
+  width: 100%;
+  height: var(--topbar-height);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  background: var(--hud-bg);
+  border-bottom: var(--hud-border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+}
+
+/* Placeholder sprite (colored rectangle fallback) */
+.placeholder-sprite {
+  image-rendering: pixelated;
+  border: 1px dashed rgba(255,255,255,0.3);
+}
