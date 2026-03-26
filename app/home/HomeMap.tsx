@@ -9,10 +9,11 @@ import { ArmoryPanel } from "./ArmoryPanel";
 import { SpellSalon } from "./SpellSalon";
 import { BedroomPanel } from "./BedroomPanel";
 import { ShopCounter } from "./ShopCounter";
+import { RecipeCabinet } from "./RecipeCabinet";
 import { CombatScreen } from "../game/CombatScreen";
 
 const HW = 100, HH = 100, HT = 28;
-type Room = "garden"|"kitchen"|"armory"|"salon"|"bedroom"|"shop"|null;
+type Room = "garden"|"kitchen"|"armory"|"salon"|"bedroom"|"shop"|"recipes"|null;
 interface HomeTile { type: "floor"|"wall"|"door"|"garden"|"furniture"|"outdoor"|"resource"|"coffre"|"portail"; room: Room; emoji?: string }
 
 // Nuisibles
@@ -44,6 +45,7 @@ function genHome(): HomeTile[][] {
   // Salon top-left
   for(let y=hy1+1;y<=44;y++) for(let x=hx1+1;x<=49;x++) m[y][x]={type:"floor",room:"salon"};
   m[hy1+1][hx1+1]={type:"furniture",room:"salon",emoji:"✨"};
+  m[hy1+2][hx1+1]={type:"furniture",room:"recipes",emoji:"📚"}; // Armoire aux recettes
   for(let x=hx1+1;x<hx2;x++) m[45][x]={type:"wall",room:null};
   // Cuisine top-right
   for(let y=hy1+1;y<=44;y++) for(let x=51;x<hx2;x++) m[y][x]={type:"floor",room:"kitchen"};
@@ -238,18 +240,17 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
   const gainXp=useCallback((a:number)=>{onUpdateGs({xp:gs.xp+a});},[gs,onUpdateGs]);
   const closeRoom=()=>{setActiveRoom(null);sounds.close();};
 
-  // Joystick handlers
-  const joyStart=(e:React.TouchEvent)=>{
-    joyRef.current.active=true;const el=e.currentTarget.getBoundingClientRect();
-    const ox=e.touches[0].clientX-el.left-el.width/2,oy=e.touches[0].clientY-el.top-el.height/2;
-    const l=Math.sqrt(ox*ox+oy*oy);if(l>5){joyRef.current.dx=ox/l;joyRef.current.dy=oy/l;}
+  // D-pad Game Boy — maintien enfoncé = déplacement continu
+  const dpadRef=useRef<ReturnType<typeof setInterval>|null>(null);
+  const dpadStart=(dx:number,dy:number)=>{
+    joyRef.current={active:true,dx,dy};
+    if(dpadRef.current) clearInterval(dpadRef.current);
+    dpadRef.current=setInterval(()=>{joyRef.current={active:true,dx,dy};},80);
   };
-  const joyMove=(e:React.TouchEvent)=>{
-    if(!joyRef.current.active) return;const el=e.currentTarget.getBoundingClientRect();
-    const ox=e.touches[0].clientX-el.left-el.width/2,oy=e.touches[0].clientY-el.top-el.height/2;
-    const l=Math.sqrt(ox*ox+oy*oy);if(l>5){joyRef.current.dx=ox/l;joyRef.current.dy=oy/l;}else{joyRef.current.dx=0;joyRef.current.dy=0;}
+  const dpadEnd=()=>{
+    joyRef.current={active:false,dx:0,dy:0};
+    if(dpadRef.current){clearInterval(dpadRef.current);dpadRef.current=null;}
   };
-  const joyEnd=()=>{joyRef.current.active=false;joyRef.current.dx=0;joyRef.current.dy=0;};
 
   return (
     <div style={{position:"fixed",inset:0,background:"#3A5A2A",touchAction:"none"}}>
@@ -262,11 +263,20 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
         <span style={{color:"#4CAF50",fontSize:12}}>❤️{gs.hp}/{gs.maxHp} ☀️{gs.sous}</span>
         <button onClick={onExit} style={{background:"rgba(139,0,0,.4)",border:"1px solid #F44",borderRadius:8,color:"#FFF",padding:"4px 12px",fontSize:12,cursor:"pointer"}}>🚪 Sortir</button>
       </div>
-      {/* Joystick */}
+      {/* D-pad Game Boy */}
       {!activeRoom&&!combat&&(
-        <div onTouchStart={joyStart} onTouchMove={joyMove} onTouchEnd={joyEnd}
-          style={{position:"absolute",bottom:20,left:20,width:100,height:100,borderRadius:"50%",background:"rgba(255,255,255,.12)",border:"2px solid rgba(255,255,255,.2)",zIndex:10,touchAction:"none"}}>
-          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.25)"}} />
+        <div style={{position:"absolute",bottom:12,left:12,zIndex:10,display:"grid",gridTemplateAreas:'"_ u _" "l _ r" "_ d _"',gap:3,touchAction:"none"}}>
+          {([["u",0,-1,"↑"],["l",-1,0,"←"],["r",1,0,"→"],["d",0,1,"↓"]] as const).map(([a,dx,dy,ch])=>(
+            <button key={a} onTouchStart={(e)=>{e.preventDefault();dpadStart(dx,dy);}} onTouchEnd={(e)=>{e.preventDefault();dpadEnd();}} onMouseDown={()=>dpadStart(dx,dy)} onMouseUp={dpadEnd} onMouseLeave={dpadEnd}
+              style={{gridArea:a,width:52,height:52,borderRadius:10,background:"rgba(40,40,40,.85)",border:"2px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",touchAction:"none",WebkitUserSelect:"none",userSelect:"none"}}>{ch}</button>
+          ))}
+        </div>
+      )}
+      {/* Stats compact entre D-pad et boutons */}
+      {!activeRoom&&!combat&&(
+        <div style={{position:"absolute",bottom:24,left:190,zIndex:10,display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#FFF"}}>
+          <span style={{color:"#F66"}}>❤️{gs.hp}</span>
+          <span style={{color:"#FFD700"}}>☀️{gs.sous}</span>
         </div>
       )}
       {/* PUYO COMBAT pour nuisibles */}
@@ -278,6 +288,7 @@ export function HomeMap({ gs, onUpdateGs, onExit, playerEmoji, playerName, canCr
       {activeRoom==="salon"&&<SpellSalon gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} canCraft={canCraft} />}
       {activeRoom==="bedroom"&&<BedroomPanel gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} />}
       {activeRoom==="shop"&&<ShopCounter gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} />}
+      {activeRoom==="recipes"&&<RecipeCabinet gs={gs} onUpdateGs={onUpdateGs} onClose={closeRoom} canCraft={canCraft} craftFail={craftFail} />}
     </div>
   );
 }

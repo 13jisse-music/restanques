@@ -392,7 +392,7 @@ function GameInner() {
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,.25)"}} />
         </div>
       )}
-      {showMinimap && !combat && panel==="none" && <MiniMap map={mapRef.current} px={px} py={py} />}
+      {showMinimap && !combat && panel==="none" && <MiniMap map={mapRef.current} px={px} py={py} mobs={mobsRef.current} biome={currentBiome} />}
       {floats.map(f => <div key={f.id} style={{position:"absolute",left:f.x-px+(canvasRef.current?.width||0)/2,top:f.y-py+(canvasRef.current?.height||0)/2-30,color:f.color,fontSize:14,fontWeight:"bold",pointerEvents:"none",animation:"dmgFloat 1s forwards",zIndex:50,textShadow:"0 1px 3px #000"}}>{f.text}</div>)}
 
       {combat && <CombatScreen combat={combat} setCombat={setCombat} stats={gs.stats} playerClass={playerClass} maxHp={gs.maxHp+gs.lv*5} lv={gs.lv} onEnd={endCombat} addToBag={addToBag} gainXp={gainXp} mobsRef={mobsRef} />}
@@ -453,16 +453,32 @@ function GameInner() {
   );
 }
 
-// ─── MiniMap / BigMap ───
-function MiniMap({map,px,py}:{map:MapTile[][]|null;px:number;py:number}) {
+// ─── MiniMap 80×80 — biome actuel + points remarquables ───
+function MiniMap({map,px,py,mobs,biome}:{map:MapTile[][]|null;px:number;py:number;mobs:Mob[];biome:string}) {
   const cvs=useRef<HTMLCanvasElement>(null);
+  const [fr,setFr]=useState(0);
+  useEffect(()=>{const iv=setInterval(()=>setFr(f=>f+1),500);return()=>clearInterval(iv);},[]);
   useEffect(()=>{
     if(!cvs.current||!map) return; const ctx=cvs.current.getContext("2d"); if(!ctx) return;
-    ctx.clearRect(0,0,100,100); const sc=100/MAP_W;
-    for(let y=0;y<MAP_H;y+=3) for(let x=0;x<MAP_W;x+=3){const t=map[y][x],b=BIOMES[t.biome];ctx.fillStyle=t.type==="block"?b?.colors.block||"#333":b?.colors.ground||"#666";ctx.fillRect(x*sc,y*sc,3*sc,3*sc);}
-    ctx.fillStyle="#FF0";ctx.fillRect((px/TILE_PX)*sc-2,(py/TILE_PX)*sc-2,4,4);
-  },[map,px,py]);
-  return <canvas ref={cvs} width={100} height={100} style={{position:"absolute",top:38,right:10,zIndex:10,borderRadius:8,border:"1px solid rgba(255,255,255,.2)",opacity:.8}} />;
+    const S=80; ctx.clearRect(0,0,S,S);
+    const ptx=Math.floor(px/TILE_PX),pty=Math.floor(py/TILE_PX);
+    const vr=40,ox=ptx-vr,oy=pty-vr;
+    for(let my=0;my<S;my++) for(let mx=0;mx<S;mx++){
+      const tx=ox+mx*2,ty=oy+my*2;
+      if(tx<0||tx>=MAP_W||ty<0||ty>=MAP_H){ctx.fillStyle="#111";ctx.fillRect(mx,my,1,1);continue;}
+      const t=map[ty][tx]; if(t.biome!==biome){ctx.fillStyle="rgba(0,0,0,.5)";ctx.fillRect(mx,my,1,1);continue;}
+      const b=BIOMES[t.biome];
+      ctx.fillStyle=t.type==="block"?b?.colors.block||"#333":t.type==="water"?"#2471A3":t.type==="path"?b?.colors.path||"#AA8":b?.colors.ground||"#666";
+      ctx.fillRect(mx,my,1,1);
+      if(t.type==="portal"){ctx.fillStyle="#0FF";ctx.fillRect(mx,my,2,2);}
+      if(t.type==="fortress"){ctx.fillStyle="#F44";ctx.fillRect(mx-1,my-1,3,3);}
+      if(t.type==="npc"){ctx.fillStyle="#FF0";ctx.fillRect(mx,my,2,2);}
+      if(t.type==="home"){ctx.fillStyle="#0F0";ctx.fillRect(mx,my,2,2);}
+    }
+    for(const m of mobs){if(m.hp<=0)continue;const mx=(Math.floor(m.x/TILE_PX)-ox)/2,my=(Math.floor(m.y/TILE_PX)-oy)/2;if(mx>=0&&mx<S&&my>=0&&my<S){ctx.fillStyle="#F66";ctx.fillRect(mx,my,1,1);}}
+    ctx.fillStyle=fr%2===0?"#FF0":"#FFA";ctx.beginPath();ctx.arc(S/2,S/2,fr%2===0?2:3,0,Math.PI*2);ctx.fill();
+  },[map,px,py,mobs,biome,fr]);
+  return <canvas ref={cvs} width={80} height={80} style={{position:"absolute",top:38,right:6,zIndex:10,borderRadius:8,border:"1px solid rgba(255,255,255,.25)",opacity:.85,background:"rgba(0,0,0,.4)"}} />;
 }
 function BigMap({map,px,py}:{map:MapTile[][]|null;px:number;py:number}) {
   const cvs=useRef<HTMLCanvasElement>(null);
