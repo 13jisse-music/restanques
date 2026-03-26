@@ -123,6 +123,8 @@ function GameInner() {
   const [inHome, setInHome] = useState(playerClassId === "artisane");
   const [quickMsgs, setQuickMsgs] = useState<{from:string;text:string;t:number}[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(true);
+  const [deathVisible, setDeathVisible] = useState(false);
+  const [portalPrompt, setPortalPrompt] = useState<{to:string;x:number;y:number}|null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef({active:false,dx:0,dy:0});
@@ -229,9 +231,8 @@ function GameInner() {
             setPx(nx); setPy(ny);
             if (frameRef.current%8===0) sounds.step();
             // Auto interactions on step
-            if (tile.type==="portal"&&tile.portalTo) {
-              const zones=[{id:"garrigue",cx:37,cy:37},{id:"calanques",cx:112,cy:37},{id:"mines",cx:37,cy:112},{id:"mer",cx:112,cy:112},{id:"restanques",cx:75,cy:75}];
-              const z=zones.find(z=>z.id===tile.portalTo); if(z){setPx(z.cx*TILE_PX);setPy(z.cy*TILE_PX);sounds.open();}
+            if (tile.type==="portal"&&tile.portalTo&&!portalPrompt) {
+              setPortalPrompt({to:tile.portalTo, x:tile.portalTo==="garrigue"?37:tile.portalTo==="calanques"?112:tile.portalTo==="mines"?37:tile.portalTo==="mer"?112:75, y:tile.portalTo==="garrigue"?37:tile.portalTo==="calanques"?37:tile.portalTo==="mines"?112:tile.portalTo==="mer"?112:75});
             }
             if (tile.type==="home"&&frameRef.current%30===0) { setInHome(true); sounds.open(); }
           }
@@ -253,7 +254,7 @@ function GameInner() {
     requestAnimationFrame(loop);
     return () => { running = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [combat, panel, px, py, playerClass, inHome]);
+  }, [combat, panel, px, py, playerClass, inHome, portalPrompt]);
 
   const draw = useCallback(() => {
     const cvs=canvasRef.current; if(!cvs||!mapRef.current) return;
@@ -297,10 +298,19 @@ function GameInner() {
 
   const endCombat = useCallback((won: boolean, newHp: number, drops?: string, sousGain?: number) => {
     if (won && drops) { addToBag(drops); if(sousGain) setGs(p=>({...p,sous:p.sous+sousGain})); }
-    if (!won) { setGs(p=>({...p,hp:Math.max(1,Math.floor(p.maxHp/2)),sous:Math.max(0,p.sous-20)})); setPx(35*TILE_PX); setPy(35*TILE_PX); }
+    if (!won) {
+      const lostSous = Math.floor(gs.sous * 0.1);
+      setGs(p=>({...p, hp:Math.max(1,Math.floor(p.maxHp/2)), sous:Math.max(0,p.sous-lostSous)}));
+      setInHome(true);
+      setCombat(null);
+      setDeathVisible(true);
+      setTimeout(()=>setDeathVisible(false), 1500);
+      sounds.defeat();
+      return;
+    }
     else setGs(p=>({...p,hp:newHp}));
     setCombat(null);
-  }, [addToBag]);
+  }, [addToBag, gs.sous]);
 
   // Resize
   useEffect(() => {
@@ -358,7 +368,7 @@ function GameInner() {
 
   // HOME MODE
   if (inHome) {
-    return <HomeMap gs={gs} onUpdateGs={updateGs} onExit={()=>{setInHome(false);sounds.close();}} playerEmoji={playerClass.emoji} playerName={playerName} canCraft={playerClass.canCraft} craftFail={playerClass.craftFail} />;
+    return <HomeMap gs={gs} onUpdateGs={updateGs} onExit={()=>{setInHome(false);sounds.close();setTimeout(()=>window.dispatchEvent(new Event('resize')),100);}} playerEmoji={playerClass.emoji} playerName={playerName} canCraft={playerClass.canCraft} craftFail={playerClass.craftFail} />;
   }
 
   return (
@@ -428,6 +438,17 @@ function GameInner() {
       {/* Sort de Rappel — Artisane : retour maison permanent */}
       {!combat && !inHome && playerClassId==="artisane" && <button onClick={()=>{setInHome(true);sounds.teleport();}} style={{position:"absolute",bottom:80,right:10,zIndex:10,padding:"8px 14px",background:"linear-gradient(135deg,#9B59B6,#6A1B9A)",color:"#FFF",border:"2px solid #DAA520",borderRadius:10,fontSize:12,fontWeight:"bold",cursor:"pointer",boxShadow:"0 0 10px rgba(155,89,182,.4)"}}>🏠 Rappel</button>}
       <MessageOverlay messages={[...quickMsgs,...mpMessages]} />
+      {deathVisible && <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(180,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:72,animation:"scaleIn .4s"}}>💀</div><div style={{color:"#FFF",fontSize:20,fontWeight:"bold",marginTop:12}}>Défaite...</div><div style={{color:"#AAA",fontSize:12,marginTop:8}}>Retour à la chambre...</div></div>}
+      {portalPrompt && <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{background:"linear-gradient(#F5ECD7,#E8D5A3)",border:"3px solid #5C4033",borderRadius:14,padding:20,maxWidth:300,textAlign:"center",color:"#3D2B1F"}}>
+          <div style={{fontSize:16,fontWeight:"bold",marginBottom:12}}>🚪 Portail</div>
+          <div style={{fontSize:14,marginBottom:16}}>Passer aux {BIOMES[portalPrompt.to]?.name || portalPrompt.to} ?</div>
+          <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+            <button onClick={()=>{setPx(portalPrompt.x*TILE_PX);setPy(portalPrompt.y*TILE_PX);setPortalPrompt(null);sounds.open();}} style={{padding:"10px 24px",background:"linear-gradient(135deg,#4CAF50,#388E3C)",color:"#FFF",border:"2px solid #DAA520",borderRadius:10,fontSize:14,fontWeight:"bold",cursor:"pointer"}}>Oui</button>
+            <button onClick={()=>setPortalPrompt(null)} style={{padding:"10px 24px",background:"#5C4033",color:"#E8D5A3",border:"2px solid #8B7355",borderRadius:10,fontSize:14,cursor:"pointer"}}>Non</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
