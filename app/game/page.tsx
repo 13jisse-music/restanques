@@ -131,6 +131,8 @@ function GameInner() {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [deathVisible, setDeathVisible] = useState(false);
   const [portalPrompt, setPortalPrompt] = useState<{to:string;x:number;y:number}|null>(null);
+  const [invulnUntil, setInvulnUntil] = useState(0); // timestamp, 3s after home exit
+  const [safeWarned, setSafeWarned] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef({active:false,dx:0,dy:0});
@@ -251,9 +253,13 @@ function GameInner() {
         mob.moveT+=dt; if(mob.moveT>2){mob.dir=Math.random()*Math.PI*2;mob.moveT=0;}
         const mx=mob.x+Math.cos(mob.dir)*30*dt, my=mob.y+Math.sin(mob.dir)*30*dt;
         const mtx=Math.floor(mx/TILE_PX), mty=Math.floor(my/TILE_PX);
-        if (mtx>0&&mtx<MAP_W-1&&mty>0&&mty<MAP_H-1&&map[mty][mtx].type!=="block"){mob.x=mx;mob.y=my;} else mob.dir+=Math.PI;
+        const mobInSafe=((mx/TILE_PX-35)**2+(my/TILE_PX-35)**2)<225;
+        if (mtx>0&&mtx<MAP_W-1&&mty>0&&mty<MAP_H-1&&map[mty][mtx].type!=="block"&&!mobInSafe){mob.x=mx;mob.y=my;} else mob.dir+=Math.PI;
         const ddx=mob.x-px, ddy=mob.y-py;
-        if (ddx*ddx+ddy*ddy<900){startCombat(mob);break;}
+        const inSafe=((px/TILE_PX-35)**2+(py/TILE_PX-35)**2)<225;
+        if (ddx*ddx+ddy*ddy<900 && !inSafe && Date.now()>invulnUntil){startCombat(mob);break;}
+        // Warn when leaving safe zone
+        if (!inSafe && !safeWarned){setSafeWarned(true);addFloat(px,py-30,"⚠️ Zone dangereuse !","#FF9800");}
       }
       frameRef.current++; draw();
       if (running) requestAnimationFrame(loop);
@@ -274,13 +280,32 @@ function GameInner() {
       const tile=map[ty][tx], biome=BIOMES[tile.biome]||BIOMES.garrigue, sx=tx*TILE_PX-camX, sy=ty*TILE_PX-camY;
       switch(tile.type){case"ground":ctx.fillStyle=(tx+ty)%2===0?biome.colors.ground:biome.colors.alt;break;case"path":ctx.fillStyle=biome.colors.path;break;case"block":ctx.fillStyle=biome.colors.block;break;case"water":ctx.fillStyle="#2471A3";break;default:ctx.fillStyle=biome.colors.ground;}
       ctx.fillRect(sx,sy,TILE_PX,TILE_PX);
+      // Zone safe autour de la maison (15 tiles)
+      const homeDistSq=(tx-35)**2+(ty-35)**2;
+      if(homeDistSq<225){ctx.fillStyle="rgba(76,175,80,.1)";ctx.fillRect(sx,sy,TILE_PX,TILE_PX);}
       if (tile.type==="block"){ctx.font="18px serif";ctx.textAlign="center";ctx.fillText(tile.biome==="mer"||tile.biome==="calanques"?"🪨":"🌳",sx+TILE_PX/2,sy+TILE_PX/2+5);}
       if (tile.type==="water"){ctx.font="14px serif";ctx.textAlign="center";ctx.fillText("〰",sx+TILE_PX/2,sy+TILE_PX/2+4);}
       if (tile.type==="resource"&&tile.resId){ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(RES[tile.resId]?.emoji||"?",sx+TILE_PX/2,sy+TILE_PX/2+6);}
-      if (tile.type==="portal"){ctx.font="22px serif";ctx.textAlign="center";ctx.fillText("🌀",sx+TILE_PX/2,sy+TILE_PX/2+7);}
-      if (tile.type==="npc"&&tile.npcId){const npc=NPCS.find(n=>n.id===tile.npcId);ctx.font="22px serif";ctx.textAlign="center";ctx.fillText(npc?.emoji||"❓",sx+TILE_PX/2,sy+TILE_PX/2+7);}
-      if (tile.type==="fortress"){ctx.font="22px serif";ctx.textAlign="center";ctx.fillText("🏰",sx+TILE_PX/2,sy+TILE_PX/2+7);}
-      if (tile.type==="home"){ctx.font="22px serif";ctx.textAlign="center";ctx.fillText("🏠",sx+TILE_PX/2,sy+TILE_PX/2+7);}
+      if (tile.type==="portal"){
+        ctx.fillStyle="rgba(0,255,255,.15)";ctx.fillRect(sx-4,sy-4,TILE_PX+8,TILE_PX+8);
+        ctx.font="28px serif";ctx.textAlign="center";ctx.fillText("🚪",sx+TILE_PX/2,sy+TILE_PX/2+9);
+        ctx.font="bold 8px sans-serif";ctx.fillStyle="#0FF";ctx.fillText(tile.portalTo||"",sx+TILE_PX/2,sy+TILE_PX+10);
+      }
+      if (tile.type==="npc"&&tile.npcId){
+        const npc=NPCS.find(n=>n.id===tile.npcId);
+        ctx.beginPath();ctx.arc(sx+TILE_PX/2,sy+TILE_PX/2,18,0,Math.PI*2);ctx.fillStyle="rgba(33,150,243,.4)";ctx.fill();ctx.strokeStyle="#2196F3";ctx.lineWidth=2;ctx.stroke();
+        ctx.font="28px serif";ctx.textAlign="center";ctx.fillText(npc?.emoji||"❓",sx+TILE_PX/2,sy+TILE_PX/2+9);
+        ctx.font="bold 9px sans-serif";ctx.fillStyle="#FFF";ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.strokeText(npc?.name||"",sx+TILE_PX/2,sy-6);ctx.fillText(npc?.name||"",sx+TILE_PX/2,sy-6);
+        if (frameRef.current%20<10){ctx.font="14px serif";ctx.fillText("💬",sx+TILE_PX/2+14,sy-2);}
+      }
+      if (tile.type==="fortress"){
+        ctx.fillStyle="rgba(244,67,54,.15)";ctx.fillRect(sx-8,sy-8,TILE_PX+16,TILE_PX+16);
+        ctx.font="40px serif";ctx.textAlign="center";ctx.fillText("🏰",sx+TILE_PX/2,sy+TILE_PX/2+13);
+      }
+      if (tile.type==="home"){
+        ctx.fillStyle="rgba(76,175,80,.15)";ctx.fillRect(sx-4,sy-4,TILE_PX+8,TILE_PX+8);
+        ctx.font="28px serif";ctx.textAlign="center";ctx.fillText("🏠",sx+TILE_PX/2,sy+TILE_PX/2+9);
+      }
     }
     for (const mob of mobsRef.current) {
       if (mob.hp<=0) continue; const mx=mob.x-camX, my=mob.y-camY;
@@ -289,7 +314,11 @@ function GameInner() {
       const hr=mob.hp/mob.maxHp; ctx.fillStyle="#333";ctx.fillRect(mx-14,my-18,28,4);
       ctx.fillStyle=hr>0.5?"#4CAF50":hr>0.25?"#FF9800":"#F44336";ctx.fillRect(mx-14,my-18,28*hr,4);
     }
+    // Player (blink when invulnerable)
+    const isInvuln=Date.now()<invulnUntil;
+    ctx.globalAlpha=isInvuln&&frameRef.current%4<2?0.3:1;
     ctx.font="28px serif";ctx.textAlign="center";ctx.fillText(playerClass.emoji,W/2,H/2+8);
+    ctx.globalAlpha=1;
     ctx.font="bold 11px sans-serif";ctx.fillStyle="#FFF";ctx.strokeStyle="#000";ctx.lineWidth=2;
     ctx.strokeText(playerName,W/2,H/2-18);ctx.fillText(playerName,W/2,H/2-18);
     // Draw other multiplayer characters
@@ -375,7 +404,13 @@ function GameInner() {
 
   // HOME MODE
   if (inHome) {
-    return <HomeMap gs={gs} onUpdateGs={updateGs} onExit={()=>{setInHome(false);sounds.close();setTimeout(()=>window.dispatchEvent(new Event('resize')),100);}} playerEmoji={playerClass.emoji} playerName={playerName} canCraft={playerClass.canCraft} craftFail={playerClass.craftFail} />;
+    return <HomeMap gs={gs} onUpdateGs={updateGs} onExit={()=>{
+      setInHome(false); sounds.door();
+      // Spawn 2 tiles below home on the world map
+      setPx(35*TILE_PX); setPy(37*TILE_PX);
+      setInvulnUntil(Date.now()+3000); // 3s invulnerability
+      setTimeout(()=>window.dispatchEvent(new Event('resize')),100);
+    }} playerEmoji={playerClass.emoji} playerName={playerName} canCraft={playerClass.canCraft} craftFail={playerClass.craftFail} />;
   }
 
   return (
@@ -383,13 +418,15 @@ function GameInner() {
       <canvas ref={canvasRef} style={{position:"absolute",inset:0}}
         onTouchEnd={(e) => { const t=e.changedTouches[0]; if(t) handleWorldTap(t.clientX,t.clientY); }}
         onClick={(e) => handleWorldTap(e.clientX,e.clientY)} />
-      <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} timeOfDay={(gameTime%600)/600} />
+      <GameHUD playerClass={playerClass} playerName={playerName} gs={gs} lv={gs.lv} xp={gs.xp} biomeEmoji={biomeEmoji} biomeName={biomeName} dayPhase={dayPhase} timeOfDay={(gameTime%600)/600} onQuickMsg={(text)=>{sendMessage(text);setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}]);}} />
       {!combat && panel==="none" && (
-        <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:6}}>
+        <div style={{position:"absolute",bottom:10,right:10,zIndex:10,display:"flex",flexDirection:"column",gap:8}}>
           <button onClick={()=>{sounds.click();setPanel("bag")}} style={hudBtn}>🎒</button>
-          <button onClick={()=>{sounds.click();setPanel("craft")}} style={hudBtn}>🔨</button>
+          {playerClass.canCraft && <button onClick={()=>{sounds.click();setPanel("craft")}} style={hudBtn}>🔨</button>}
+          {!playerClass.canCraft && <button onClick={()=>{sounds.click();addFloat(px,py-30,"Achetez chez Mélanie !","#FF9800");}} style={{...hudBtn,opacity:.5}}>🛒</button>}
           <button onClick={()=>{sounds.click();setPanel("bestiaire")}} style={hudBtn}>📖</button>
           <button onClick={()=>{sounds.click();setPanel("map")}} style={hudBtn}>🗺️</button>
+          {(playerClassId==="artisane"||playerClassId==="ombre")&&!inHome&&<button onClick={()=>{setInHome(true);sounds.teleport();}} style={{...hudBtn,background:"rgba(123,31,162,.7)",border:"2px solid #CE93D8"}}>🏠</button>}
           <button onClick={()=>{sounds.click();setPanel("menu")}} style={hudBtn}>⚙️</button>
         </div>
       )}
@@ -441,9 +478,8 @@ function GameInner() {
       {panel==="ngplus" && <NewGamePlus gs={gs} onStart={()=>{updateGs({newGamePlus:gs.newGamePlus+1,bossesDefeated:[],questsDone:[]});setPanel("none");}} onClose={()=>setPanel("none")} />}
       {panel==="mystery" && <MysteryCharacter onClose={()=>setPanel("none")} bossesDefeated={gs.bossesDefeated} />}
       {!combat && panel==="none" && showOnboarding && gs.onboardingStep < 5 && <Onboarding gs={gs} onClose={()=>setShowOnboarding(false)} />}
-      {!combat && panel==="none" && <QuickMessages onSend={(text)=>{sendMessage(text);setQuickMsgs(m=>[...m.slice(-9),{from:playerName,text,t:Date.now()}]);}} />}
-      {/* Sort de Rappel — Artisane : retour maison permanent */}
-      {!combat && !inHome && playerClassId==="artisane" && <button onClick={()=>{setInHome(true);sounds.teleport();}} style={{position:"absolute",bottom:80,right:10,zIndex:10,padding:"8px 14px",background:"linear-gradient(135deg,#9B59B6,#6A1B9A)",color:"#FFF",border:"2px solid #DAA520",borderRadius:10,fontSize:12,fontWeight:"bold",cursor:"pointer",boxShadow:"0 0 10px rgba(155,89,182,.4)"}}>🏠 Rappel</button>}
+      {/* Messages rapides: intégrés au HUD via GameHUD long press (pas de bouton 💬 standalone) */}
+      {/* Rappel intégré dans les boutons HUD (plus de bouton séparé) */}
       <MessageOverlay messages={[...quickMsgs,...mpMessages]} />
       {deathVisible && <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(180,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:72,animation:"scaleIn .4s"}}>💀</div><div style={{color:"#FFF",fontSize:20,fontWeight:"bold",marginTop:12}}>Défaite...</div><div style={{color:"#AAA",fontSize:12,marginTop:8}}>Retour à la chambre...</div></div>}
       {portalPrompt && <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center"}}>
