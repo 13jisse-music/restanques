@@ -269,12 +269,31 @@ export default function SceneMonde() {
       {menuOverlay && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'safe center', justifyContent: 'center', padding: '20px 0', overflowY: 'auto' }}
           onClick={() => setMenuOverlay(null)}>
-          <div style={{ background: '#231b42', border: '2px solid var(--hud-accent)', borderRadius: 16, padding: 20, width: 320, maxWidth: '90%', maxHeight: '80vh', overflowY: 'auto', margin: 'auto' }}
+          <div style={{ background: '#231b42', border: '2px solid var(--hud-accent)', borderRadius: 16, padding: menuOverlay === 'Carte' ? 0 : 20, width: menuOverlay === 'Carte' ? '95%' : 320, maxWidth: '95%', maxHeight: '85vh', overflowY: 'auto', margin: 'auto' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--hud-accent)', marginBottom: 12 }}>{menuOverlay}</div>
-            <div style={{ fontSize: 12, color: '#9a8fbf' }}>Contenu du {menuOverlay} (à implémenter)</div>
-            <button onClick={() => setMenuOverlay(null)} style={{ marginTop: 16, width: '100%', padding: '10px', background: 'var(--hud-accent)',
-              border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
+            {menuOverlay === 'Carte' ? (
+              <div style={{ position: 'relative' }}>
+                <img src="/story/art_map_garrigue.png" style={{ width: '100%', borderRadius: 16, display: 'block' }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                <img src="/story/map_garrigue.png" style={{ width: '100%', borderRadius: 16, display: 'block' }} />
+                <div style={{ padding: '8px 12px', fontSize: 10, color: '#9a8fbf', textAlign: 'center' }}>
+                  Points : PNJ (orange) | Portails (rose/violet) | Donjon (marron) | Boss (rouge)
+                </div>
+                <button onClick={() => setMenuOverlay(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: '#fff', fontSize: 16, cursor: 'pointer' }}>✕</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--hud-accent)', marginBottom: 12 }}>{menuOverlay}</div>
+                <div style={{ fontSize: 12, color: '#9a8fbf' }}>
+                  {menuOverlay === 'Sac' && 'Inventaire : ' + player.bag.length + ' objets'}
+                  {menuOverlay === 'Sorts' && 'Aucun sort equipe. Craft-en au Salon !'}
+                  {menuOverlay === 'Équip' && 'Arme: — | Armure: — | Casque: — | Gants: — | Bottes: — | Amulette: —'}
+                  {menuOverlay === 'Quêtes' && 'Parle aux PNJ pour recevoir des quetes.'}
+                </div>
+                <button onClick={() => setMenuOverlay(null)} style={{ marginTop: 16, width: '100%', padding: '10px', background: 'var(--hud-accent)',
+                  border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -283,7 +302,7 @@ export default function SceneMonde() {
       <div className="controls-zone" style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Menu */}
         <div style={{ display: 'flex', gap: 2, padding: '4px 8px', borderBottom: '1px solid rgba(139,105,20,0.3)' }}>
-          {['Sac', 'Sorts', 'Équip', 'Quêtes', 'Bestiaire'].map(m => (
+          {['Sac', 'Sorts', 'Équip', 'Quêtes', 'Carte'].map(m => (
             <button key={m} onClick={() => setMenuOverlay(m)} style={{
               flex: 1, padding: '4px 0', background: 'rgba(139,105,20,0.2)',
               border: '1px solid rgba(139,105,20,0.4)', borderRadius: 4,
