@@ -35,8 +35,8 @@
   --tile-size: 16px;
   --tile-scale: 3;
   --tile-rendered: 48px;
-  --hud-height: 130px;
-  --topbar-height: 28px;
+  --hud-height: 120px;
+  --topbar-height: 24px;
 }
 
 /* Skin overrides */

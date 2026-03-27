@@ -49,7 +49,7 @@ export default function SceneMaison() {
   useEffect(() => {
     const update = () => {
       setViewW(window.innerWidth)
-      setViewH(window.innerHeight - 130 - 28) // minus HUD + topbar
+      setViewH(window.innerHeight - 120 - 24) // minus HUD + topbar
     }
     update()
     window.addEventListener('resize', update)
@@ -182,7 +182,7 @@ export default function SceneMaison() {
       onTouchStart={(e) => { e.preventDefault(); startMove(dx, dy) }}
       onTouchEnd={stopMove}
       style={{
-        width: 44, height: 44, borderRadius: 8,
+        width: 38, height: 38, borderRadius: 8,
         background: 'var(--hud-btn)', color: 'var(--hud-text)',
         border: 'var(--hud-border)', boxShadow: 'var(--hud-shadow)',
         fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -206,7 +206,7 @@ export default function SceneMaison() {
       </div>
 
       {/* Game Canvas */}
-      <div style={{ marginTop: 28, height: viewH, position: 'relative' }}>
+      <div style={{ marginTop: 24, height: viewH, position: 'relative' }}>
         <TileRenderer
           map={map}
           tileColors={TILE_COLORS}
@@ -338,12 +338,12 @@ export default function SceneMaison() {
         {/* D-pad + Action */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
           {/* D-pad */}
-          <div style={{ display: 'grid', gridTemplateColumns: '44px 44px 44px', gridTemplateRows: '44px 44px 44px', gap: 2 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '38px 38px 38px', gridTemplateRows: '38px 38px 38px', gap: 2 }}>
             <div />
             {dpadBtn('↑', 0, -1)}
             <div />
             {dpadBtn('←', -1, 0)}
-            <div style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#3a2d5c' }}>
+            <div style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#3a2d5c' }}>
               {playerX},{playerY}
             </div>
             {dpadBtn('→', 1, 0)}

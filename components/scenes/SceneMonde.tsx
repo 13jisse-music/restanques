@@ -37,7 +37,7 @@ export default function SceneMonde() {
 
   // Viewport
   useEffect(() => {
-    const update = () => { setViewW(window.innerWidth); setViewH(window.innerHeight - 130 - 28) }
+    const update = () => { setViewW(window.innerWidth); setViewH(window.innerHeight - 120 - 24) }
     update(); window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
@@ -81,16 +81,16 @@ export default function SceneMonde() {
     function tick(time: number) {
       if (lastTime) {
         const dt = Math.min((time - lastTime) / 1000, 0.05) // cap delta
-        const dx = joyDXRef.current, dy = joyDYRef.current
+        let dx = joyDXRef.current, dy = joyDYRef.current
         if (dx !== 0 || dy !== 0) {
-          const speed = 4 // tiles per second
+          // No diagonal — move only on dominant axis
+          if (Math.abs(dx) > Math.abs(dy)) { dy = 0; } else { dx = 0; }
+          const speed = 3.5 // tiles per second
           const pos = posRef.current
           const nx = pos.x + dx * speed * dt
           const ny = pos.y + dy * speed * dt
-          // Move X
-          if (canWalk(nx, pos.y)) pos.x = nx
-          // Move Y
-          if (canWalk(pos.x, ny)) pos.y = ny
+          if (dx !== 0 && canWalk(nx, pos.y)) pos.x = nx
+          if (dy !== 0 && canWalk(pos.x, ny)) pos.y = ny
           setPlayerX(pos.x)
           setPlayerY(pos.y)
         }
@@ -203,7 +203,7 @@ export default function SceneMonde() {
       </div>
 
       {/* Game Canvas */}
-      <div style={{ marginTop: 28, height: viewH, position: 'relative' }}>
+      <div style={{ marginTop: 24, height: viewH, position: 'relative' }}>
         <TileRenderer map={mapData.map} tileColors={GARRIGUE_COLORS} tileSize={TILE_SIZE}
           cameraX={playerX} cameraY={playerY} viewportW={viewW} viewportH={viewH} entities={allEntities} />
         <ClockStardew />
