@@ -24,13 +24,13 @@ export default function SplashScreen() {
 
   return (
     <div style={{
-      width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column',
+      width: '100%', minHeight: '100dvh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #1a1232 0%, #2d1f54 50%, #1a1232 100%)',
-      padding: 20, gap: 16,
+      padding: '40px 20px', gap: 12, overflowY: 'auto',
     }}>
       {step === 'title' && (
         <>
-          <div style={{ fontSize: 48, fontWeight: 700, color: '#e91e8c', textShadow: '0 0 20px rgba(233,30,140,0.5)', letterSpacing: 2 }}>
+          <div style={{ fontSize: 'clamp(28px, 10vw, 48px)', fontWeight: 700, color: '#e91e8c', textShadow: '0 0 20px rgba(233,30,140,0.5)', letterSpacing: 2 }}>
             RESTANQUES
           </div>
           <div style={{ fontSize: 14, color: '#9a8fbf', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
@@ -52,7 +52,7 @@ export default function SplashScreen() {
               Continuer
             </button>
           </div>
-          <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: '#3a2d5c' }}>
+          <div style={{ marginTop: 20, fontSize: 10, color: '#3a2d5c' }}>
             v6.0 — CDC Opus
           </div>
         </>

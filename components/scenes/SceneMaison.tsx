@@ -243,11 +243,12 @@ export default function SceneMaison() {
       {gardenOverlay !== null && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'safe center', justifyContent: 'center',
+          padding: '20px 0', overflowY: 'auto',
         }} onClick={() => setGardenOverlay(null)}>
           <div style={{
             background: '#231b42', border: '2px solid #7ec850', borderRadius: 16,
-            padding: 20, width: 300, maxWidth: '90%',
+            padding: 20, width: 300, maxWidth: '90%', margin: 'auto',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#7ec850', marginBottom: 12 }}>🌱 Bac {gardenOverlay + 1} — Planter</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -282,11 +283,13 @@ export default function SceneMaison() {
       {menuOverlay && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'safe center', justifyContent: 'center',
+          padding: '20px 0', overflowY: 'auto',
         }} onClick={() => setMenuOverlay(null)}>
           <div style={{
             background: '#231b42', border: '2px solid var(--hud-accent)', borderRadius: 16,
-            padding: 20, width: 320, maxWidth: '90%', maxHeight: '70vh', overflowY: 'auto',
+            padding: 20, width: 320, maxWidth: '90%', maxHeight: '80vh', overflowY: 'auto',
+            margin: 'auto',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--hud-accent)', marginBottom: 12 }}>{menuOverlay}</div>
             <div style={{ fontSize: 12, color: '#9a8fbf', lineHeight: 1.8 }}>

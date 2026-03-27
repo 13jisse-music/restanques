@@ -221,9 +221,9 @@ export default function SceneMonde() {
 
       {/* Menu overlay */}
       {menuOverlay && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'safe center', justifyContent: 'center', padding: '20px 0', overflowY: 'auto' }}
           onClick={() => setMenuOverlay(null)}>
-          <div style={{ background: '#231b42', border: '2px solid var(--hud-accent)', borderRadius: 16, padding: 20, width: 320, maxWidth: '90%' }}
+          <div style={{ background: '#231b42', border: '2px solid var(--hud-accent)', borderRadius: 16, padding: 20, width: 320, maxWidth: '90%', maxHeight: '80vh', overflowY: 'auto', margin: 'auto' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--hud-accent)', marginBottom: 12 }}>{menuOverlay}</div>
             <div style={{ fontSize: 12, color: '#9a8fbf' }}>Contenu du {menuOverlay} (à implémenter)</div>
