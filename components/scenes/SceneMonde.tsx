@@ -21,13 +21,16 @@ export default function SceneMonde() {
   const [interactMsg, setInteractMsg] = useState<string | null>(null)
   const [menuOverlay, setMenuOverlay] = useState<string | null>(null)
 
-  // Joystick state
+  // Joystick state — use refs to avoid stale closures
   const [joyActive, setJoyActive] = useState(false)
-  const [joyDX, setJoyDX] = useState(0)
+  const joyDXRef = useRef(0)
+  const joyDYRef = useRef(0)
+  const [joyDX, setJoyDX] = useState(0) // for visual knob only
   const [joyDY, setJoyDY] = useState(0)
   const joyRef = useRef<HTMLDivElement>(null)
   const joyCenterRef = useRef({ x: 0, y: 0 })
   const animRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
+  const posRef = useRef({ x: SPAWN_X, y: SPAWN_Y })
 
   const { transitionToScene } = useGameStore()
   const player = usePlayerStore()
@@ -53,76 +56,67 @@ export default function SceneMonde() {
     let dx = (cx - c.x) / 34, dy = (cy - c.y) / 34
     const dist = Math.sqrt(dx * dx + dy * dy)
     if (dist > 1) { dx /= dist; dy /= dist }
+    joyDXRef.current = dx; joyDYRef.current = dy
     setJoyDX(dx); setJoyDY(dy)
   }
 
-  const joyEnd = () => { setJoyActive(false); setJoyDX(0); setJoyDY(0) }
+  const joyEnd = () => {
+    setJoyActive(false)
+    joyDXRef.current = 0; joyDYRef.current = 0
+    setJoyDX(0); setJoyDY(0)
+  }
 
-  // Movement loop
+  // Check if tile is walkable
+  const canWalk = useCallback((x: number, y: number): boolean => {
+    const tx = Math.floor(x), ty = Math.floor(y)
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false
+    const tile = mapData.map[ty]?.[tx]
+    if (tile === undefined) return false
+    return GARRIGUE_WALKABLE.has(tile) || tile === 10 || tile === 11
+  }, [mapData.map])
+
+  // Movement loop — uses refs to avoid stale closures
   useEffect(() => {
-    function tick() {
-      if (joyDX !== 0 || joyDY !== 0) {
-        setPlayerX(prev => {
-          const nx = prev + joyDX * MOVE_SPEED
-          if (nx < 0 || nx >= MAP_W) return prev
-          const tileX = Math.floor(nx), tileY = Math.floor(playerY)
-          const tile = mapData.map[tileY]?.[tileX]
-          if (tile === undefined) return prev
-          if (GARRIGUE_WALKABLE.has(tile) || tile === 10 || tile === 11) return nx
-          return prev
-        })
-        setPlayerY(prev => {
-          const ny = prev + joyDY * MOVE_SPEED
-          if (ny < 0 || ny >= MAP_H) return prev
-          const tileX = Math.floor(playerX), tileY = Math.floor(ny)
-          const tile = mapData.map[tileY]?.[tileX]
-          if (tile === undefined) return prev
-          if (GARRIGUE_WALKABLE.has(tile) || tile === 10 || tile === 11) return ny
-          return prev
-        })
+    let lastTime = 0
+    function tick(time: number) {
+      if (lastTime) {
+        const dt = Math.min((time - lastTime) / 1000, 0.05) // cap delta
+        const dx = joyDXRef.current, dy = joyDYRef.current
+        if (dx !== 0 || dy !== 0) {
+          const speed = 4 // tiles per second
+          const pos = posRef.current
+          const nx = pos.x + dx * speed * dt
+          const ny = pos.y + dy * speed * dt
+          // Move X
+          if (canWalk(nx, pos.y)) pos.x = nx
+          // Move Y
+          if (canWalk(pos.x, ny)) pos.y = ny
+          setPlayerX(pos.x)
+          setPlayerY(pos.y)
+        }
       }
+      lastTime = time
       animRef.current = requestAnimationFrame(tick)
     }
     animRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animRef.current)
-  }, [joyDX, joyDY, mapData.map, playerX, playerY])
+  }, [canWalk])
 
   // Check monster collision
   useEffect(() => {
     const px = Math.floor(playerX), py = Math.floor(playerY)
     for (const m of monsters) {
-      if (Math.abs(m.x - px) < 2 && Math.abs(m.y - py) < 2) {
+      const dist = Math.abs(m.x - px) + Math.abs(m.y - py)
+      if (dist < 2) {
         transitionToScene('combat', { name: m.name, hp: (m as any).hp || 30, atk: (m as any).atk || 8, def: (m as any).def || 3, weakness: (m as any).weakness || 'Feu', atbSpeed: (m as any).atbSpeed || 3, xp: (m as any).xp || 15 })
         break
       }
     }
-  }, [Math.floor(playerX), Math.floor(playerY)])
+  }, [Math.floor(playerX), Math.floor(playerY), monsters, transitionToScene])
 
-  // Keyboard
-  useEffect(() => {
-    const keys = new Set<string>()
-    const onDown = (e: KeyboardEvent) => {
-      keys.add(e.key)
-      updateJoy()
-      if (e.key === ' ' || e.key === 'Enter') handleAction()
-    }
-    const onUp = (e: KeyboardEvent) => { keys.delete(e.key); updateJoy() }
-    function updateJoy() {
-      let dx = 0, dy = 0
-      if (keys.has('ArrowLeft') || keys.has('a')) dx -= 1
-      if (keys.has('ArrowRight') || keys.has('d')) dx += 1
-      if (keys.has('ArrowUp') || keys.has('w')) dy -= 1
-      if (keys.has('ArrowDown') || keys.has('s')) dy += 1
-      setJoyDX(dx); setJoyDY(dy)
-    }
-    window.addEventListener('keydown', onDown)
-    window.addEventListener('keyup', onUp)
-    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
-  }, [playerX, playerY])
-
-  // Action
+  // Action — use posRef for accurate position
   const handleAction = useCallback(() => {
-    const px = Math.floor(playerX), py = Math.floor(playerY)
+    const px = Math.floor(posRef.current.x), py = Math.floor(posRef.current.y)
     const dirs = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
     for (const [dx, dy] of dirs) {
       const tx = px + dx, ty = py + dy
@@ -160,7 +154,30 @@ export default function SceneMonde() {
         return
       }
     }
-  }, [playerX, playerY, mapData, transitionToScene])
+  }, [mapData, transitionToScene])
+
+  // Keyboard — must be after handleAction declaration
+  useEffect(() => {
+    const keys = new Set<string>()
+    function updateJoy() {
+      let dx = 0, dy = 0
+      if (keys.has('ArrowLeft') || keys.has('a')) dx -= 1
+      if (keys.has('ArrowRight') || keys.has('d')) dx += 1
+      if (keys.has('ArrowUp') || keys.has('w')) dy -= 1
+      if (keys.has('ArrowDown') || keys.has('s')) dy += 1
+      joyDXRef.current = dx; joyDYRef.current = dy
+      setJoyDX(dx); setJoyDY(dy)
+    }
+    const onDown = (e: KeyboardEvent) => {
+      keys.add(e.key)
+      updateJoy()
+      if (e.key === ' ' || e.key === 'Enter') handleAction()
+    }
+    const onUp = (e: KeyboardEvent) => { keys.delete(e.key); updateJoy() }
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup', onUp)
+    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
+  }, [handleAction])
 
   // Entities for TileRenderer
   const allEntities = [
@@ -265,7 +282,7 @@ export default function SceneMonde() {
                 border: '3px solid rgba(255,255,255,0.3)', fontSize: 18, fontWeight: 700, cursor: 'pointer',
                 boxShadow: '0 4px 10px rgba(212,83,126,0.4), var(--hud-shadow)',
               }}>A</button>
-            <button onClick={() => transitionToScene('maison')} style={{
+            <button onClick={() => setMenuOverlay(menuOverlay ? null : 'Menu')} style={{
               width: 36, height: 36, borderRadius: '50%', background: 'var(--hud-btn)', color: 'var(--hud-text)',
               border: 'var(--hud-border)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               boxShadow: 'var(--hud-shadow)', alignSelf: 'center',
