@@ -7,6 +7,8 @@ import TileRenderer from '@/components/world/TileRenderer'
 import ClockStardew from '@/components/hud/ClockStardew'
 import Minimap from '@/components/hud/Minimap'
 import { generateGarrigue, GARRIGUE_COLORS, GARRIGUE_WALKABLE, GARRIGUE_INTERACTIVE, SPAWN_X, SPAWN_Y, MAP_W, MAP_H, spawnMonsters, MapEntity } from '@/data/maps/garrigue'
+import WeatherOverlay from '@/components/world/WeatherOverlay'
+import { rollWeather } from '@/lib/weatherEngine'
 
 const TILE_SIZE = 48
 const MOVE_SPEED = 0.08 // tiles per frame
@@ -32,8 +34,15 @@ export default function SceneMonde() {
   const animRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
   const posRef = useRef({ x: SPAWN_X, y: SPAWN_Y })
 
-  const { transitionToScene } = useGameStore()
+  const { transitionToScene, setWeather } = useGameStore()
   const player = usePlayerStore()
+
+  // Weather changes every 5-10 min
+  useEffect(() => {
+    const changeWeather = () => { setWeather(rollWeather()); setTimeout(changeWeather, (5 + Math.random() * 5) * 60000) }
+    const timer = setTimeout(changeWeather, (5 + Math.random() * 5) * 60000)
+    return () => clearTimeout(timer)
+  }, [setWeather])
 
   // Viewport
   useEffect(() => {
@@ -208,6 +217,7 @@ export default function SceneMonde() {
           cameraX={playerX} cameraY={playerY} viewportW={viewW} viewportH={viewH} entities={allEntities} />
         <ClockStardew />
         <Minimap map={mapData.map} tileColors={GARRIGUE_COLORS} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={20} />
+        <WeatherOverlay />
       </div>
 
       {/* Interaction toast */}
