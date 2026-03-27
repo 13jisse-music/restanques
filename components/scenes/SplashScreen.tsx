@@ -140,13 +140,18 @@ export default function SplashScreen() {
       background: '#1a1232', position: 'relative',
       padding: '24px 16px', gap: 10, overflowY: 'auto',
     }}>
-      {/* Background image — splash.png plein écran */}
-      <img src="/splash.png" alt="" style={{
-        position: 'absolute', inset: 0, width: '100%', height: '100%',
-        objectFit: 'cover', opacity: 1, pointerEvents: 'none',
-      }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-      {/* Léger gradient en bas pour lisibilité des boutons */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
+      {/* Background: splash.png sur title seulement, fond sombre sur les autres steps */}
+      {step === 'title' ? (
+        <>
+          <img src="/splash.png" alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', pointerEvents: 'none',
+          }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', pointerEvents: 'none' }} />
+        </>
+      ) : (
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, #1a1232 0%, #2d1f54 50%, #1a1232 100%)', pointerEvents: 'none' }} />
+      )}
 
       {step === 'title' && (
         <>
@@ -211,7 +216,7 @@ export default function SplashScreen() {
 
       {/* Class Selection — Diablo 2 style */}
       {step === 'class' && (
-        <>
+        <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <div style={{ fontSize: 18, color: '#ef9f27', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 2 }}>
             Choisis ton personnage
           </div>
@@ -248,8 +253,8 @@ export default function SplashScreen() {
                   transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden',
                 }}>
                 <div style={{ fontSize: 28 }}>{c.emoji}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: c.color, marginTop: 4 }}>{c.name}</div>
-                <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>{c.title}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: c.color, marginTop: 4 }}>{c.title}</div>
+                <div style={{ fontSize: 9, color: '#6b5e8a', marginTop: 2 }}>{c.name}</div>
                 {/* Glow effect */}
                 {(selectedClass === c.id || hoveredClass === c.id) && (
                   <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 50% 80%, ${c.color}15, transparent 70%)`, pointerEvents: 'none' }} />
@@ -268,11 +273,11 @@ export default function SplashScreen() {
             background: 'transparent', color: '#9a8fbf', border: 'none', fontSize: 12, cursor: 'pointer', marginTop: 4,
           }}>← Retour</button>
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}</style>
-        </>
+        </div>
       )}
 
       {step === 'name' && selectedClass && (
-        <>
+        <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 18, color: '#ef9f27', fontWeight: 600 }}>Ton nom ?</div>
           <div style={{ fontSize: 12, color: '#9a8fbf' }}>
             {CLASSES.find((c) => c.id === selectedClass)?.name} — {CLASSES.find((c) => c.id === selectedClass)?.title}
@@ -302,7 +307,7 @@ export default function SplashScreen() {
           <button onClick={() => setStep('class')} style={{
             background: 'transparent', color: '#9a8fbf', border: 'none', fontSize: 12, cursor: 'pointer',
           }}>← Changer de classe</button>
-        </>
+        </div>
       )}
 
       {showCode && sessionCode && (
