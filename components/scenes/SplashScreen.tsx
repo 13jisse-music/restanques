@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useGameStore, PlayerClass } from '@/store/gameStore'
+import { useMultiplayerStore } from '@/store/multiplayerStore'
 
 const CLASSES: { id: PlayerClass; name: string; emoji: string; desc: string; color: string }[] = [
   { id: 'paladin', name: 'Jisse — Le Paladin', emoji: '⚔️', desc: 'Explore les biomes, combat les monstres, récolte les ressources', color: '#ef9f27' },
@@ -14,12 +15,27 @@ export default function SplashScreen() {
   const [selectedClass, setSelectedClass] = useState<PlayerClass | null>(null)
   const [playerName, setPlayerName] = useState('')
   const { setPlayer, transitionToScene } = useGameStore()
+  const { createSession, sessionCode } = useMultiplayerStore()
+  const [showCode, setShowCode] = useState(false)
 
   const startGame = () => {
     if (!selectedClass || !playerName.trim()) return
     const id = crypto.randomUUID()
     setPlayer(id, playerName.trim(), selectedClass)
-    transitionToScene(selectedClass === 'artisane' ? 'maison' : 'monde')
+    const code = createSession()
+    setShowCode(true)
+    // Auto-start after 3s or on tap
+    setTimeout(() => transitionToScene(selectedClass === 'artisane' ? 'maison' : 'monde'), 3000)
+  }
+
+  const shareSession = () => {
+    const url = window.location.origin + '/join/' + sessionCode
+    if (navigator.share) {
+      navigator.share({ title: 'Rejoins Restanques !', text: 'Rejoins ma partie !', url })
+    } else {
+      navigator.clipboard.writeText(url)
+      alert('Lien copié : ' + url)
+    }
   }
 
   return (
@@ -52,7 +68,7 @@ export default function SplashScreen() {
               Continuer
             </button>
           </div>
-          <div style={{ marginTop: 20, fontSize: 10, color: '#3a2d5c' }}>
+          <div style={{ marginTop: 16, fontSize: 10, color: '#3a2d5c' }}>
             v6.0 — CDC Opus
           </div>
         </>
@@ -114,6 +130,24 @@ export default function SplashScreen() {
           }}>
             ← Changer de classe
           </button>
+        </>
+      )}
+
+      {showCode && sessionCode && (
+        <>
+          <div style={{ fontSize: 12, color: '#9a8fbf' }}>Code de session</div>
+          <div style={{ fontSize: 32, color: '#e91e8c', fontWeight: 700, letterSpacing: 4 }}>{sessionCode}</div>
+          <div style={{ fontSize: 12, color: '#9a8fbf', textAlign: 'center', maxWidth: 280 }}>
+            Partage ce code pour jouer en coop !<br/>La partie commence dans 3 secondes...
+          </div>
+          <button onClick={shareSession} style={{
+            background: '#2d2252', border: '1px solid #3a2d5c', borderRadius: 10,
+            padding: '10px 24px', color: '#9a8fbf', fontSize: 12, cursor: 'pointer',
+          }}>📤 Partager le lien</button>
+          <button onClick={() => transitionToScene(selectedClass === 'artisane' ? 'maison' : 'monde')} style={{
+            background: '#e91e8c', color: '#fff', border: 'none', borderRadius: 12,
+            padding: '12px 36px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+          }}>Jouer maintenant →</button>
         </>
       )}
     </div>
