@@ -46,6 +46,18 @@ export default function SceneCombat() {
   const [bossAttackCount, setBossAttackCount] = useState(0)
   const [comboWindowActive, setComboWindowActive] = useState(false)
   const comboWindowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [comboCountdown, setComboCountdown] = useState(0) // CDC M2: visual 2s countdown
+
+  // CDC M2: Boss debuff tracking
+  const [mouetteDebuffTurns, setMouetteDebuffTurns] = useState(0)
+  const [tarasqueArmorTurns, setTarasqueArmorTurns] = useState(0)
+  const [krakenTentacles, setKrakenTentacles] = useState(0)
+
+  // CDC M2: Threat tracking (coop)
+  const [playerThreat, setPlayerThreat] = useState(0)
+
+  // CDC M2: Mystery rider Quentin
+  const [mysteryRiderActive, setMysteryRiderActive] = useState(false)
 
   const atbRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
   const lastTimeRef = useRef(0)
@@ -69,6 +81,18 @@ export default function SceneCombat() {
       if (beforeStoryId) {
         // Redirect to story, which will come back to combat after
         transitionToScene('story', { storyId: beforeStoryId, nextScene: 'combat', ...d })
+      }
+      // CDC M2: Mystery rider Quentin (10% chance)
+      if (Math.random() < 0.1) {
+        setTimeout(() => {
+          setMysteryRiderActive(true)
+          setComboText('🌙 Cavalier Mystère !')
+          // Auto-play poison card
+          const poisonDmg = Math.floor(5 + (player.luck * 0.5))
+          setMonsterHp(prev => Math.max(0, prev - poisonDmg * 3))
+          addLog(`L'Ombre frappe ! Poison ${poisonDmg}×3 = ${poisonDmg * 3} dégâts`)
+          setTimeout(() => { setMysteryRiderActive(false); setComboText('') }, 2000)
+        }, 5000 + Math.random() * 10000)
       }
     }
   }, [sceneData])
@@ -119,18 +143,21 @@ export default function SceneCombat() {
         atkMult = 3; specialMsg = '🐗 CHARGE ! Degats x3 !'
         setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 1000)
       }
-      // Mouette: debuff toutes les 4 attaques (-20% ATK)
+      // Mouette: debuff toutes les 4 attaques (-20% ATK pendant 2 tours)
       if (bossName.includes('mouette') && count % 4 === 0) {
         specialMsg = '🦅 CRI DE TEMPETE ! ATK -20% 2 tours'
+        setMouetteDebuffTurns(2) // real debuff applied below in damage calc
       }
-      // Tarasque: carapace aleatoire (DEF x3)
+      // Tarasque: carapace aleatoire (DEF x3 pendant 2 tours)
       if (bossName.includes('tarasque') && Math.random() < 0.25) {
         specialMsg = '🐢 CARAPACE ! DEF x3 pendant 2 tours'
+        setTarasqueArmorTurns(2) // real armor applied below
         setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 2000)
       }
-      // Kraken: invoque tentacules
-      if (bossName.includes('kraken') && count % 5 === 0) {
-        specialMsg = '🦑 TENTACULES ! 2 mini-monstres invoques'
+      // Kraken: invoque 2 tentacules (100 HP each, must kill before Kraken)
+      if (bossName.includes('kraken') && count % 5 === 0 && krakenTentacles <= 0) {
+        specialMsg = '🦑 TENTACULES ! 2 mini-monstres (100 PV chacun) !'
+        setKrakenTentacles(200) // 2 x 100 HP total, damage goes to tentacles first
       }
       // Mistral: change element
       if (bossName.includes('mistral') && count % 3 === 0) {
@@ -146,7 +173,11 @@ export default function SceneCombat() {
 
     if (specialMsg) { setComboText(specialMsg); setTimeout(() => setComboText(''), 2000) }
 
-    const result = calculateDamage(Math.floor(monsterAtk * atkMult), player.def, 1, false, 0, '', '', isDefending)
+    // CDC M2: Apply Mouette debuff (player ATK reduced)
+    const playerDefWithDebuff = mouetteDebuffTurns > 0 ? Math.floor(player.def * 0.8) : player.def
+    if (mouetteDebuffTurns > 0) setMouetteDebuffTurns(t => t - 1)
+
+    const result = calculateDamage(Math.floor(monsterAtk * atkMult), playerDefWithDebuff, 1, false, 0, '', '', isDefending)
     player.takeDamage(result.damage)
     setIsDefending(false)
 
@@ -175,21 +206,39 @@ export default function SceneCombat() {
     const newActions = [...consecutiveActions, action]
     setConsecutiveActions(newActions)
 
+    // CDC M2: Threat tracking
+    if (action === 'coup') setPlayerThreat(t => t + 3)
+    else if (action === 'sort') setPlayerThreat(t => t + 1)
+    // Decrement Tarasque armor
+    if (tarasqueArmorTurns > 0) setTarasqueArmorTurns(t => t - 1)
+
     switch (action) {
       case 'coup': {
-        const result = calculateDamage(player.atk, monsterDef, 1, false, 0, '', monsterWeakness, false)
-        setMonsterHp(prev => {
-          const next = Math.max(0, prev - result.damage)
-          if (next <= 0) setTimeout(() => setPhase('victory'), 300)
-          return next
-        })
+        // CDC M2: Tarasque armor = DEF x3, Kraken tentacles absorb damage
+        const effectiveDef = tarasqueArmorTurns > 0 ? monsterDef * 3 : monsterDef
+        const result = calculateDamage(player.atk, effectiveDef, 1, false, 0, '', monsterWeakness, false)
+
+        if (krakenTentacles > 0) {
+          // Damage goes to tentacles first
+          const newTent = Math.max(0, krakenTentacles - result.damage)
+          setKrakenTentacles(newTent)
+          addLog(`Coup tentacules : ${result.damage} (reste ${newTent} PV)`)
+          if (newTent <= 0) addLog('🦑 Tentacules détruites !')
+        } else {
+          setMonsterHp(prev => {
+            const next = Math.max(0, prev - result.damage)
+            if (next <= 0) setTimeout(() => setPhase('victory'), 300)
+            return next
+          })
+          if (result.isCritical) addLog(`CRITIQUE ! ${result.damage} dégâts !`)
+          else if (result.isMiss) addLog('Raté !')
+          else addLog(`Coup : ${result.damage} dégâts`)
+        }
+
         setSpellGauge(prev => Math.min(6, prev + 1))
         setMonsterFlash('red'); setTimeout(() => setMonsterFlash(''), 150)
+        setPlayerAnim('attack'); setTimeout(() => setPlayerAnim(''), 150)
         playSound('/sfx/sfx_hit.mp3', 'hit')
-
-        if (result.isCritical) addLog(`CRITIQUE ! ${result.damage} dégâts !`)
-        else if (result.isMiss) addLog('Raté !')
-        else addLog(`Coup : ${result.damage} dégâts`)
 
         // Solo combo check
         const solo = checkSoloCombo(newActions)
@@ -197,13 +246,29 @@ export default function SceneCombat() {
           setComboText(solo.name + ' !'); setTimeout(() => setComboText(''), 1500)
           addLog(`COMBO : ${solo.name} !`)
         }
+
+        // CDC M2: Coup de grâce (monster <10% + coup = execution)
+        if (monsterHp > 0 && monsterHp <= monsterMaxHp * 0.1) {
+          addLog('💀 COUP DE GRÂCE !')
+          setMonsterHp(0)
+          setTimeout(() => setPhase('victory'), 300)
+        }
         break
       }
       case 'defense':
         setIsDefending(true)
         setSpellGauge(prev => Math.min(6, prev + 1))
         setPlayerFlash('blue'); setTimeout(() => setPlayerFlash(''), 150)
-        addLog('Défense active (-40% dégâts)')
+        // CDC M2: Contre-attaque si ATB monstre > 90%
+        if (monsterAtb > 0.9) {
+          addLog('⚡ CONTRE-ATTAQUE ! Bloque 100% + riposte 50%')
+          setComboText('Contre-attaque !'); setTimeout(() => setComboText(''), 1500)
+          const riposteDmg = Math.floor(player.atk * 0.5)
+          setMonsterHp(prev => Math.max(0, prev - riposteDmg))
+          setMonsterAtb(0) // reset ATB
+        } else {
+          addLog('Défense active (-40% dégâts)')
+        }
         playSound('/sfx/sfx_defend.mp3', 'defend')
         break
       case 'fuite': {
@@ -277,10 +342,13 @@ export default function SceneCombat() {
   const monsterSprite = monsterData ? `/sprites/combat/${monsterData.sprite}` : null
 
   // Combo window: activate for 2s after any player action
+  // CDC M2: Combo window with visible 2s countdown
   const startComboWindow = () => {
     setComboWindowActive(true)
+    setComboCountdown(2)
     if (comboWindowTimer.current) clearTimeout(comboWindowTimer.current)
-    comboWindowTimer.current = setTimeout(() => setComboWindowActive(false), 2000)
+    const countInterval = setInterval(() => setComboCountdown(c => { if (c <= 0.1) { clearInterval(countInterval); return 0 } return +(c - 0.1).toFixed(1) }), 100)
+    comboWindowTimer.current = setTimeout(() => { setComboWindowActive(false); setComboCountdown(0); clearInterval(countInterval) }, 2000)
   }
 
   // Cast spell handler
@@ -335,6 +403,16 @@ export default function SceneCombat() {
         bossSpecialActive={bossSpecialActive}
         shaking={shaking}
       />
+
+      {/* CDC M2: Status indicators (debuffs, tentacles, combo timer, threat) */}
+      <div style={{ padding: '2px 12px', display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 9 }}>
+        {mouetteDebuffTurns > 0 && <span style={{ color: '#85B7EB', background: '#85B7EB22', padding: '1px 6px', borderRadius: 4 }}>🦅 ATK-20% ({mouetteDebuffTurns}t)</span>}
+        {tarasqueArmorTurns > 0 && <span style={{ color: '#ef9f27', background: '#ef9f2722', padding: '1px 6px', borderRadius: 4 }}>🐢 DEF×3 ({tarasqueArmorTurns}t)</span>}
+        {krakenTentacles > 0 && <span style={{ color: '#534AB7', background: '#534AB722', padding: '1px 6px', borderRadius: 4 }}>🦑 Tentacules {krakenTentacles}PV</span>}
+        {comboWindowActive && <span style={{ color: '#ef9f27', background: '#ef9f2722', padding: '1px 6px', borderRadius: 4, animation: 'pulse 0.5s infinite' }}>⚡ Combo {comboCountdown.toFixed(1)}s</span>}
+        {playerThreat > 0 && <span style={{ color: '#e24b4a', background: '#e24b4a22', padding: '1px 6px', borderRadius: 4 }}>🎯 Menace {playerThreat}</span>}
+        {mysteryRiderActive && <span style={{ color: '#534AB7', background: '#534AB722', padding: '1px 6px', borderRadius: 4 }}>🌙 Cavalier Mystère !</span>}
+      </div>
 
       {/* Combat log */}
       <div style={{ padding: '4px 12px', maxHeight: 50, overflow: 'hidden' }}>

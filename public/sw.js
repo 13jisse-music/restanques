@@ -1,9 +1,11 @@
 // Service Worker — cache assets statiques pour PWA
-const CACHE_NAME = 'restanques-v6';
+const CACHE_NAME = 'restanques-v6.20';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/splash.png',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {

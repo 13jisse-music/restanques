@@ -51,14 +51,54 @@ export default function SceneMaison() {
   const [invulnerable, setInvulnerable] = useState(false)
   const [flashVisible, setFlashVisible] = useState(true)
 
-  // Garden state
-  const [gardenState, setGardenState] = useState<{ seedId: string | null; plantedAt: number | null }[]>([
-    { seedId: null, plantedAt: null },
-    { seedId: null, plantedAt: null },
-    { seedId: null, plantedAt: null },
-    { seedId: null, plantedAt: null },
-  ])
+  // CDC M1: Garden state — persisted in Supabase garden_plots + localStorage fallback
+  const [gardenState, setGardenState] = useState<{ seedId: string | null; plantedAt: number | null }[]>(() => {
+    // Load from localStorage on init (Supabase load is async, below)
+    try {
+      const saved = localStorage.getItem('restanques_garden')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return [{ seedId: null, plantedAt: null }, { seedId: null, plantedAt: null }, { seedId: null, plantedAt: null }, { seedId: null, plantedAt: null }]
+  })
   const [, setGardenTick] = useState(0)
+
+  // Persist garden to localStorage + Supabase on every change
+  useEffect(() => {
+    try { localStorage.setItem('restanques_garden', JSON.stringify(gardenState)) } catch {}
+    // Async Supabase persist
+    const playerId = useGameStore.getState().playerId
+    if (playerId) {
+      import('@/lib/supabase').then(({ supabase }) => {
+        gardenState.forEach((plot, i) => {
+          supabase.from('garden_plots').upsert({
+            player_id: playerId,
+            plot_number: i + 1,
+            seed_id: plot.seedId,
+            planted_at: plot.plantedAt ? new Date(plot.plantedAt).toISOString() : null,
+            growth_time_seconds: plot.seedId ? (SEEDS[plot.seedId]?.growthSec || 240) : null,
+            is_ready: false,
+          }, { onConflict: 'player_id,plot_number' }).then(() => {})
+        })
+      })
+    }
+  }, [gardenState])
+
+  // Load garden from Supabase on mount (overrides localStorage if available)
+  useEffect(() => {
+    const playerId = useGameStore.getState().playerId
+    if (!playerId) return
+    import('@/lib/supabase').then(({ supabase }) => {
+      supabase.from('garden_plots').select('*').eq('player_id', playerId).order('plot_number').then(({ data }) => {
+        if (data && data.length > 0) {
+          const loaded = [0, 1, 2, 3].map(i => {
+            const row = data.find((d: any) => d.plot_number === i + 1)
+            return row ? { seedId: row.seed_id, plantedAt: row.planted_at ? new Date(row.planted_at).getTime() : null } : { seedId: null, plantedAt: null }
+          })
+          setGardenState(loaded)
+        }
+      })
+    })
+  }, [])
 
   // Day creatures (exterior only, daytime)
   const [creatures, setCreatures] = useState<{ x: number; y: number; data: typeof DAY_CREATURES[0] }[]>([])
