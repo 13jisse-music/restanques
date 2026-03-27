@@ -40,9 +40,38 @@ export default function SceneMonde() {
   const [interactMsg, setInteractMsg] = useState<string | null>(null)
   const [menuOverlay, setMenuOverlay] = useState<string | null>(null)
   const [showCharSheet, setShowCharSheet] = useState(false)
+  const [, forceMapRender] = useState(0) // force re-render when tiles change
+
+  // Remove a tile from map (replace with walkable grass = 0) and force re-render
+  const removeTile = (tx: number, ty: number) => {
+    if (biome.map[ty] && biome.map[ty][tx] !== undefined) {
+      biome.map[ty][tx] = 0 // replace with grass
+      forceMapRender(n => n + 1)
+    }
+  }
 
   // CDC M4: NPC dialogue
   const [dialogueNPC, setDialogueNPC] = useState<{ name: string; portrait?: string; texts: string[]; quest?: { id: string; desc: string; reward: string } } | null>(null)
+
+  // CDC M4: NPC Shop overlay
+  const [shopOpen, setShopOpen] = useState(false)
+  const NPC_SHOP_ITEMS = [
+    { id: 'herbe_med', name: 'Herbe médicinale', price: 10, emoji: '🌿' },
+    { id: 'lavande', name: 'Lavande', price: 15, emoji: '💜' },
+    { id: 'graine', name: 'Graine', price: 20, emoji: '🌱' },
+    { id: 'eau_pure', name: 'Eau pure', price: 10, emoji: '💧' },
+    { id: 'antidote', name: 'Antidote', price: 30, emoji: '💊' },
+  ]
+  const buyFromShop = (itemId: string, price: number) => {
+    if (player.sous >= price) {
+      player.addSous(-price)
+      const added = player.addToInventory(itemId, 1)
+      setInteractMsg(added ? `Acheté ! -${price}S` : '🎒 Sac plein !')
+    } else {
+      setInteractMsg('💰 Pas assez de Sous !')
+    }
+    setTimeout(() => setInteractMsg(null), 1500)
+  }
 
   // CDC M4: Harvest multi-hit (3 for wood/stone, 1 for herbs)
   const [harvestTarget, setHarvestTarget] = useState<{ x: number; y: number; hitsLeft: number } | null>(null)
@@ -77,6 +106,25 @@ export default function SceneMonde() {
     }, 120000)
     return () => clearInterval(interval)
   }, [biomeId])
+
+  // CDC M4: Monster random movement (3-5 tiles every 3s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMonsters(prev => prev.map(m => ({
+        ...m,
+        x: m.x + Math.floor(Math.random() * 5) - 2,
+        y: m.y + Math.floor(Math.random() * 5) - 2,
+      })))
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // CDC M4: Play biome-specific music
+  useEffect(() => {
+    import('@/lib/assetLoader').then(({ playMusic }) => {
+      playMusic(biome.music, 0.25)
+    })
+  }, [biome.music])
 
   // M6: Contextual popup state
   const [popupKey, setPopupKey] = useState<string | null>(null)
@@ -194,9 +242,11 @@ export default function SceneMonde() {
     return () => cancelAnimationFrame(animRef.current)
   }, [canWalk])
 
-  // Check monster collision
+  // Check monster collision + proximity alert
+  const [nearbyMonster, setNearbyMonster] = useState(false)
   useEffect(() => {
     const px = Math.floor(playerX), py = Math.floor(playerY)
+    let hasNearby = false
     for (const m of monsters) {
       const dist = Math.abs(m.x - px) + Math.abs(m.y - py)
       if (dist < 2) {
@@ -204,7 +254,9 @@ export default function SceneMonde() {
         transitionToScene('combat', { name: m.name, hp: (m as any).hp || 30, atk: (m as any).atk || 8, def: (m as any).def || 3, weakness: (m as any).weakness || 'Feu', atbSpeed: (m as any).atbSpeed || 3, xp: (m as any).xp || 15 })
         break
       }
+      if (dist < 4) hasNearby = true
     }
+    setNearbyMonster(hasNearby)
   }, [Math.floor(playerX), Math.floor(playerY), monsters, transitionToScene])
 
   // Action
@@ -223,15 +275,24 @@ export default function SceneMonde() {
         if (pnj) {
           const pnjData = getPNJData(pnj.id)
           const quest = getQuestForPNJ(pnj.id)
+          const isShop = pnjData?.role?.includes('Shop')
           const texts = pnjData
-            ? [`Bienvenue ! Je suis ${pnj.name}, ${pnjData.personality}.`, pnjData.role === 'Shop herbes' ? 'Je vends des herbes rares.' : `J'ai besoin d'aide...`]
-            : [`${pnj.name} : "Bienvenue dans ${biome.name} !"`]
+            ? [
+                `Bienvenue ! Je suis ${pnj.name || 'un ami'}, ${pnjData.personality}.`,
+                isShop ? `J'ai des choses à vendre. Regarde mon étal !` : `J'ai besoin de ton aide, aventurier...`,
+              ]
+            : [`${pnj.name || 'PNJ'} : "Bienvenue dans ${biome.name} !"`]
           setDialogueNPC({
             name: pnj.name || 'PNJ',
             portrait: `/portraits/npc_${biomeId}_${pnj.id}_portrait.png`,
             texts,
             quest: quest ? { id: quest.id, desc: quest.desc, reward: quest.reward } : undefined,
           })
+          // CDC M4: NPC Shop — open shop overlay after dialogue
+          if (isShop) {
+            // Override dialogue close to open shop
+            setTimeout(() => setShopOpen(true), 100)
+          }
         }
         playPlaceholderSound('npc_talk')
         return
@@ -288,9 +349,11 @@ export default function SceneMonde() {
         if (harvestTarget && harvestTarget.x === tx && harvestTarget.y === ty) {
           const left = harvestTarget.hitsLeft - 1
           if (left <= 0) {
-            player.addToInventory(tile === 20 ? 'bois' : tile === 22 ? 'pierre' : 'herbe', 1)
-            setInteractMsg('🪓 Récolte ! +1 matériau')
+            const itemId = tile === 20 ? 'bois' : tile === 22 ? 'pierre' : 'herbe'
+            const added = player.addToInventory(itemId, 1)
+            setInteractMsg(added ? '🪓 Récolte ! +1 ' + itemId : '🎒 Sac plein !')
             setHarvestTarget(null)
+            if (added) removeTile(tx, ty) // tile disparaît seulement si ajouté
             player.addFatigue(0.2)
             playPlaceholderSound('harvest')
           } else {
@@ -300,8 +363,9 @@ export default function SceneMonde() {
         } else {
           const hits = tile === 21 ? 1 : 3 // herb=1hit, wood/stone=3
           if (hits === 1) {
-            player.addToInventory('herbe', 1)
-            setInteractMsg('🌿 +1 Herbe')
+            const added = player.addToInventory('herbe', 1)
+            setInteractMsg(added ? '🌿 +1 Herbe' : '🎒 Sac plein !')
+            if (added) removeTile(tx, ty)
             playPlaceholderSound('harvest')
           } else {
             setHarvestTarget({ x: tx, y: ty, hitsLeft: hits - 1 })
@@ -318,8 +382,9 @@ export default function SceneMonde() {
           const mimicData = { name: 'Mimic buisson', hp: 45, atk: 14, def: 9, weakness: 'Feu', atbSpeed: 2, xp: 32 }
           setTimeout(() => transitionToScene('combat', mimicData), 500)
         } else {
-          player.addToInventory('herbe', 1)
-          setInteractMsg('🌿 +1 Herbe')
+          const added = player.addToInventory('herbe', 1)
+          setInteractMsg(added ? '🌿 +1 Herbe' : '🎒 Sac plein !')
+          if (added) removeTile(tx, ty)
           playPlaceholderSound('harvest')
         }
         setTimeout(() => setInteractMsg(null), 1500)
@@ -411,11 +476,23 @@ export default function SceneMonde() {
       {/* Game Canvas — uses smoothed camera */}
       <div style={{ marginTop: 24, height: viewH, position: 'relative' }}>
         <TileRenderer map={biome.map} tileColors={biome.colors} tileSize={TILE_SIZE}
-          cameraX={cameraX} cameraY={cameraY} viewportW={viewW} viewportH={viewH} entities={allEntities} />
+          cameraX={cameraX} cameraY={cameraY} viewportW={viewW} viewportH={viewH} entities={allEntities} biome={biomeId} />
         <ClockStardew />
         <Minimap map={biome.map} tileColors={biome.colors} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={20} />
         <WeatherOverlay />
-        {/* Night darkness overlay — Bug #10 fix: proper dark blue, not white */}
+        {/* Monster proximity alert "!" */}
+        {nearbyMonster && (
+          <div style={{
+            position: 'absolute', left: '50%', top: '45%', transform: 'translate(-50%, -100%)',
+            zIndex: 40, pointerEvents: 'none',
+            fontSize: 24, fontWeight: 900, color: '#e24b4a',
+            textShadow: '0 0 8px rgba(226,75,74,0.8), 0 2px 4px rgba(0,0,0,0.8)',
+            animation: 'alertBounce 0.5s ease-in-out infinite',
+          }}>!</div>
+        )}
+        <style>{`@keyframes alertBounce { 0%,100%{transform:translate(-50%,-100%) scale(1)} 50%{transform:translate(-50%,-100%) scale(1.3)} }`}</style>
+
+        {/* Night darkness overlay */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 35,
           transition: 'background 2s',
@@ -446,8 +523,45 @@ export default function SceneMonde() {
           onAcceptQuest={(questId) => {
             setInteractMsg(`📜 Quête acceptée : ${questId}`)
             setTimeout(() => setInteractMsg(null), 2000)
+            // CDC M4: Persist quest to Supabase
+            const playerId = useGameStore.getState().playerId
+            if (playerId) {
+              import('@/lib/supabase').then(({ supabase }) => {
+                supabase.from('quest_progress').upsert(
+                  { player_id: playerId, quest_id: questId, status: 'active', progress: {} },
+                  { onConflict: 'player_id,quest_id' }
+                )
+              })
+            }
           }}
         />
+      )}
+
+      {/* CDC M4: NPC Shop overlay */}
+      {shopOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShopOpen(false)}>
+          <div style={{ background: '#231b42', border: '2px solid #C9A84C', borderRadius: 16, padding: 20, width: 300, maxWidth: '90%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#C9A84C', marginBottom: 8 }}>🛒 Boutique PNJ</div>
+            <div style={{ fontSize: 10, color: '#9a8fbf', marginBottom: 10 }}>Sous : {player.sous} 💰</div>
+            {NPC_SHOP_ITEMS.map(item => (
+              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #2d1f54' }}>
+                <span style={{ fontSize: 12, color: '#F5ECD7' }}>{item.emoji} {item.name}</span>
+                <button onClick={() => buyFromShop(item.id, item.price)} style={{
+                  padding: '4px 12px', fontSize: 10, borderRadius: 6, cursor: 'pointer',
+                  background: player.sous >= item.price ? '#7ec850' : '#3a2d5c',
+                  color: '#fff', border: 'none', fontWeight: 600,
+                  opacity: player.sous >= item.price ? 1 : 0.5,
+                }}>{item.price}S</button>
+              </div>
+            ))}
+            <button onClick={() => setShopOpen(false)} style={{
+              marginTop: 12, width: '100%', padding: '8px', background: '#C9A84C', color: '#fff',
+              border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>Fermer</button>
+          </div>
+        </div>
       )}
 
       {/* Character Sheet overlay */}

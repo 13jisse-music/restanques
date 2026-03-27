@@ -402,7 +402,7 @@ export default function SceneMaison() {
       {/* Game Canvas */}
       <div style={{ marginTop: 24, height: viewH, position: 'relative' }}>
         <TileRenderer map={map} tileColors={TILE_COLORS} tileSize={TILE_SIZE}
-          cameraX={playerX} cameraY={playerY} viewportW={viewW} viewportH={viewH}
+          cameraX={playerX} cameraY={playerY} viewportW={viewW} viewportH={viewH} biome="maison_ext"
           entities={allEntities} />
         <ClockStardew />
         <Minimap map={map} tileColors={TILE_COLORS} playerX={playerX} playerY={playerY}
