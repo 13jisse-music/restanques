@@ -22,7 +22,7 @@ import { MONSTERS } from '@/data/monsters'
 import { playPlaceholderSound } from '@/lib/assetLoader'
 
 const TILE_SIZE = 48
-const LERP_SPEED = 0.15
+const LERP_SPEED = 0.4 // higher = snappier camera, less motion sickness
 
 export default function SceneMonde() {
   // CDC M4: Multi-biome support — load biome from sceneData or default garrigue

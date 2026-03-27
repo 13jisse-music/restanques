@@ -22,11 +22,13 @@ export default function AudioManager() {
     preloadGameAssets()
   }, [])
 
-  // Play music matching current scene
+  // Play music matching current scene — force stop to prevent overlap
   useEffect(() => {
     const musicPath = SCENE_MUSIC[scene]
     if (musicPath) {
-      playMusic(musicPath, 0.25)
+      // Small delay to let previous scene cleanup
+      const timer = setTimeout(() => playMusic(musicPath, 0.25), 100)
+      return () => clearTimeout(timer)
     } else {
       stopMusic()
     }

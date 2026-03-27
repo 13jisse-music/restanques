@@ -147,6 +147,12 @@ function fadeIn(audio: HTMLAudioElement, targetVol: number, durationMs: number):
 export function playMusic(path: string, volume = 0.3, loop = true): void {
   if (currentMusicPath === path && currentMusic && !currentMusic.paused) return
 
+  // HARD STOP old music first to prevent overlap
+  if (currentMusic) {
+    try { currentMusic.pause(); currentMusic.currentTime = 0 } catch {}
+  }
+  if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null }
+
   const oldMusic = currentMusic
   const oldPath = currentMusicPath
 

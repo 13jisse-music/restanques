@@ -136,19 +136,28 @@ export default function SplashScreen() {
   return (
     <div style={{
       width: '100%', minHeight: '100dvh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #1a1232 0%, #2d1f54 50%, #1a1232 100%)',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#1a1232', position: 'relative',
       padding: '24px 16px', gap: 10, overflowY: 'auto',
     }}>
+      {/* Background image — splash.png en fond sur TOUS les steps */}
+      <img src="/splash.png" alt="" style={{
+        position: 'absolute', inset: 0, width: '100%', height: '100%',
+        objectFit: 'cover', opacity: 0.25, pointerEvents: 'none',
+      }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+      {/* Dark overlay for readability */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(26,18,50,0.7) 0%, rgba(26,18,50,0.5) 50%, rgba(26,18,50,0.8) 100%)', pointerEvents: 'none' }} />
+
       {step === 'title' && (
         <>
-          <div style={{ fontSize: 'clamp(28px, 10vw, 48px)', fontWeight: 700, color: '#e91e8c', textShadow: '0 0 20px rgba(233,30,140,0.5)', letterSpacing: 2 }}>
+          <div style={{ fontSize: 'clamp(28px, 10vw, 48px)', fontWeight: 700, color: '#e91e8c', textShadow: '0 0 20px rgba(233,30,140,0.5)', letterSpacing: 2, zIndex: 1 }}>
             RESTANQUES
           </div>
-          <div style={{ fontSize: 14, color: '#9a8fbf', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
-            RPG coopératif provençal<br/>
-            Jisse & Mélanie vs Le Mistral
+          <div style={{ fontSize: 14, color: '#c0b8d4', textAlign: 'center', maxWidth: 300, lineHeight: 1.6, zIndex: 1 }}>
+            Le vent se lève sur la Provence...<br/>
+            <span style={{ fontSize: 12, color: '#9a8fbf' }}>RPG coopératif — 5 terres à traverser</span>
           </div>
-          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 1 }}>
             <button onClick={() => setStep('class')} style={{
               background: '#e91e8c', color: 'white', border: 'none', borderRadius: 12,
               padding: '14px 48px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
