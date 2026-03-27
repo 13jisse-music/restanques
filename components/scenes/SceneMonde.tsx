@@ -667,9 +667,9 @@ export default function SceneMonde() {
             onMouseDown={(e) => joyStart(e.clientX, e.clientY)}
             onMouseMove={(e) => { if (joyActive) joyMove(e.clientX, e.clientY) }}
             onMouseUp={joyEnd} onMouseLeave={joyEnd}
-            onTouchStart={(e) => { e.preventDefault(); joyStart(e.touches[0].clientX, e.touches[0].clientY) }}
-            onTouchMove={(e) => { e.preventDefault(); joyMove(e.touches[0].clientX, e.touches[0].clientY) }}
-            onTouchEnd={joyEnd}
+            onTouchStart={(e) => { e.preventDefault(); if (e.touches[0]) joyStart(e.touches[0].clientX, e.touches[0].clientY) }}
+            onTouchMove={(e) => { e.preventDefault(); if (e.touches[0]) joyMove(e.touches[0].clientX, e.touches[0].clientY) }}
+            onTouchEnd={joyEnd} onTouchCancel={joyEnd}
           >
             <div style={{
               width: 28, height: 28, borderRadius: '50%', background: 'var(--hud-btn)',

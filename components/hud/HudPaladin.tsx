@@ -74,9 +74,9 @@ export default function HudPaladin({
           onMouseDown={(e) => joyStart(e.clientX, e.clientY)}
           onMouseMove={(e) => { if (joyActive) joyMoveHandler(e.clientX, e.clientY) }}
           onMouseUp={joyEndHandler} onMouseLeave={joyEndHandler}
-          onTouchStart={(e) => { e.preventDefault(); joyStart(e.touches[0].clientX, e.touches[0].clientY) }}
-          onTouchMove={(e) => { e.preventDefault(); joyMoveHandler(e.touches[0].clientX, e.touches[0].clientY) }}
-          onTouchEnd={joyEndHandler}
+          onTouchStart={(e) => { e.preventDefault(); if (e.touches[0]) joyStart(e.touches[0].clientX, e.touches[0].clientY) }}
+          onTouchMove={(e) => { e.preventDefault(); if (e.touches[0]) joyMoveHandler(e.touches[0].clientX, e.touches[0].clientY) }}
+          onTouchEnd={joyEndHandler} onTouchCancel={joyEndHandler}
         >
           <div style={{
             width: 28, height: 28, borderRadius: '50%', background: 'var(--hud-btn)',
