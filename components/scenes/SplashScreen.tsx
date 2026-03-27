@@ -140,24 +140,19 @@ export default function SplashScreen() {
       background: '#1a1232', position: 'relative',
       padding: '24px 16px', gap: 10, overflowY: 'auto',
     }}>
-      {/* Background image — splash.png en fond sur TOUS les steps */}
+      {/* Background image — splash.png plein écran */}
       <img src="/splash.png" alt="" style={{
         position: 'absolute', inset: 0, width: '100%', height: '100%',
-        objectFit: 'cover', opacity: 0.25, pointerEvents: 'none',
+        objectFit: 'cover', opacity: 1, pointerEvents: 'none',
       }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-      {/* Dark overlay for readability */}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(26,18,50,0.7) 0%, rgba(26,18,50,0.5) 50%, rgba(26,18,50,0.8) 100%)', pointerEvents: 'none' }} />
+      {/* Léger gradient en bas pour lisibilité des boutons */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
 
       {step === 'title' && (
         <>
-          <div style={{ fontSize: 'clamp(28px, 10vw, 48px)', fontWeight: 700, color: '#e91e8c', textShadow: '0 0 20px rgba(233,30,140,0.5)', letterSpacing: 2, zIndex: 1 }}>
-            RESTANQUES
-          </div>
-          <div style={{ fontSize: 14, color: '#c0b8d4', textAlign: 'center', maxWidth: 300, lineHeight: 1.6, zIndex: 1 }}>
-            Le vent se lève sur la Provence...<br/>
-            <span style={{ fontSize: 12, color: '#9a8fbf' }}>RPG coopératif — 5 terres à traverser</span>
-          </div>
-          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 1 }}>
+          {/* Pas de texte — l'image splash.png contient déjà le titre */}
+          <div style={{ flex: 1 }} /> {/* pousse les boutons vers le bas */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, zIndex: 1, width: '100%', maxWidth: 340 }}>
             <button onClick={() => setStep('class')} style={{
               background: '#e91e8c', color: 'white', border: 'none', borderRadius: 12,
               padding: '14px 48px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
