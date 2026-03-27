@@ -151,10 +151,9 @@ export default function SplashScreen() {
         </>
       ) : step === 'class' ? (
         <>
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, #1a1232 0%, #2d1f54 50%, #1a1232 100%)', pointerEvents: 'none' }} />
           <img src="/story/class_selection.png" alt="" style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'contain', pointerEvents: 'none',
+            objectFit: 'cover', objectPosition: 'center 60%', pointerEvents: 'none',
           }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(26,18,50,0.3)', pointerEvents: 'none' }} />
         </>
