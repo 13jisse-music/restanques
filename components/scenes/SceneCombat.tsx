@@ -168,6 +168,8 @@ export default function SceneCombat() {
     if (phase === 'victory') {
       const xp = calculateXP(monsterXp, player.level, 1)
       player.addXp(xp)
+      player.addSous(Math.floor(5 + monsterXp * 0.3))
+      player.addFatigue(0.5) // fatigue de combat
       playSound('/sfx/sfx_levelup.mp3', 'levelup')
     }
     if (phase === 'defeat') {
@@ -330,13 +332,22 @@ export default function SceneCombat() {
           padding: '20px', background: '#231b42', borderTop: '1px solid #3a2d5c',
           textAlign: 'center',
         }}>
-          {phase === 'victory' && (
-            <>
+          {phase === 'victory' && (() => {
+            const xp = calculateXP(monsterXp, player.level, 1)
+            const sous = Math.floor(5 + monsterXp * 0.3)
+            // Simple loot based on monster
+            const loots = ['Herbe', 'Cuir', 'Bois', 'Pierre', 'Fer', 'Plume', 'Graine']
+            const loot1 = loots[Math.floor(Math.random() * loots.length)]
+            const loot2 = Math.random() > 0.6 ? loots[Math.floor(Math.random() * loots.length)] : null
+            return <>
               <div style={{ fontSize: 18, color: '#7ec850', fontWeight: 700 }}>Victoire !</div>
-              <div style={{ fontSize: 12, color: '#ef9f27', marginTop: 4 }}>+{calculateXP(monsterXp, player.level, 1)} XP</div>
-              <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>Loot : à implémenter (M4)</div>
+              <div style={{ fontSize: 13, color: '#ef9f27', marginTop: 6 }}>+{xp} XP</div>
+              <div style={{ fontSize: 13, color: '#C9A84C', marginTop: 2 }}>+{sous} Sous</div>
+              <div style={{ fontSize: 12, color: '#7ec850', marginTop: 4 }}>
+                Loot : {loot1} x1{loot2 ? ` + ${loot2} x1` : ''}
+              </div>
             </>
-          )}
+          })()}
           {phase === 'defeat' && (
             <>
               <div style={{ fontSize: 18, color: '#e24b4a', fontWeight: 700 }}>Défaite...</div>

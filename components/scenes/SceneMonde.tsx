@@ -9,6 +9,7 @@ import Minimap from '@/components/hud/Minimap'
 import { generateGarrigue, GARRIGUE_COLORS, GARRIGUE_WALKABLE, GARRIGUE_INTERACTIVE, SPAWN_X, SPAWN_Y, MAP_W, MAP_H, spawnMonsters, MapEntity } from '@/data/maps/garrigue'
 import WeatherOverlay from '@/components/world/WeatherOverlay'
 import { rollWeather } from '@/lib/weatherEngine'
+import { getDarkness } from '@/lib/dayNightCycle'
 
 const TILE_SIZE = 48
 const MOVE_SPEED = 0.08 // tiles per frame
@@ -43,6 +44,24 @@ export default function SceneMonde() {
     const timer = setTimeout(changeWeather, (5 + Math.random() * 5) * 60000)
     return () => clearTimeout(timer)
   }, [setWeather])
+
+  // Fatigue — walking adds fatigue, faint at 100
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (joyDXRef.current !== 0 || joyDYRef.current !== 0) {
+        player.addFatigue(0.01)
+      }
+      // Night fatigue
+      const hour = ((useGameStore.getState().dayNightCycle * 24) + 6) % 24
+      if (hour >= 20 || hour < 6) player.addFatigue(0.05)
+      // Faint
+      if (player.fatigue >= 100) {
+        player.respawn()
+        transitionToScene('maison')
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [player, transitionToScene])
 
   // Viewport
   useEffect(() => {
@@ -94,7 +113,9 @@ export default function SceneMonde() {
         if (dx !== 0 || dy !== 0) {
           // No diagonal — move only on dominant axis
           if (Math.abs(dx) > Math.abs(dy)) { dy = 0; } else { dx = 0; }
-          const speed = 3.5 // tiles per second
+          // Weather affects speed (wind = slower)
+          const weatherMod = useGameStore.getState().weather === 'wind' ? 0.7 : 1
+          const speed = 3.5 * weatherMod
           const pos = posRef.current
           const nx = pos.x + dx * speed * dt
           const ny = pos.y + dy * speed * dt
@@ -209,6 +230,7 @@ export default function SceneMonde() {
         </div>
         <span style={{ fontSize: 9, color: '#9a8fbf' }}>{player.hp}/{player.hpMax}</span>
         <span style={{ fontSize: 10, color: '#ef9f27' }}>💰{player.sous}</span>
+        {player.fatigue > 10 && <span style={{ fontSize: 9, color: player.fatigue > 70 ? '#e24b4a' : '#9a8fbf' }}>😴{Math.round(player.fatigue)}%</span>}
       </div>
 
       {/* Game Canvas */}
@@ -218,6 +240,8 @@ export default function SceneMonde() {
         <ClockStardew />
         <Minimap map={mapData.map} tileColors={GARRIGUE_COLORS} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={20} />
         <WeatherOverlay />
+        {/* Night darkness overlay */}
+        <div style={{ position:'absolute', inset:0, background:`rgba(10,10,30,${getDarkness(useGameStore.getState().dayNightCycle)})`, pointerEvents:'none', zIndex:35, transition:'background 2s' }} />
       </div>
 
       {/* Interaction toast */}

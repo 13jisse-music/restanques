@@ -38,6 +38,7 @@ export default function SceneMaison() {
   const moveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const transitionToScene = useGameStore(s => s.transitionToScene)
   const playerClass = useGameStore(s => s.playerClass)
+  const player = usePlayerStore()
 
   // Garden timer tick
   useEffect(() => {
@@ -157,16 +158,17 @@ export default function SceneMaison() {
         } else if (action === 'portail') {
           setInteractMsg('🌀 Portail vers les biomes de Jisse (-30% PV, -20% DEF)')
           setTimeout(() => setInteractMsg(null), 2500)
-        } else {
-          const labels: Record<string, string> = {
-            salon: '✦ Salon — Craft de sorts (Module M3)',
-            cuisine: '🍳 Cuisine — Potions & plats (Module M3)',
-            armurerie: '⚒ Armurerie — Armes & armures (Module M3)',
-            comptoir: '💰 Comptoir — Commerce (Module M5)',
-            coffre: '📦 Coffre — Stockage',
-          }
-          setInteractMsg(labels[action] || action)
-          setTimeout(() => setInteractMsg(null), 2500)
+        } else if (action === 'salon') {
+          transitionToScene('craft', { atelier: 'salon' })
+        } else if (action === 'cuisine') {
+          transitionToScene('craft', { atelier: 'cuisine' })
+        } else if (action === 'armurerie') {
+          transitionToScene('craft', { atelier: 'armurerie' })
+        } else if (action === 'comptoir') {
+          transitionToScene('commerce')
+        } else if (action === 'coffre') {
+          setInteractMsg('📦 Coffre — ' + player.bag.length + ' objets dans le sac')
+          setTimeout(() => setInteractMsg(null), 2000)
         }
         return
       }
