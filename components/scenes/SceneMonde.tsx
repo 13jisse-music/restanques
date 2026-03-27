@@ -119,13 +119,6 @@ export default function SceneMonde() {
     return () => clearInterval(interval)
   }, [])
 
-  // CDC M4: Play biome-specific music
-  useEffect(() => {
-    import('@/lib/assetLoader').then(({ playMusic }) => {
-      playMusic(biome.music, 0.25)
-    })
-  }, [biome.music])
-
   // M6: Contextual popup state
   const [popupKey, setPopupKey] = useState<string | null>(null)
   const showPopup = (key: string) => {

@@ -244,8 +244,8 @@ export default function SplashScreen() {
                   transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden',
                 }}>
                 <div style={{ fontSize: 28 }}>{c.emoji}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: c.color, marginTop: 4 }}>{c.name}</div>
-                <div style={{ fontSize: 9, color: '#6b5e8a', marginTop: 2 }}>{c.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: c.color, marginTop: 4 }}>{c.name}</div>
+                <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>{c.title}</div>
                 {/* Glow effect */}
                 {(selectedClass === c.id || hoveredClass === c.id) && (
                   <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 50% 80%, ${c.color}15, transparent 70%)`, pointerEvents: 'none' }} />

@@ -7,6 +7,7 @@ import { useCombatStore } from '@/store/combatStore'
 import { calculateDamage, calculateXP, checkSoloCombo } from '@/lib/combatEngine'
 import { playSound } from '@/lib/assetLoader'
 import { triggerBossBefore, triggerBossAfter, triggerStory, isStorySeen, getBossStoryMap } from '@/lib/storyEngine'
+import { markBossDefeated } from '@/lib/biomeLoader'
 import ATBBar from '@/components/combat/ATBBar'
 import BattleField from '@/components/combat/BattleField'
 import CardDeck from '@/components/combat/CardDeck'
@@ -298,8 +299,20 @@ export default function SceneCombat() {
       const xp = calculateXP(monsterXp, player.level, 1)
       player.addXp(xp)
       player.addSous(Math.floor(5 + monsterXp * 0.3))
-      player.addFatigue(0.5) // fatigue de combat
+      player.addFatigue(0.5)
       playSound('/sfx/sfx_levelup.mp3', 'levelup')
+
+      // CDC M5: Demi-boss kill → +2 bag slots (peau → sac upgrade)
+      const bossMap = getBossStoryMap()
+      const isDemiBoss = Object.entries(bossMap).some(([name, info]) => name === monsterName && info.before?.includes('demiboss'))
+      if (isDemiBoss && player.bagMaxSlots < 15) {
+        player.setStats({ bagMaxSlots: Math.min(15, player.bagMaxSlots + 2) })
+        markBossDefeated(monsterName)
+      }
+      // Boss kill → mark defeated for portal unlock
+      if (bossMap[monsterName]) {
+        markBossDefeated(monsterName)
+      }
     }
     if (phase === 'defeat') {
       player.respawn()

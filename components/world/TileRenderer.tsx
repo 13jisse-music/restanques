@@ -20,9 +20,9 @@ interface TileRendererProps {
 // Mapping tileId → fichier PNG par biome
 const TILE_SPRITES: Record<string, Record<number, string>> = {
   garrigue: {
-    0: 'tile_garrigue_herbe.png', 1: 'tile_chemin_garrigue.png', 2: 'tile_rocher.png',
+    0: 'tile_herbe_1.png', 1: 'tile_chemin_terre.png', 2: 'tile_rocher.png',
     3: 'tile_buisson_thym.png', 4: 'tile_eau.png', 5: 'tile_lavande.png',
-    6: 'tile_olivier.png', 20: 'tile_souche.png', 21: 'tile_garrigue_herbe2.png', 22: 'tile_champignon.png',
+    6: 'tile_arbre_olivier.png', 20: 'tile_souche.png', 21: 'tile_herbe_haute.png', 22: 'tile_champignon.png',
   },
   maison_ext: {
     0: 'tile_herbe_1.png', 1: 'tile_chemin_terre.png', 4: 'tile_eau.png',
@@ -154,18 +154,46 @@ export default function TileRenderer({
       }
     }
 
-    // Draw entities (players, NPCs, monsters)
+    // Draw entities (players, NPCs, monsters) — try sprite first, fallback circle
     if (entities) {
       entities.forEach(e => {
         const ex = (e.x - startX) * tileSize + offsetX
         const ey = (e.y - startY) * tileSize + offsetY
-        ctx.fillStyle = e.color
-        ctx.beginPath()
-        ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize * 0.35, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 1.5
-        ctx.stroke()
+
+        // Try to load entity sprite (idle frame)
+        let spriteFile: string | null = null
+        if (e.label === 'Jisse' || e.label?.includes('Jisse')) spriteFile = 'idle_player_paladin.png'
+        else if (e.label === 'Mélanie' || e.label?.includes('Mélan')) spriteFile = 'idle_player_artisane.png'
+        else if (e.label === 'Quentin') spriteFile = 'idle_player_ombre.png'
+        // Monsters: try idle_monster_*.png
+        else if (e.color === '#e24b4a') {
+          const monsterName = (e.label || '').toLowerCase().replace(/ /g, '_').replace(/[éè]/g, 'e').replace(/[àâ]/g, 'a')
+          spriteFile = 'idle_monster_garrigue_' + monsterName + '.png'
+        }
+
+        const entityImg = spriteFile ? (function() {
+          const key = 'entity_' + spriteFile
+          if (tileImageCache.has(key)) return tileImageCache.get(key)
+          const img = new Image()
+          img.src = '/sprites/world/' + spriteFile
+          img.onload = () => { tileImageCache.set(key, img); setSpriteLoadTick(t => t + 1) }
+          img.onerror = () => tileImageCache.set(key, null)
+          tileImageCache.set(key, null)
+          return null
+        })() : null
+
+        if (entityImg) {
+          ctx.drawImage(entityImg, ex, ey, tileSize, tileSize)
+        } else {
+          // Fallback: colored circle
+          ctx.fillStyle = e.color
+          ctx.beginPath()
+          ctx.arc(ex + tileSize / 2, ey + tileSize / 2, tileSize * 0.35, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+        }
         if (e.label) {
           ctx.fillStyle = '#fff'
           ctx.font = '9px sans-serif'

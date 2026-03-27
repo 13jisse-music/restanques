@@ -20,14 +20,25 @@ const ITEM_TIERS: Record<string, string> = {
   potion_soin_plus: 'Avance', boule_feu: 'Rare', blizzard: 'Rare',
 }
 
-// NPC visitor demand (random items they want to buy)
-const VISITOR_DEMANDS = [
-  { name: 'Fermier', wants: ['potion_soin', 'antidote'], emoji: '👨‍🌾' },
-  { name: 'Marchand', wants: ['lavande', 'herbe_med', 'baie'], emoji: '🧔' },
-  { name: 'Aventurier', wants: ['flamme', 'potion_force', 'epee_lavande'], emoji: '🗡️' },
-  { name: 'Herboriste', wants: ['herbe', 'herbe_med', 'champignon'], emoji: '🌿' },
-  { name: 'Forgeron', wants: ['fer', 'bois', 'cuir'], emoji: '⚒️' },
+// CDC M5: NPC visitors — demand items from player's bag (prefer crafted items)
+const VISITOR_TYPES = [
+  { name: 'Fermier', emoji: '👨‍🌾', prefers: ['potion_soin', 'antidote', 'ragout'] },
+  { name: 'Marchand', emoji: '🧔', prefers: ['lavande', 'herbe_med', 'baie'] },
+  { name: 'Aventurier', emoji: '🗡️', prefers: ['flamme', 'potion_force', 'epee_lavande'] },
+  { name: 'Herboriste', emoji: '🌿', prefers: ['herbe', 'herbe_med', 'champignon'] },
+  { name: 'Forgeron', emoji: '⚒️', prefers: ['fer', 'bois', 'cuir'] },
+  { name: 'Sorcière', emoji: '🧙‍♀️', prefers: ['soin', 'vague', 'poison'] },
+  { name: 'Chevalier', emoji: '🛡️', prefers: ['bouclier_bois', 'casque_cuir', 'potion_defense'] },
 ]
+
+function getVisitorDemand(bag: {itemId:string}[]) {
+  const vtype = VISITOR_TYPES[Math.floor(Math.random() * VISITOR_TYPES.length)]
+  // CDC M5: Prefer items the player actually has in bag
+  const wants = vtype.prefers.filter(id => bag.some(b => b.itemId === id))
+  // If player has none of the preferred items, use defaults
+  const finalWants = wants.length > 0 ? wants.slice(0, 2) : vtype.prefers.slice(0, 2)
+  return { ...vtype, wants: finalWants }
+}
 
 function getItemPrice(itemId: string, discount = 0): number {
   const tier = ITEM_TIERS[itemId] || 'Commun'
@@ -41,7 +52,7 @@ export default function SceneCommerce() {
   const [discount, setDiscount] = useState<Record<string, number>>({})
 
   // CDC M5: NPC visitor (daytime only, every 3-8 min game time)
-  const [visitor, setVisitor] = useState<typeof VISITOR_DEMANDS[0] | null>(null)
+  const [visitor, setVisitor] = useState<{ name: string; emoji: string; wants: string[]; prefers: string[] } | null>(null)
   const [visitorTimer, setVisitorTimer] = useState(0)
 
   useEffect(() => {
@@ -50,7 +61,7 @@ export default function SceneCommerce() {
       setVisitorTimer(t => {
         if (t <= 0) {
           // Spawn new visitor
-          const v = VISITOR_DEMANDS[Math.floor(Math.random() * VISITOR_DEMANDS.length)]
+          const v = getVisitorDemand(player.bag)
           setVisitor(v)
           return 180 + Math.floor(Math.random() * 300) // 3-8 min
         }
@@ -109,7 +120,7 @@ export default function SceneCommerce() {
           <div style={{ fontSize: 12, color: '#7ec850', fontWeight: 600 }}>{visitor.emoji} Visiteur : {visitor.name}</div>
           <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>Cherche : {visitor.wants.join(', ')}</div>
           <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-            {visitor.wants.map(w => {
+            {visitor.wants.map((w: string) => {
               const has = player.bag.find(b => b.itemId === w)
               return (
                 <button key={w} onClick={() => has && sellToVisitor(w)} disabled={!has} style={{

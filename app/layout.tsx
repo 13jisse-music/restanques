@@ -30,7 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body data-skin="provence">
         <AudioManager />
-        <SkinProvider />
         {children}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {
