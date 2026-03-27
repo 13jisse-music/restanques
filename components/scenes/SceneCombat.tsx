@@ -65,6 +65,8 @@ export default function SceneCombat() {
       if (!running) return
       if (lastTimeRef.current) {
         const delta = (time - lastTimeRef.current) / 1000
+        // Pause ATB during animations (shaking, combo text)
+        if (shaking || comboText) { lastTimeRef.current = time; atbRef.current = requestAnimationFrame(tick); return }
         setMonsterAtb(prev => {
           const next = prev + delta / monsterAtbSpeed
           if (next >= 1) {

@@ -11,6 +11,7 @@ import WeatherOverlay from '@/components/world/WeatherOverlay'
 import { rollWeather } from '@/lib/weatherEngine'
 import { getDarkness } from '@/lib/dayNightCycle'
 import { sendPosition, broadcastDeath } from '@/lib/realtimeSync'
+import { pollGamepad } from '@/lib/gamepad'
 
 const TILE_SIZE = 48
 const MOVE_SPEED = 0.08 // tiles per frame
@@ -113,6 +114,10 @@ export default function SceneMonde() {
     function tick(time: number) {
       if (lastTime) {
         const dt = Math.min((time - lastTime) / 1000, 0.05) // cap delta
+        // Gamepad support
+        const gp = pollGamepad()
+        if (gp) { joyDXRef.current = gp.axisX; joyDYRef.current = gp.axisY; if (gp.btnA) handleAction() }
+
         let dx = joyDXRef.current, dy = joyDYRef.current
         if (dx !== 0 || dy !== 0) {
           // No diagonal — move only on dominant axis

@@ -65,8 +65,9 @@ export const useGameStore = create<GameState>((set) => ({
   })),
 
   transitionToScene: (scene, data) => set((state) => {
-    // CRITICAL: force viewport recalc on transition
+    // CRITICAL: force viewport recalc + reset all inputs on transition
     window.dispatchEvent(new Event('resize'))
+    window.dispatchEvent(new CustomEvent('scene-change', { detail: { from: state.currentScene, to: scene } }))
     return {
       previousScene: state.currentScene,
       currentScene: scene,
