@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import AudioManager from '@/components/shared/AudioManager'
+import SkinProvider from '@/components/shared/SkinProvider'
 
 export const metadata: Metadata = {
   title: 'Restanques — RPG Provençal',
@@ -27,11 +29,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body data-skin="provence">
+        <AudioManager />
+        <SkinProvider />
         {children}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
           }
+          // PWA install prompt
+          window.__pwaDeferred = null;
+          window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.__pwaDeferred = e;
+            window.dispatchEvent(new Event('pwa-ready'));
+          });
         `}} />
       </body>
     </html>

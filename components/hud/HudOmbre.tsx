@@ -1,3 +1,6 @@
 'use client'
-// TODO: Implement HudOmbre
-export default function HudOmbre() { return null }
+
+// CDC M4: Quentin = même HUD que Paladin (joystick + A + B)
+// Re-export HudPaladin avec style ombre
+import HudPaladin from './HudPaladin'
+export default HudPaladin

@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGameStore } from '@/store/gameStore'
 import { usePlayerStore } from '@/store/playerStore'
 import TileRenderer from '@/components/world/TileRenderer'
+import { MONSTERS } from '@/data/monsters'
+import { playPlaceholderSound } from '@/lib/assetLoader'
+import { markBossDefeated } from '@/lib/biomeLoader'
 
 const TILE_SIZE = 48
 const COLORS: Record<number, string> = {
@@ -166,11 +169,23 @@ export default function SceneDonjon() {
         setMsg('Descente au niveau ' + (level + 1) + '...')
         setTimeout(() => setMsg(null), 1500)
       }
-    } else if (tile === 4) { // boss
-      const bossData = donjonType === 'demiboss'
-        ? { name: 'Grand Cerf', hp: 200, atk: 20, def: 10, weakness: 'Ombre', atbSpeed: 3, xp: 100 }
-        : { name: 'Sanglier géant', hp: 500, atk: 25, def: 12, weakness: 'Eau', atbSpeed: 4, xp: 300 }
-      transitionToScene('combat', bossData)
+    } else if (tile === 4) { // boss room
+      // CDC M8: Load boss from monster data based on biome + dungeon type
+      const biomeCap = biome.charAt(0).toUpperCase() + biome.slice(1)
+      const targetType = donjonType === 'demiboss' ? 'Demi-boss' : 'Boss'
+      const bossMonster = MONSTERS.find(m => m.biome === biomeCap && m.type.includes(targetType.split('-').pop()!))
+        || MONSTERS.find(m => m.biome === biomeCap && (donjonType === 'demiboss' ? m.type === 'Demi-boss' : m.type === 'Boss' || m.type === 'Boss final'))
+      if (bossMonster) {
+        playPlaceholderSound('portal')
+        transitionToScene('combat', {
+          name: bossMonster.name, hp: bossMonster.hp, atk: bossMonster.atk,
+          def: bossMonster.def, weakness: bossMonster.weakness,
+          atbSpeed: bossMonster.atbSpeed, xp: bossMonster.xp,
+        })
+      } else {
+        setMsg('Boss non trouvé pour ' + biome)
+        setTimeout(() => setMsg(null), 2000)
+      }
     } else if (tile === 2) { // porte/sortie
       transitionToScene('monde')
     }

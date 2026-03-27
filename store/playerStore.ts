@@ -47,6 +47,14 @@ interface PlayerState {
   equipment: Partial<Record<'arme' | 'armure' | 'casque' | 'gants' | 'amulette' | 'bottes', EquipmentSlot>>
   equippedSpells: EquippedSpell[]
 
+  // Fog of war — explored tiles (persisted as Set<string> "x,y")
+  exploredTiles: Set<string>
+  revealTiles: (cx: number, cy: number, radius: number) => void
+
+  // Craft counter (CDC M1: Sumo appears after 10 crafts)
+  totalCrafts: number
+  addCraft: () => void
+
   // Actions
   setStats: (stats: Partial<PlayerState>) => void
   takeDamage: (amount: number) => void
@@ -87,6 +95,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   equipment: {},
   equippedSpells: [],
+
+  exploredTiles: new Set<string>(),
+  totalCrafts: 0,
+
+  addCraft: () => set((state) => ({ totalCrafts: state.totalCrafts + 1 })),
+
+  revealTiles: (cx, cy, radius) => set((state) => {
+    const newExplored = new Set(state.exploredTiles)
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy <= radius * radius) {
+          newExplored.add(`${cx + dx},${cy + dy}`)
+        }
+      }
+    }
+    return { exploredTiles: newExplored }
+  }),
 
   setStats: (stats) => set(stats),
 

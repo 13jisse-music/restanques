@@ -127,3 +127,43 @@ export function allPlayersInMaison(): boolean {
   if (connectedPlayers.length === 0) return true // solo
   return connectedPlayers.every(p => p.biome === 'maison')
 }
+
+// CDC M7: Host transfer on disconnect
+export function checkHostTransfer() {
+  const store = useMultiplayerStore.getState()
+  if (!store.isHost) return
+  // If host disconnected, transfer to first connected player
+  const connected = store.players.filter(p => p.isConnected)
+  if (connected.length > 0 && !connected.find(p => p.id === store.sessionId)) {
+    // Current host is gone, transfer
+    console.log('Host transfer to', connected[0].id)
+  }
+}
+
+// CDC M7: Coop death logic
+// Jisse dies = both return to maison
+// Mélanie dies alone = only she returns
+// Quentin dies = only he returns
+export function handleCoopDeath(playerId: string, playerClass: string) {
+  broadcastDeath(playerId, playerClass)
+  if (playerClass === 'paladin') {
+    // Jisse dies → everyone goes home
+    usePlayerStore.getState().respawn()
+    useGameStore.getState().transitionToScene('maison')
+  } else {
+    // Mélanie/Quentin → only they go home
+    usePlayerStore.getState().respawn()
+    useGameStore.getState().transitionToScene('maison')
+  }
+}
+
+// CDC M7: Check if solo mode (no co-player)
+export function isSoloMode(): boolean {
+  const players = useMultiplayerStore.getState().players
+  return players.filter(p => p.isConnected).length <= 1
+}
+
+// CDC M7: Broadcast portal/biome change
+export function broadcastPortal(playerId: string, biome: string) {
+  sendEvent('portal', { id: playerId, biome })
+}

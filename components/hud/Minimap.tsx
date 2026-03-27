@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
+import { usePlayerStore } from '@/store/playerStore'
 
 interface MinimapProps {
   map: number[][]
@@ -18,6 +19,13 @@ export default function Minimap({
   fogRadius = 12, size = 68, entities
 }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const revealTiles = usePlayerStore(s => s.revealTiles)
+  const exploredTiles = usePlayerStore(s => s.exploredTiles)
+
+  // Reveal tiles around player position
+  useEffect(() => {
+    revealTiles(playerX, playerY, fogRadius)
+  }, [playerX, playerY, fogRadius, revealTiles])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -33,20 +41,28 @@ export default function Minimap({
     const scaleX = size / mapW
     const scaleY = size / mapH
 
-    // Draw map
+    // Draw map — use persistent explored tiles (Bug #11 fix)
     for (let y = 0; y < mapH; y++) {
       for (let x = 0; x < mapW; x++) {
         const tile = map[y][x]
-        const dist = Math.sqrt((x - playerX) ** 2 + (y - playerY) ** 2)
+        const isExplored = exploredTiles.has(`${x},${y}`)
+        const distToPlayer = Math.sqrt((x - playerX) ** 2 + (y - playerY) ** 2)
+        const inCurrentView = distToPlayer <= fogRadius
 
-        if (dist > fogRadius) {
+        if (!isExplored) {
+          // Never visited — black fog
           ctx.fillStyle = '#0a0a1a'
-        } else {
+        } else if (inCurrentView) {
+          // Currently visible — full color
           ctx.fillStyle = tileColors[tile] || '#333'
-          // Dim edges of fog
-          if (dist > fogRadius * 0.7) {
-            ctx.globalAlpha = 1 - (dist - fogRadius * 0.7) / (fogRadius * 0.3)
+          // Dim edges of current view
+          if (distToPlayer > fogRadius * 0.7) {
+            ctx.globalAlpha = 0.6 + 0.4 * (1 - (distToPlayer - fogRadius * 0.7) / (fogRadius * 0.3))
           }
+        } else {
+          // Explored but not in current view — dimmed
+          ctx.fillStyle = tileColors[tile] || '#333'
+          ctx.globalAlpha = 0.35
         }
 
         ctx.fillRect(x * scaleX, y * scaleY, Math.ceil(scaleX), Math.ceil(scaleY))
@@ -54,7 +70,7 @@ export default function Minimap({
       }
     }
 
-    // Draw entities
+    // Draw entities (only in current view)
     if (entities) {
       entities.forEach(e => {
         const dist = Math.sqrt((e.x - playerX) ** 2 + (e.y - playerY) ** 2)
@@ -75,7 +91,7 @@ export default function Minimap({
     ctx.lineWidth = 1
     ctx.stroke()
 
-  }, [map, tileColors, playerX, playerY, playerColor, fogRadius, size, entities])
+  }, [map, tileColors, playerX, playerY, playerColor, fogRadius, size, entities, exploredTiles])
 
   return (
     <div style={{
