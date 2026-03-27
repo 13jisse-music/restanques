@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useGameStore, PlayerClass } from '@/store/gameStore'
 import { useMultiplayerStore } from '@/store/multiplayerStore'
+import { startRealtimeSync } from '@/lib/realtimeSync'
 
 const CLASSES: { id: PlayerClass; name: string; emoji: string; desc: string; color: string }[] = [
   { id: 'paladin', name: 'Jisse — Le Paladin', emoji: '⚔️', desc: 'Explore les biomes, combat les monstres, récolte les ressources', color: '#ef9f27' },
@@ -23,6 +24,7 @@ export default function SplashScreen() {
     const id = crypto.randomUUID()
     setPlayer(id, playerName.trim(), selectedClass)
     const code = createSession()
+    startRealtimeSync(code, id)
     setShowCode(true)
     // Auto-start after 3s or on tap
     setTimeout(() => transitionToScene(selectedClass === 'artisane' ? 'maison' : 'monde'), 3000)

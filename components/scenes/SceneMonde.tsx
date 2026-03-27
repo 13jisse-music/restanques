@@ -10,6 +10,7 @@ import { generateGarrigue, GARRIGUE_COLORS, GARRIGUE_WALKABLE, GARRIGUE_INTERACT
 import WeatherOverlay from '@/components/world/WeatherOverlay'
 import { rollWeather } from '@/lib/weatherEngine'
 import { getDarkness } from '@/lib/dayNightCycle'
+import { sendPosition, broadcastDeath } from '@/lib/realtimeSync'
 
 const TILE_SIZE = 48
 const MOVE_SPEED = 0.08 // tiles per frame
@@ -57,6 +58,9 @@ export default function SceneMonde() {
       // Faint
       if (player.fatigue >= 100) {
         player.respawn()
+        const pid = useGameStore.getState().playerId
+        const pclass = useGameStore.getState().playerClass
+        if (pid && pclass) broadcastDeath(pid, pclass)
         transitionToScene('maison')
       }
     }, 1000)
@@ -123,6 +127,9 @@ export default function SceneMonde() {
           if (dy !== 0 && canWalk(pos.x, ny)) pos.y = ny
           setPlayerX(pos.x)
           setPlayerY(pos.y)
+          // Send position to other players
+          const pid = useGameStore.getState().playerId
+          if (pid) sendPosition(pid, pos.x, pos.y, 'garrigue', player.hp)
         }
       }
       lastTime = time

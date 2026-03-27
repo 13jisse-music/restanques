@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useMultiplayerStore } from '@/store/multiplayerStore'
 import { useGameStore, PlayerClass } from '@/store/gameStore'
+import { startRealtimeSync, broadcastPlayerJoined } from '@/lib/realtimeSync'
 
 const CLASSES: { id: PlayerClass; name: string; emoji: string; desc: string; color: string }[] = [
   { id: 'paladin', name: 'Jisse — Le Paladin', emoji: '⚔️', desc: 'Explore et combat', color: '#ef9f27' },
@@ -22,6 +23,8 @@ export default function JoinPage({ params }: { params: { code: string } }) {
     const id = crypto.randomUUID()
     setPlayer(id, playerName.trim(), selectedClass)
     joinSession(params.code)
+    startRealtimeSync(params.code, id)
+    broadcastPlayerJoined({ id, name: playerName.trim(), class: selectedClass, x: 10, y: 140, hp: 100, hpMax: 100, biome: 'maison', isConnected: true, lastSeen: Date.now() })
     setJoined(true)
     setTimeout(() => {
       transitionToScene(selectedClass === 'artisane' ? 'maison' : 'monde')

@@ -7,6 +7,7 @@ import TileRenderer from '@/components/world/TileRenderer'
 import ClockStardew from '@/components/hud/ClockStardew'
 import Minimap from '@/components/hud/Minimap'
 import { generateMaisonMap, TILE_COLORS, TILE_WALKABLE, TILE_INTERACTIVE, SPAWN_X, SPAWN_Y, MAP_W, MAP_H, GARDEN_PLOTS } from '@/data/maps/maison'
+import { allPlayersInMaison, broadcastSleep } from '@/lib/realtimeSync'
 
 const TILE_SIZE = 48 // 16px * 3
 
@@ -152,9 +153,15 @@ export default function SceneMaison() {
             }
           }
         } else if (action === 'chambre') {
-          setInteractMsg('🛏 Repos... PV restaurés, fatigue à 0 !')
-          usePlayerStore.getState().setStats({ hp: usePlayerStore.getState().hpMax, fatigue: 0 })
-          setTimeout(() => setInteractMsg(null), 2000)
+          if (!allPlayersInMaison()) {
+            setInteractMsg('⏳ Attendez que tous les joueurs soient à la maison pour dormir')
+            setTimeout(() => setInteractMsg(null), 3000)
+          } else {
+            setInteractMsg('🛏 Repos... PV restaurés, fatigue à 0 !')
+            usePlayerStore.getState().setStats({ hp: usePlayerStore.getState().hpMax, fatigue: 0 })
+            broadcastSleep()
+            setTimeout(() => setInteractMsg(null), 2000)
+          }
         } else if (action === 'portail') {
           setInteractMsg('🌀 Portail vers les biomes de Jisse (-30% PV, -20% DEF)')
           setTimeout(() => setInteractMsg(null), 2500)
