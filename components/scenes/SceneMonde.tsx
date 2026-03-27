@@ -155,11 +155,20 @@ export default function SceneMonde() {
     return () => clearInterval(interval)
   }, [player, transitionToScene])
 
-  // Viewport
+  // Viewport — use stable height to avoid jitter from mobile address bar
   useEffect(() => {
-    const update = () => { setViewW(window.innerWidth); setViewH(window.innerHeight - 120 - 24) }
-    update(); window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
+    const update = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight
+      setViewW(window.innerWidth)
+      setViewH(h - 120 - 24)
+    }
+    update()
+    // Debounce resize to avoid rapid viewport changes on mobile
+    let timer: ReturnType<typeof setTimeout>
+    const debounced = () => { clearTimeout(timer); timer = setTimeout(update, 150) }
+    window.addEventListener('resize', debounced)
+    window.visualViewport?.addEventListener('resize', debounced)
+    return () => { window.removeEventListener('resize', debounced); window.visualViewport?.removeEventListener('resize', debounced); clearTimeout(timer) }
   }, [])
 
   // Joystick touch handlers

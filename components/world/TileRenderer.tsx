@@ -107,12 +107,19 @@ export default function TileRenderer({
     const camX = cameraRef?.current?.x ?? cameraX
     const camY = cameraRef?.current?.y ?? cameraY
 
+    // Camera pixel offset — stable calculation, no parity-dependent jitter
+    const camPixelX = camX * tileSize
+    const camPixelY = camY * tileSize
+    const halfW = viewportW / 2
+    const halfH = viewportH / 2
+    const worldStartX = camPixelX - halfW
+    const worldStartY = camPixelY - halfH
+    const startTileX = Math.floor(worldStartX / tileSize)
+    const startTileY = Math.floor(worldStartY / tileSize)
+    const baseOffsetX = -(worldStartX - startTileX * tileSize)
+    const baseOffsetY = -(worldStartY - startTileY * tileSize)
     const tilesX = Math.ceil(viewportW / tileSize) + 2
     const tilesY = Math.ceil(viewportH / tileSize) + 2
-    const startX = Math.floor(camX - tilesX / 2)
-    const startY = Math.floor(camY - tilesY / 2)
-    const offsetX = -(camX - Math.floor(camX)) * tileSize - (tilesX / 2 - Math.floor(tilesX / 2)) * tileSize
-    const offsetY = -(camY - Math.floor(camY)) * tileSize - (tilesY / 2 - Math.floor(tilesY / 2)) * tileSize
 
     ctx.fillStyle = '#1a1232'
     ctx.fillRect(0, 0, viewportW, viewportH)
@@ -123,13 +130,13 @@ export default function TileRenderer({
 
     for (let dy = 0; dy < tilesY; dy++) {
       for (let dx = 0; dx < tilesX; dx++) {
-        const mapX = startX + dx
-        const mapY = startY + dy
+        const mapX = startTileX + dx
+        const mapY = startTileY + dy
         if (mapX < 0 || mapY < 0 || mapY >= map.length || mapX >= (map[0]?.length || 0)) continue
 
         const tileId = map[mapY][mapX]
-        const screenX = dx * tileSize + offsetX
-        const screenY = dy * tileSize + offsetY
+        const screenX = dx * tileSize + baseOffsetX
+        const screenY = dy * tileSize + baseOffsetY
 
         // Try to draw PNG tile sprite first
         const spriteName = sprites[tileId]
@@ -166,8 +173,8 @@ export default function TileRenderer({
     // Draw entities (players, NPCs, monsters) — try sprite first, fallback circle
     if (entities) {
       entities.forEach(e => {
-        const ex = (e.x - startX) * tileSize + offsetX
-        const ey = (e.y - startY) * tileSize + offsetY
+        const ex = (e.x - startTileX) * tileSize + baseOffsetX
+        const ey = (e.y - startTileY) * tileSize + baseOffsetY
 
         // Try to load entity sprite (idle frame)
         let spriteFile: string | null = null
