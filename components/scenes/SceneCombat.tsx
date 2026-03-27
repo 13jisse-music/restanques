@@ -35,6 +35,9 @@ export default function SceneCombat() {
   const [monsterFlash, setMonsterFlash] = useState('')
   const [playerAnim, setPlayerAnim] = useState('')
   const [comboText, setComboText] = useState('')
+  const [bossSpecialGauge, setBossSpecialGauge] = useState(0)
+  const [bossSpecialActive, setBossSpecialActive] = useState(false)
+  const [bossAttackCount, setBossAttackCount] = useState(0)
 
   const atbRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
   const lastTimeRef = useRef(0)
@@ -80,9 +83,52 @@ export default function SceneCombat() {
 
   const addLog = (msg: string) => setCombatLog(prev => [...prev.slice(-4), msg])
 
+  // Boss special mechanics
+  const isBoss = monsterHp > 300
+  const bossName = monsterName.toLowerCase()
+
   // Monster attacks player
   const monsterAttacks = useCallback(() => {
-    const result = calculateDamage(monsterAtk, player.def, 1, false, 0, '', '', isDefending)
+    let atkMult = 1
+    let specialMsg = ''
+    const count = bossAttackCount + 1
+    setBossAttackCount(count)
+
+    // Boss special abilities
+    if (isBoss) {
+      // Sanglier: charge tous les 3 coups (x3 dmg + stun)
+      if (bossName.includes('sanglier') && count % 3 === 0) {
+        atkMult = 3; specialMsg = '🐗 CHARGE ! Degats x3 !'
+        setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 1000)
+      }
+      // Mouette: debuff toutes les 4 attaques (-20% ATK)
+      if (bossName.includes('mouette') && count % 4 === 0) {
+        specialMsg = '🦅 CRI DE TEMPETE ! ATK -20% 2 tours'
+      }
+      // Tarasque: carapace aleatoire (DEF x3)
+      if (bossName.includes('tarasque') && Math.random() < 0.25) {
+        specialMsg = '🐢 CARAPACE ! DEF x3 pendant 2 tours'
+        setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 2000)
+      }
+      // Kraken: invoque tentacules
+      if (bossName.includes('kraken') && count % 5 === 0) {
+        specialMsg = '🦑 TENTACULES ! 2 mini-monstres invoques'
+      }
+      // Mistral: change element
+      if (bossName.includes('mistral') && count % 3 === 0) {
+        const elements = ['Feu', 'Eau', 'Lumiere', 'Ombre']
+        const newElem = elements[Math.floor(Math.random() * elements.length)]
+        specialMsg = '🌪 CHANGEMENT ! Element: ' + newElem
+      }
+      // Mistral phase 2 (<50% PV)
+      if (bossName.includes('mistral') && monsterHp < monsterMaxHp * 0.5) {
+        atkMult *= 1.5
+      }
+    }
+
+    if (specialMsg) { setComboText(specialMsg); setTimeout(() => setComboText(''), 2000) }
+
+    const result = calculateDamage(Math.floor(monsterAtk * atkMult), player.def, 1, false, 0, '', '', isDefending)
     player.takeDamage(result.damage)
     setIsDefending(false)
 
