@@ -11,6 +11,7 @@ interface TileRendererProps {
   tileSize: number
   cameraX: number
   cameraY: number
+  cameraRef?: React.RefObject<{ x: number; y: number }>
   viewportW: number
   viewportH: number
   entities?: { x: number; y: number; color: string; label?: string }[]
@@ -71,7 +72,7 @@ const TILE_EMOJIS: Record<number, string> = {
 }
 
 export default function TileRenderer({
-  map, tileColors, tileSize, cameraX, cameraY,
+  map, tileColors, tileSize, cameraX, cameraY, cameraRef,
   viewportW, viewportH, entities, biome
 }: TileRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -89,21 +90,29 @@ export default function TileRenderer({
     return () => clearTimeout(timer)
   }, [biome])
 
-  useEffect(() => {
+  // Drawing function extracted for reuse in RAF loop
+  const drawFrame = useRef<() => void>()
+  const rafId = useRef<number>(0)
+
+  drawFrame.current = () => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    canvas.width = viewportW
-    canvas.height = viewportH
+    if (canvas.width !== viewportW) canvas.width = viewportW
+    if (canvas.height !== viewportH) canvas.height = viewportH
+
+    // Use cameraRef (real-time) if available, otherwise fall back to props
+    const camX = cameraRef?.current?.x ?? cameraX
+    const camY = cameraRef?.current?.y ?? cameraY
 
     const tilesX = Math.ceil(viewportW / tileSize) + 2
     const tilesY = Math.ceil(viewportH / tileSize) + 2
-    const startX = Math.floor(cameraX - tilesX / 2)
-    const startY = Math.floor(cameraY - tilesY / 2)
-    const offsetX = -(cameraX - Math.floor(cameraX)) * tileSize - (tilesX / 2 - Math.floor(tilesX / 2)) * tileSize
-    const offsetY = -(cameraY - Math.floor(cameraY)) * tileSize - (tilesY / 2 - Math.floor(tilesY / 2)) * tileSize
+    const startX = Math.floor(camX - tilesX / 2)
+    const startY = Math.floor(camY - tilesY / 2)
+    const offsetX = -(camX - Math.floor(camX)) * tileSize - (tilesX / 2 - Math.floor(tilesX / 2)) * tileSize
+    const offsetY = -(camY - Math.floor(camY)) * tileSize - (tilesY / 2 - Math.floor(tilesY / 2)) * tileSize
 
     ctx.fillStyle = '#1a1232'
     ctx.fillRect(0, 0, viewportW, viewportH)
@@ -202,7 +211,26 @@ export default function TileRenderer({
         }
       })
     }
-  }, [map, tileColors, tileSize, cameraX, cameraY, viewportW, viewportH, entities, biome, spriteLoadTick])
+  }
+
+  // If cameraRef is provided, run our own RAF loop for smooth rendering
+  useEffect(() => {
+    if (!cameraRef) return
+    let running = true
+    function loop() {
+      if (!running) return
+      drawFrame.current?.()
+      rafId.current = requestAnimationFrame(loop)
+    }
+    rafId.current = requestAnimationFrame(loop)
+    return () => { running = false; cancelAnimationFrame(rafId.current) }
+  }, [cameraRef, map, biome, viewportW, viewportH])
+
+  // Fallback: redraw on prop changes when no cameraRef
+  useEffect(() => {
+    if (cameraRef) return
+    drawFrame.current?.()
+  }, [map, tileColors, tileSize, cameraX, cameraY, viewportW, viewportH, entities, biome, spriteLoadTick, cameraRef])
 
   return <canvas ref={canvasRef} style={{ display: 'block', imageRendering: 'pixelated' }} />
 }

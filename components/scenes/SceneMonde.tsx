@@ -221,12 +221,10 @@ export default function SceneMonde() {
           if (pid) sendPosition(pid, pos.x, pos.y, biomeId, player.hp)
         }
 
-        // Smooth camera interpolation (lerp)
+        // Smooth camera interpolation (lerp) — ref only, no setState (TileRenderer reads ref directly)
         const cam = camRef.current
         cam.x += (posRef.current.x - cam.x) * LERP_SPEED
         cam.y += (posRef.current.y - cam.y) * LERP_SPEED
-        setCameraX(cam.x)
-        setCameraY(cam.y)
       }
       lastTime = time
       animRef.current = requestAnimationFrame(tick)
@@ -469,7 +467,7 @@ export default function SceneMonde() {
       {/* Game Canvas — uses smoothed camera */}
       <div style={{ marginTop: 24, height: viewH, position: 'relative' }}>
         <TileRenderer map={biome.map} tileColors={biome.colors} tileSize={TILE_SIZE}
-          cameraX={cameraX} cameraY={cameraY} viewportW={viewW} viewportH={viewH} entities={allEntities} biome={biomeId} />
+          cameraX={cameraX} cameraY={cameraY} cameraRef={camRef} viewportW={viewW} viewportH={viewH} entities={allEntities} biome={biomeId} />
         <ClockStardew />
         <Minimap map={biome.map} tileColors={biome.colors} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={20} />
         <WeatherOverlay />
