@@ -43,7 +43,7 @@ export default function SceneStory() {
   useEffect(() => {
     // Stop scene music, play narration audio
     stopMusic()
-    const fadeTimer = setTimeout(() => setFadeIn(false), 100)
+    const fadeTimer = setTimeout(() => setFadeIn(false), 1000) // CDC M6: fade entree 1s
     return () => clearTimeout(fadeTimer)
   }, [])
 
@@ -75,7 +75,7 @@ export default function SceneStory() {
 
   useEffect(() => {
     if (charIdx < currentText.length) {
-      timerRef.current = setInterval(() => setCharIdx(prev => prev + 1), 35)
+      timerRef.current = setInterval(() => setCharIdx(prev => prev + 1), 50) // CDC M6: 50ms par lettre
       return () => { if (timerRef.current) clearInterval(timerRef.current) }
     }
   }, [textIdx, charIdx, currentText.length])

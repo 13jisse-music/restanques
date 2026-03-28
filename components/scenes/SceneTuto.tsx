@@ -181,15 +181,16 @@ export default function SceneTuto() {
         <div style={{ width: `${progress}%`, height: '100%', background: '#C9A84C', borderRadius: 2, transition: 'width 0.5s ease' }} />
       </div>
 
-      {/* Sage portrait */}
+      {/* CDC M6: Sage portrait — image PNG si dispo, emoji fallback */}
       <div style={{
         width: 90, height: 90, borderRadius: '50%', zIndex: 5,
         background: 'linear-gradient(135deg, #231b42, #3a2d5c)',
         border: '3px solid #C9A84C', boxShadow: '0 0 20px rgba(201,168,76,0.3)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44,
-        marginTop: 20,
+        marginTop: 20, overflow: 'hidden',
       }}>
-        {current.icon}
+        <img src="/portraits/npc_tuto_sage_portrait.png" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.textContent = current.icon }} />
       </div>
 
       {/* Sage name */}
