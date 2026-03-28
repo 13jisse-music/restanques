@@ -214,28 +214,31 @@ export function playPlaceholderSound(type: 'hit' | 'spell' | 'defend' | 'flee' |
     osc.connect(gain)
     gain.connect(ctx.destination)
 
-    const configs: Record<string, { freq: number; vol: number; dur: number; type?: OscillatorType }> = {
-      hit: { freq: 120, vol: 0.3, dur: 100 },
-      spell: { freq: 880, vol: 0.2, dur: 200, type: 'sine' },
-      defend: { freq: 200, vol: 0.2, dur: 150 },
-      flee: { freq: 300, vol: 0.15, dur: 100 },
-      potion: { freq: 523, vol: 0.2, dur: 200, type: 'sine' },
-      craft_success: { freq: 660, vol: 0.25, dur: 300, type: 'sine' },
-      craft_fail: { freq: 100, vol: 0.2, dur: 200 },
-      harvest: { freq: 440, vol: 0.15, dur: 100, type: 'sine' },
-      levelup: { freq: 784, vol: 0.3, dur: 400, type: 'sine' },
-      portal: { freq: 600, vol: 0.2, dur: 300, type: 'sine' },
-      combo: { freq: 1000, vol: 0.25, dur: 150, type: 'sine' },
-      death: { freq: 80, vol: 0.3, dur: 500 },
-      chest: { freq: 523, vol: 0.2, dur: 200, type: 'triangle' },
-      npc_talk: { freq: 350, vol: 0.1, dur: 50, type: 'square' },
-      notification: { freq: 880, vol: 0.15, dur: 100, type: 'sine' },
+    // CDC M10: SFX Web Audio ameliores — sons distincts et reconnaissables par action
+    const configs: Record<string, { freq: number; freq2?: number; vol: number; dur: number; type?: OscillatorType }> = {
+      hit: { freq: 150, freq2: 80, vol: 0.25, dur: 80 },           // impact sourd descendant
+      spell: { freq: 440, freq2: 1200, vol: 0.15, dur: 250, type: 'sine' },  // whoosh montant
+      defend: { freq: 300, freq2: 500, vol: 0.15, dur: 120, type: 'triangle' }, // clang metallique
+      flee: { freq: 400, freq2: 200, vol: 0.1, dur: 150, type: 'sawtooth' },   // whoosh descendant
+      potion: { freq: 523, freq2: 784, vol: 0.15, dur: 300, type: 'sine' },    // bulles montantes
+      craft_success: { freq: 523, freq2: 1047, vol: 0.2, dur: 400, type: 'sine' }, // fanfare ascendante
+      craft_fail: { freq: 200, freq2: 80, vol: 0.15, dur: 300 },                  // buzzer descendant
+      harvest: { freq: 440, freq2: 550, vol: 0.1, dur: 80, type: 'sine' },
+      levelup: { freq: 523, freq2: 1047, vol: 0.25, dur: 500, type: 'sine' },     // fanfare triomphale
+      portal: { freq: 300, freq2: 900, vol: 0.15, dur: 400, type: 'sine' },       // vortex montant
+      combo: { freq: 800, freq2: 1600, vol: 0.2, dur: 200, type: 'sine' },        // power surge
+      death: { freq: 150, freq2: 40, vol: 0.25, dur: 600 },                       // grave descendant lent
+      chest: { freq: 400, freq2: 800, vol: 0.15, dur: 250, type: 'triangle' },    // decouverte
+      npc_talk: { freq: 350, freq2: 400, vol: 0.08, dur: 60, type: 'square' },    // bip dialogue
+      notification: { freq: 880, freq2: 1100, vol: 0.12, dur: 120, type: 'sine' },
     }
 
     const cfg = configs[type] || configs.hit
     osc.frequency.value = cfg.freq
     osc.type = cfg.type || 'square'
     gain.gain.value = cfg.vol
+    // CDC M10: Frequency sweep pour sons plus expressifs
+    if (cfg.freq2) osc.frequency.linearRampToValueAtTime(cfg.freq2, ctx.currentTime + cfg.dur / 1000)
 
     osc.start()
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + cfg.dur / 1000)

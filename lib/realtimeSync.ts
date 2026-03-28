@@ -55,9 +55,22 @@ export function startRealtimeSync(sessionCode: string, playerId: string) {
       console.log('Player', payload.id, 'moved to', payload.biome)
     })
     .on('broadcast', { event: 'combat_start' }, ({ payload }) => {
-      // Coop combat sync
+      // CDC M7: Coop combat sync
       if (payload.targetId === playerId || payload.coop) {
         useGameStore.getState().transitionToScene('combat', payload.monsterData)
+      }
+    })
+    .on('broadcast', { event: 'combat_action' }, ({ payload }) => {
+      // CDC M7: Canal combat — sync actions entre joueurs
+      if (payload.playerId !== playerId) {
+        console.log('Coop combat action:', payload.action, 'from', payload.playerId)
+        // Le combat store peut etre mis a jour ici pour afficher l'action du partenaire
+      }
+    })
+    .on('broadcast', { event: 'inventory_change' }, ({ payload }) => {
+      // CDC M7: Canal inventory — notifie les changements d'inventaire
+      if (payload.playerId !== playerId) {
+        console.log('Partner inventory changed:', payload.action, payload.itemId)
       }
     })
     .subscribe()
@@ -165,7 +178,24 @@ export function isSoloMode(): boolean {
   return players.filter(p => p.isConnected).length <= 1
 }
 
+// CDC M7: PNJ marchand solo — remplace le partenaire absent au comptoir
+// En mode solo, un PNJ marchand achete/vend a prix fixe (pas de negociation)
+export function getSoloMerchant(): { name: string; emoji: string; buyPrice: number; sellPrice: number } | null {
+  if (!isSoloMode()) return null
+  return { name: 'Marcel le Colporteur', emoji: '🧔', buyPrice: 1.0, sellPrice: 0.8 }
+}
+
 // CDC M7: Broadcast portal/biome change
 export function broadcastPortal(playerId: string, biome: string) {
   sendEvent('portal', { id: playerId, biome })
+}
+
+// CDC M7: Broadcast combat action (for coop Tag Team)
+export function broadcastCombatAction(playerId: string, action: string, data?: Record<string, unknown>) {
+  sendEvent('combat_action', { playerId, action, ...data })
+}
+
+// CDC M7: Broadcast inventory change
+export function broadcastInventoryChange(playerId: string, action: string, itemId: string) {
+  sendEvent('inventory_change', { playerId, action, itemId })
 }

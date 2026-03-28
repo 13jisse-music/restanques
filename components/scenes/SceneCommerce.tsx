@@ -153,6 +153,16 @@ export default function SceneCommerce() {
         </div>
       )}
 
+      {/* CDC M5: Double inventaire coop — montre le partenaire si connecte */}
+      {useGameStore.getState().connectedPlayers.length > 0 && (
+        <div style={{ margin: '8px 12px', padding: '10px 14px', background: '#534AB722', border: '1px solid #534AB7', borderRadius: 10 }}>
+          <div style={{ fontSize: 12, color: '#534AB7', fontWeight: 600 }}>Partenaire connecte</div>
+          <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>
+            Les echanges entre joueurs passent par le coffre maison : deposez dans le coffre, l&apos;autre recupere.
+          </div>
+        </div>
+      )}
+
       {/* Inventory — sell */}
       <div style={{ padding: 12 }}>
         <div style={{ fontSize: 12, color: '#ef9f27', fontWeight: 600, marginBottom: 6 }}>🎒 Mon inventaire — vendre</div>

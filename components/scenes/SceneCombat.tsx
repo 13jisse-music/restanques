@@ -59,6 +59,8 @@ export default function SceneCombat() {
 
   // CDC M2: Mystery rider Quentin
   const [mysteryRiderActive, setMysteryRiderActive] = useState(false)
+  // CDC M8: Stun (Sanglier charge)
+  const [playerStunned, setPlayerStunned] = useState(false)
 
   // CDC M2: Spell hand — max 3 sorts en main, tirage sans remise
   const [spellHand, setSpellHand] = useState<string[]>([])
@@ -163,20 +165,21 @@ export default function SceneCombat() {
 
     // Boss special abilities
     if (isBoss) {
-      // Sanglier: charge tous les 3 coups (x3 dmg + stun)
+      // Sanglier: charge tous les 3 coups (x3 dmg + CDC M8: stun 1 tour = skip player next action)
       if (bossName.includes('sanglier') && count % 3 === 0) {
-        atkMult = 3; specialMsg = '🐗 CHARGE ! Degats x3 !'
+        atkMult = 3; specialMsg = '🐗 CHARGE ! Degats x3 + Stun ! (Defense = esquive+riposte)'
         setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 1000)
+        setPlayerStunned(true) // CDC M8: stun — player skips next action
       }
-      // Mouette: debuff toutes les 4 attaques (-20% ATK pendant 2 tours)
+      // Mouette: debuff toutes les 4 attaques (-20% ATK, CDC M8: sort Blanc = purge)
       if (bossName.includes('mouette') && count % 4 === 0) {
-        specialMsg = '🦅 CRI DE TEMPETE ! ATK -20% 2 tours'
-        setMouetteDebuffTurns(2) // real debuff applied below in damage calc
+        specialMsg = '🦅 CRI DE TEMPETE ! ATK -20% 2 tours (sort Blanc = purge)'
+        setMouetteDebuffTurns(2)
       }
-      // Tarasque: carapace aleatoire (DEF x3 pendant 2 tours)
+      // Tarasque: carapace aleatoire (DEF x3, CDC M8: sort Eau = brise + stun boss)
       if (bossName.includes('tarasque') && Math.random() < 0.25) {
-        specialMsg = '🐢 CARAPACE ! DEF x3 pendant 2 tours'
-        setTarasqueArmorTurns(2) // real armor applied below
+        specialMsg = '🐢 CARAPACE ! DEF x3 2 tours (sort Eau = brise carapace)'
+        setTarasqueArmorTurns(2)
         setBossSpecialActive(true); setTimeout(() => setBossSpecialActive(false), 2000)
       }
       // Kraken: invoque 2 tentacules (100 HP each, must kill before Kraken)
@@ -184,11 +187,13 @@ export default function SceneCombat() {
         specialMsg = '🦑 TENTACULES ! 2 mini-monstres (100 PV chacun) !'
         setKrakenTentacles(200) // 2 x 100 HP total, damage goes to tentacles first
       }
-      // Mistral: change element
+      // CDC M8: Mistral change element ET faiblesse REELLEMENT (pas cosmétique)
       if (bossName.includes('mistral') && count % 3 === 0) {
         const elements = ['Feu', 'Eau', 'Lumiere', 'Ombre']
+        const weaknesses: Record<string, string> = { Feu: 'Eau', Eau: 'Feu', Lumiere: 'Ombre', Ombre: 'Lumiere' }
         const newElem = elements[Math.floor(Math.random() * elements.length)]
-        specialMsg = '🌪 CHANGEMENT ! Element: ' + newElem
+        setMonsterWeakness(weaknesses[newElem] || 'Feu') // CDC M8: REEL changement de faiblesse
+        specialMsg = '🌪 CHANGEMENT ! Element: ' + newElem + ' → Faiblesse: ' + (weaknesses[newElem] || 'Feu')
       }
       // Mistral phase 2 (<50% PV)
       if (bossName.includes('mistral') && monsterHp < monsterMaxHp * 0.5) {
@@ -229,6 +234,8 @@ export default function SceneCombat() {
   // Player actions
   const playCard = (action: string) => {
     if (phase !== 'fighting') return
+    // CDC M8: Stun check — skip action if stunned
+    if (playerStunned) { setPlayerStunned(false); addLog('Etourdi ! Action sautee.'); return }
 
     const newActions = [...consecutiveActions, action]
     setConsecutiveActions(newActions)
@@ -440,6 +447,16 @@ export default function SceneCombat() {
     })
     setMonsterFlash('#7F77DD'); setTimeout(() => setMonsterFlash(''), 200)
     addLog(`Sort : ${result.damage} dégâts !${result.isElementBonus ? ' (bonus élémentaire !)' : ''}`)
+    // CDC M8: Contre-mecaniques boss via sorts
+    if (spellElement === 'Lumiere' && mouetteDebuffTurns > 0) {
+      setMouetteDebuffTurns(0)
+      addLog('✨ Sort Blanc purge le debuff Mouette !')
+    }
+    if (spellElement === 'Eau' && tarasqueArmorTurns > 0) {
+      setTarasqueArmorTurns(0)
+      addLog('💧 Sort Eau brise la carapace Tarasque !')
+      setPlayerStunned(false) // bonus: stun le boss (skip son prochain tour)
+    }
     setConsecutiveActions(prev => [...prev, 'sort'])
     startComboWindow()
     playSound('/sfx/sfx_spell.mp3', 'spell')

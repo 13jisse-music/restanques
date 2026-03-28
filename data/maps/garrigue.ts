@@ -64,6 +64,28 @@ export function generateGarrigue(seed: number = 42): { map: number[][], entities
       if (sx >= 0 && sy >= 0 && sy < MAP_H && sx < MAP_W) map[sy][sx] = 0;
     }
 
+  // CDC M4: Landmarks Garrigue — points remarquables sur la map
+  // Grand olivier (cluster d'arbres)
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const lx = 75 + dx, ly = 40 + dy
+    if (lx >= 0 && ly >= 0 && lx < MAP_W && ly < MAP_H) map[ly][lx] = (dx === 0 && dy === 0) ? 6 : (Math.abs(dx) + Math.abs(dy) <= 2 ? 6 : 0)
+  }
+  // Fontaine (petit lac circulaire)
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    if (Math.abs(dx) + Math.abs(dy) <= 2) { const fx = 50 + dx, fy = 70 + dy; if (fx >= 0 && fy >= 0 && fx < MAP_W && fy < MAP_H) map[fy][fx] = 4 }
+  }
+  map[68][50] = 1 // chemin vers fontaine
+  // Ruines (cluster de rochers)
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -3; dx <= 3; dx++) {
+    const rx = 110 + dx, ry = 110 + dy
+    if (rx >= 0 && ry >= 0 && rx < MAP_W && ry < MAP_H) map[ry][rx] = 2
+  }
+  // Cabane du berger (petit chemin + rochers)
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+    const cx = 25 + dx, cy = 90 + dy
+    if (cx >= 0 && cy >= 0 && cx < MAP_W && cy < MAP_H) map[cy][cx] = (dx === 0 && dy === 0) ? 22 : 1 // centre = pierre decorative, autour = chemin
+  }
+
   // Place PNJ
   const pnjPositions = [
     { x: 30, y: 30, id: 'marius', name: 'Marius' },
@@ -107,12 +129,15 @@ export function spawnMonsters(seed: number): MapEntity[] {
     { id: 'loup', name: 'Loup', hp: 60, atk: 13, def: 5, xp: 25, weakness: 'Feu', atbSpeed: 2.5 },
   ];
 
+  // CDC M4: Densite progressive — plus de monstres au centre, moins en peripherie
   for (let i = 0; i < 12; i++) {
     const t = types[Math.floor(rng() * types.length)];
+    // Bias spawning toward center of map (75,75)
+    const centerBias = 0.3 + rng() * 0.4 // 0.3-0.7 = closer to center
     monsters.push({
       ...t,
-      x: Math.floor(rng() * 120) + 15,
-      y: Math.floor(rng() * 120) + 15,
+      x: Math.floor(75 + (rng() - 0.5) * 100 * (1 - centerBias)),
+      y: Math.floor(75 + (rng() - 0.5) * 100 * (1 - centerBias)),
       type: 'monster',
       id: t.id + '_' + i,
       name: t.name,

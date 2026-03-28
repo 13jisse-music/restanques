@@ -100,13 +100,20 @@ export default function MergeGrid({ ingredients, targetLevel, targetCount, timeL
     }
   }
 
+  // CDC M3: Snap tactile — highlight la case la plus proche pendant le drag
+  const [snapTarget, setSnapTarget] = useState<number | null>(null)
+
   const moveDrag = (clientX: number, clientY: number) => {
     if (dragging === null) return
     setDragPos({ x: clientX, y: clientY })
+    // Snap: find nearest cell
+    const nearest = getGridPos(clientX, clientY)
+    setSnapTarget(nearest !== dragging ? nearest : null)
   }
 
   const endDrag = (clientX: number, clientY: number) => {
     if (dragging === null) return
+    setSnapTarget(null)
     const target = getGridPos(clientX, clientY)
 
     if (target !== null && target !== dragging) {
@@ -173,7 +180,7 @@ export default function MergeGrid({ ingredients, targetLevel, targetCount, timeL
             style={{
               width: CELL, height: CELL, background: mergeFlash === idx ? '#7ec85044' : '#231b42',
               borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              border: mergeFlash === idx ? '2px solid #7ec850' : '1px solid #3a2d5c44',
+              border: mergeFlash === idx ? '2px solid #7ec850' : snapTarget === idx ? '2px dashed #ef9f27' : '1px solid #3a2d5c44',
               opacity: dragging === idx ? 0.3 : 1, cursor: cell ? 'grab' : 'default',
               transition: 'background 0.2s, border 0.2s',
             }}

@@ -192,19 +192,36 @@ export default function SceneCraft() {
         />
       )}
 
-      {/* Result */}
+      {/* Result — CDC M3: Particules dorées (succès) / grises (échec) */}
       {phase === 'result' && (
-        <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ padding: 40, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+          {/* CDC M3: Particules CSS animées */}
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: `${10 + Math.random() * 80}%`,
+              top: `${Math.random() * 100}%`,
+              width: 4 + Math.random() * 6,
+              height: 4 + Math.random() * 6,
+              borderRadius: '50%',
+              background: craftResult === 'success'
+                ? `hsl(${40 + Math.random() * 20}, 100%, ${60 + Math.random() * 30}%)`
+                : `hsl(0, 0%, ${40 + Math.random() * 30}%)`,
+              animation: `craftParticle ${1 + Math.random() * 2}s ease-out ${Math.random() * 0.5}s infinite`,
+              opacity: 0.8,
+              pointerEvents: 'none',
+            }} />
+          ))}
           {craftResult === 'success' ? (
             <>
               <div style={{ fontSize: 48, marginBottom: 12, animation: 'craftPop 0.5s ease-out' }}>✨</div>
               <div style={{ fontSize: 20, color: '#7ec850', fontWeight: 700 }}>Craft réussi !</div>
-              <div style={{ fontSize: 13, color: '#F5ECD7', marginTop: 8 }}>{selectedRecipe?.name} ajouté à l'inventaire</div>
+              <div style={{ fontSize: 13, color: '#F5ECD7', marginTop: 8 }}>{selectedRecipe?.name} ajouté à l&apos;inventaire</div>
               <div style={{ fontSize: 11, color: '#ef9f27', marginTop: 4 }}>{selectedRecipe?.effect}</div>
             </>
           ) : (
             <>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>💨</div>
+              <div style={{ fontSize: 48, marginBottom: 12, animation: 'craftFail 0.6s ease-out' }}>💨</div>
               <div style={{ fontSize: 20, color: '#e24b4a', fontWeight: 700 }}>Échec...</div>
               <div style={{ fontSize: 13, color: '#9a8fbf', marginTop: 8 }}>50% des ingrédients perdus</div>
             </>
@@ -215,7 +232,11 @@ export default function SceneCraft() {
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}>Continuer</button>
           </div>
-          <style>{`@keyframes craftPop { 0% { transform: scale(0.3) rotate(-15deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }`}</style>
+          <style>{`
+            @keyframes craftPop { 0% { transform: scale(0.3) rotate(-15deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+            @keyframes craftFail { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-20px); opacity: 0.3; } }
+            @keyframes craftParticle { 0% { transform: translateY(0) scale(1); opacity: 0.8; } 100% { transform: translateY(-80px) scale(0); opacity: 0; } }
+          `}</style>
         </div>
       )}
     </div>
