@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useGameStore, PlayerClass } from '@/store/gameStore'
 import { useMultiplayerStore } from '@/store/multiplayerStore'
 import { startRealtimeSync } from '@/lib/realtimeSync'
+import { playPlaceholderSound, playMusic } from '@/lib/assetLoader'
 
 const CLASSES: { id: PlayerClass; name: string; title: string; emoji: string; desc: string; color: string; sprite: string; stats: string }[] = [
   { id: 'paladin', name: 'Jisse', title: 'Le Paladin', emoji: '⚔️', desc: 'Explore les biomes, combat les monstres, récolte les ressources', color: '#ef9f27', sprite: '/sprites/combat/combat_paladin.png', stats: 'ATK +++  DEF ++  Chance +' },
@@ -46,7 +47,8 @@ export default function SplashScreen() {
 
   // Splash image → auto advance after 2s
   useEffect(() => {
-    const timer = setTimeout(() => setStep('title'), 2000)
+    playMusic('/music/theme.mp3')
+    const timer = setTimeout(() => { setStep('title'); playPlaceholderSound('notification') }, 2000)
     return () => clearTimeout(timer)
   }, [])
 
@@ -166,7 +168,7 @@ export default function SplashScreen() {
           {/* Pas de texte — l'image splash.png contient déjà le titre */}
           <div style={{ flex: 1 }} /> {/* pousse les boutons vers le bas */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, zIndex: 1, width: '100%', maxWidth: 340 }}>
-            <button onClick={() => setStep('class')} style={{
+            <button onClick={() => { setStep('class'); playPlaceholderSound('portal') }} style={{
               background: '#e91e8c', color: 'white', border: 'none', borderRadius: 12,
               padding: '14px 48px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
               boxShadow: '0 4px 15px rgba(233,30,140,0.4)',

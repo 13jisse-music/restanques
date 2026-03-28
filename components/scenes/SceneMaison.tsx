@@ -371,6 +371,7 @@ export default function SceneMaison() {
       }
       if (action === 'coffre') {
         // CDC M5: Coffre panel — transfert sac <-> stockage
+        playPlaceholderSound('chest')
         setMenuOverlay('coffre')
         return
       }
@@ -490,6 +491,7 @@ export default function SceneMaison() {
                     setGardenState(prev => prev.map((p, i) => i === gardenOverlay ? { seedId: id, plantedAt: Date.now() } : p))
                     setGardenOverlay(null)
                     setInteractMsg(seed.emoji + ' ' + seed.name + ' plantée ! Prête dans ' + Math.floor(growthSec / 60) + 'min')
+                    playPlaceholderSound('harvest')
                     setTimeout(() => setInteractMsg(null), 2000)
                   }} style={{
                     background: '#2d2252', border: '1px solid #3a2d5c', borderRadius: 10,

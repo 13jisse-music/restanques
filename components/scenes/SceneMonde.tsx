@@ -66,6 +66,7 @@ export default function SceneMonde() {
     if (player.sous >= price) {
       player.addSous(-price)
       const added = player.addToInventory(itemId, 1)
+      playPlaceholderSound(added ? 'chest' : 'defend')
       setInteractMsg(added ? `Acheté ! -${price}S` : '🎒 Sac plein !')
     } else {
       setInteractMsg('💰 Pas assez de Sous !')
@@ -260,6 +261,7 @@ export default function SceneMonde() {
       const dist = Math.abs(m.x - px) + Math.abs(m.y - py)
       if (dist < 2) {
         showPopup('first_combat')
+        playPlaceholderSound('hit') // son alerte monstre
         transitionToScene('combat', { name: m.name, hp: (m as any).hp || 30, atk: (m as any).atk || 8, def: (m as any).def || 3, weakness: (m as any).weakness || 'Feu', atbSpeed: (m as any).atbSpeed || 3, xp: (m as any).xp || 15 })
         break
       }

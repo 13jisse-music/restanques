@@ -202,6 +202,7 @@ export default function SceneDonjon() {
     for (const m of dungeonMonsters) {
       if (Math.abs(m.x - px) + Math.abs(m.y - py) < 2) {
         setDungeonMonsters(prev => prev.filter(dm => dm !== m))
+        playPlaceholderSound('hit')
         transitionToScene('combat', { name: m.data.name, hp: m.data.hp, atk: m.data.atk, def: m.data.def, weakness: m.data.weakness, atbSpeed: m.data.atbSpeed, xp: m.data.xp })
         break
       }
