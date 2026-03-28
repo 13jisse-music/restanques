@@ -5,6 +5,27 @@ import { useGameStore } from '@/store/gameStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { markPopupSeen } from '@/lib/storyEngine'
 
+// CDC M6: Portrait Sage — image PNG avec fallback emoji propre
+function SagePortrait({ icon }: { icon: string }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  return (
+    <div style={{
+      width: 90, height: 90, borderRadius: '50%', zIndex: 5,
+      background: 'linear-gradient(135deg, #231b42, #3a2d5c)',
+      border: '3px solid #C9A84C', boxShadow: '0 0 20px rgba(201,168,76,0.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44,
+      marginTop: 20, overflow: 'hidden',
+    }}>
+      {!imgFailed ? (
+        <img src="/portraits/npc_tuto_sage_portrait.png" alt="Sage Olivier" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={() => setImgFailed(true)} />
+      ) : (
+        <span>{icon}</span>
+      )}
+    </div>
+  )
+}
+
 // CDC M6 : Tutoriel avec Grand Sage Olivier
 // - Zone séparée AVANT le jeu (après story_intro)
 // - 10 étapes : image + texte court + action à faire
@@ -181,17 +202,8 @@ export default function SceneTuto() {
         <div style={{ width: `${progress}%`, height: '100%', background: '#C9A84C', borderRadius: 2, transition: 'width 0.5s ease' }} />
       </div>
 
-      {/* CDC M6: Sage portrait — image PNG si dispo, emoji fallback */}
-      <div style={{
-        width: 90, height: 90, borderRadius: '50%', zIndex: 5,
-        background: 'linear-gradient(135deg, #231b42, #3a2d5c)',
-        border: '3px solid #C9A84C', boxShadow: '0 0 20px rgba(201,168,76,0.3)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44,
-        marginTop: 20, overflow: 'hidden',
-      }}>
-        <img src="/portraits/npc_tuto_sage_portrait.png" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.textContent = current.icon }} />
-      </div>
+      {/* CDC M6: Sage portrait — image PNG si dispo, emoji fallback propre */}
+      <SagePortrait icon={current.icon} />
 
       {/* Sage name */}
       <div style={{ fontSize: 11, color: '#C9A84C', fontStyle: 'italic', zIndex: 5 }}>
