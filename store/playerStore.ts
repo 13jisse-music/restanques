@@ -159,7 +159,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   respawn: () => set((state) => ({
     isAlive: true,
-    hp: state.hpMax,
+    hp: Math.floor(state.hpMax * 0.5), // CDC M2: respawn a 50% PV
     fatigue: 0,
     currentBiome: 'maison',
     positionX: 50,

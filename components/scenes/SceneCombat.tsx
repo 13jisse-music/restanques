@@ -60,6 +60,15 @@ export default function SceneCombat() {
   // CDC M2: Mystery rider Quentin
   const [mysteryRiderActive, setMysteryRiderActive] = useState(false)
 
+  // CDC M2: Spell hand — max 3 sorts en main, tirage sans remise
+  const [spellHand, setSpellHand] = useState<string[]>([])
+  const [spellPool, setSpellPool] = useState<string[]>(() => {
+    const equipped = player.equippedSpells?.map((s: { spellId: string }) => s.spellId) || ['flamme', 'soin', 'poison']
+    return [...equipped]
+  })
+  // CDC M2: Fiche perso accessible pendant combat
+  const [showCharSheet, setShowCharSheet] = useState(false)
+
   const atbRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
   const lastTimeRef = useRef(0)
 
@@ -126,9 +135,14 @@ export default function SceneCombat() {
 
   const addLog = (msg: string) => setCombatLog(prev => [...prev.slice(-4), msg])
 
-  // Boss special mechanics
-  const isBoss = monsterHp > 300
+  // Boss special mechanics — CDC M2: Boss ATB plus lent (+50%)
+  const isBoss = monsterMaxHp > 300
   const bossName = monsterName.toLowerCase()
+
+  // CDC M2: Boss ATB speed adjustment (slower = higher number)
+  useEffect(() => {
+    if (isBoss) setMonsterAtbSpeed(prev => prev < 5 ? prev * 1.5 : prev)
+  }, [isBoss])
 
   // Monster attacks player
   const monsterAttacks = useCallback(() => {
@@ -174,11 +188,13 @@ export default function SceneCombat() {
 
     if (specialMsg) { setComboText(specialMsg); setTimeout(() => setComboText(''), 2000) }
 
+    // CDC M2: Menace affecte ciblage — plus de menace = plus de degats recus
+    const threatMult = playerThreat > 10 ? 1.2 : playerThreat > 5 ? 1.1 : 1
     // CDC M2: Apply Mouette debuff (player ATK reduced)
     const playerDefWithDebuff = mouetteDebuffTurns > 0 ? Math.floor(player.def * 0.8) : player.def
     if (mouetteDebuffTurns > 0) setMouetteDebuffTurns(t => t - 1)
 
-    const result = calculateDamage(Math.floor(monsterAtk * atkMult), playerDefWithDebuff, 1, false, 0, '', '', isDefending)
+    const result = calculateDamage(Math.floor(monsterAtk * atkMult * threatMult), playerDefWithDebuff, 1, false, 0, '', '', isDefending)
     player.takeDamage(result.damage)
     setIsDefending(false)
 
@@ -284,12 +300,18 @@ export default function SceneCombat() {
         }
         break
       }
-      case 'potion':
-        player.heal(30)
-        addLog('Potion : +30 PV')
+      case 'potion': {
+        // CDC M2: Potion consomme l'inventaire
+        const potionItem = player.bag.find(b => b.itemId.includes('potion') || b.itemId.includes('soin') || b.itemId === 'herbe_med')
+        if (!potionItem) { addLog('Pas de potion !'); break }
+        const healAmt = potionItem.itemId.includes('soin_plus') ? 60 : 30
+        player.removeFromInventory(potionItem.itemId, 1)
+        player.heal(healAmt)
+        addLog(`Potion ${potionItem.itemId} : +${healAmt} PV`)
         setPlayerFlash('green'); setTimeout(() => setPlayerFlash(''), 200)
         playSound('/sfx/sfx_potion.mp3', 'potion')
         break
+      }
     }
   }
 
@@ -346,7 +368,22 @@ export default function SceneCombat() {
     </div>
   )
 
-  const spellReady = spellGauge >= 2
+  const spellReady = spellGauge >= 2 && spellHand.length < 3
+
+  // Auto-draw spell when gauge reaches threshold
+  useEffect(() => {
+    if (spellGauge >= 2 && spellHand.length < 3 && spellPool.length > 0) {
+      const drawn = spellPool[0]
+      setSpellHand(prev => [...prev, drawn])
+      setSpellPool(prev => prev.slice(1))
+      setSpellGauge(prev => prev - 2)
+      // Refill pool if empty
+      if (spellPool.length <= 1) {
+        const equipped = player.equippedSpells?.map((s: { spellId: string }) => s.spellId) || ['flamme', 'soin', 'poison']
+        setSpellPool([...equipped])
+      }
+    }
+  }, [spellGauge])
 
   // Resolve sprites — CDC M2: use real combat sprites
   const playerClass = useGameStore.getState().playerClass || 'paladin'
@@ -364,10 +401,17 @@ export default function SceneCombat() {
     comboWindowTimer.current = setTimeout(() => { setComboWindowActive(false); setComboCountdown(0); clearInterval(countInterval) }, 2000)
   }
 
-  // Cast spell handler
-  const castSpell = () => {
-    setSpellGauge(prev => prev - 2)
-    const result = calculateDamage(0, monsterDef, 1, true, 25, 'Feu', monsterWeakness, false)
+  // Cast spell handler — CDC M2: joue le premier sort de la main
+  const castSpell = (spellIdx?: number) => {
+    const idx = spellIdx ?? 0
+    if (idx >= spellHand.length) return
+    const spellId = spellHand[idx]
+    setSpellHand(prev => prev.filter((_, i) => i !== idx))
+    // Get spell element from sorts data
+    const ELEM_MAP: Record<string, string> = { flamme:'Feu', boule_feu:'Feu', meteore:'Feu', brasier:'Feu', vague:'Eau', blizzard:'Eau', tsunami:'Eau', soin:'Lumiere', bouclier_divin:'Lumiere', resurrection:'Lumiere', lumiere:'Lumiere', poison:'Ombre', vol_vie:'Ombre', neant:'Ombre' }
+    const spellElement = ELEM_MAP[spellId] || 'Feu'
+    const spellPower = spellId.includes('meteore') || spellId.includes('tsunami') || spellId.includes('neant') ? 80 : spellId.includes('boule') || spellId.includes('blizzard') || spellId.includes('vol') ? 35 : 25
+    const result = calculateDamage(0, monsterDef, 1, true, spellPower, spellElement, monsterWeakness, false)
     setMonsterHp(prev => {
       const next = Math.max(0, prev - result.damage)
       if (next <= 0) setTimeout(() => setPhase('victory'), 300)
@@ -427,6 +471,26 @@ export default function SceneCombat() {
         {mysteryRiderActive && <span style={{ color: '#534AB7', background: '#534AB722', padding: '1px 6px', borderRadius: 4 }}>🌙 Cavalier Mystère !</span>}
       </div>
 
+      {/* CDC M2: Fiche perso button */}
+      <div style={{ position: 'absolute', top: 50, right: 8, zIndex: 20 }}>
+        <button onClick={() => setShowCharSheet(!showCharSheet)} style={{
+          padding: '3px 8px', background: '#2d1f54', border: '1px solid #534AB7', borderRadius: 6,
+          color: '#9a8fbf', fontSize: 9, cursor: 'pointer',
+        }}>Perso</button>
+      </div>
+      {showCharSheet && (
+        <div style={{ position: 'absolute', top: 70, right: 8, zIndex: 30, background: '#1a1232', border: '1px solid #534AB7', borderRadius: 8, padding: 10, width: 160, fontSize: 10, color: '#F5ECD7' }}>
+          <div style={{ fontWeight: 600, color: '#e91e8c', marginBottom: 4 }}>Nv.{player.level} {playerClass}</div>
+          <div>PV: {player.hp}/{player.hpMax}</div>
+          <div>ATK: {player.atk} | DEF: {player.def}</div>
+          <div>Luck: {player.luck}</div>
+          <div>Fatigue: {Math.round(player.fatigue)}%</div>
+          <div style={{ marginTop: 4, color: '#ef9f27' }}>Sorts: {spellHand.length}/3 en main</div>
+          <div>Jauge: {spellGauge}/6</div>
+          <div>Menace: {playerThreat}</div>
+        </div>
+      )}
+
       {/* Combat log */}
       <div style={{ padding: '4px 12px', maxHeight: 50, overflow: 'hidden' }}>
         {combatLog.slice(-2).map((msg, i) => (
@@ -448,6 +512,9 @@ export default function SceneCombat() {
           onSpell={castSpell}
           spellReady={spellReady}
           spellGauge={spellGauge}
+          potionCount={player.bag.filter(b => b.itemId.includes('potion') || b.itemId.includes('soin') || b.itemId === 'herbe_med').reduce((s, b) => s + b.quantity, 0)}
+          spellHand={spellHand}
+          playerThreat={playerThreat}
         />
       )}
 

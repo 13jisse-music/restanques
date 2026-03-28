@@ -1,33 +1,55 @@
 'use client'
 
-// CDC M2: 4 cartes permanentes + sort conditionnel
-// Coup (⚔️), Défense (🛡️), Fuite (🏃), Potion (🧪)
+// CDC M2: 4 cartes permanentes + sorts en main (max 3)
+// Badges visuels: ATK rouge, DEF bleu, RUN vert, xN potion
 
 interface CardProps {
   icon: string
   label: string
+  badge: string
+  badgeColor: string
   sub: string
   color: string
   disabled?: boolean
   onClick: () => void
 }
 
-function Card({ icon, label, sub, color, disabled, onClick }: CardProps) {
+function Card({ icon, label, badge, badgeColor, sub, color, disabled, onClick }: CardProps) {
   return (
     <button onClick={disabled ? undefined : onClick} style={{
       flex: 1, background: disabled ? '#1a1232' : '#231b42',
       border: `2px solid ${disabled ? '#2d2252' : color}`,
-      borderRadius: 10, padding: '8px 4px', cursor: disabled ? 'default' : 'pointer',
+      borderRadius: 10, padding: '6px 4px', cursor: disabled ? 'default' : 'pointer',
       opacity: disabled ? 0.4 : 1, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', gap: 2,
+      alignItems: 'center', gap: 1, position: 'relative',
       boxShadow: disabled ? 'none' : `0 2px 8px ${color}33`,
-      transition: 'transform 0.1s',
     }}>
-      <span style={{ fontSize: 22 }}>{icon}</span>
-      <span style={{ fontSize: 10, fontWeight: 600, color: '#F5ECD7' }}>{label}</span>
-      <span style={{ fontSize: 9, color }}>{sub}</span>
+      {/* CDC M2: Badge visuel */}
+      <span style={{
+        position: 'absolute', top: -4, right: -4, fontSize: 8, fontWeight: 700,
+        background: badgeColor, color: '#fff', padding: '1px 4px', borderRadius: 6,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+      }}>{badge}</span>
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span style={{ fontSize: 9, fontWeight: 600, color: '#F5ECD7' }}>{label}</span>
+      <span style={{ fontSize: 8, color }}>{sub}</span>
     </button>
   )
+}
+
+// Spell element colors
+const SPELL_COLORS: Record<string, string> = {
+  flamme: '#e24b4a', boule_feu: '#e24b4a', meteore: '#e24b4a', brasier: '#e24b4a',
+  vague: '#85B7EB', blizzard: '#85B7EB', tsunami: '#85B7EB',
+  soin: '#7ec850', bouclier_divin: '#C9A84C', resurrection: '#C9A84C', lumiere: '#F5ECD7',
+  poison: '#534AB7', vol_vie: '#534AB7', neant: '#2d1f54',
+}
+
+const SPELL_NAMES: Record<string, string> = {
+  flamme: 'Flamme', boule_feu: 'Boule feu', meteore: 'Meteore', brasier: 'Brasier',
+  vague: 'Vague', blizzard: 'Blizzard', tsunami: 'Tsunami',
+  soin: 'Soin', bouclier_divin: 'Bouclier', resurrection: 'Resurrect', lumiere: 'Lumiere',
+  poison: 'Poison', vol_vie: 'Vol vie', neant: 'Neant',
 }
 
 interface CardDeckProps {
@@ -36,34 +58,60 @@ interface CardDeckProps {
   onDefense: () => void
   onFuite: () => void
   onPotion: () => void
-  onSpell?: () => void
+  onSpell?: (idx?: number) => void
   spellReady: boolean
   spellGauge: number
+  potionCount?: number
+  spellHand?: string[]
+  playerThreat?: number
   disabled?: boolean
 }
 
-export default function CardDeck({ playerAtk, onCoup, onDefense, onFuite, onPotion, onSpell, spellReady, spellGauge, disabled }: CardDeckProps) {
+export default function CardDeck({ playerAtk, onCoup, onDefense, onFuite, onPotion, onSpell, spellReady, spellGauge, potionCount = 0, spellHand = [], playerThreat = 0, disabled }: CardDeckProps) {
+  const noPotions = potionCount <= 0
+
   return (
-    <div style={{ padding: '8px 12px 12px', background: '#231b42', borderTop: '1px solid #3a2d5c' }}>
-      <div style={{ display: 'flex', gap: 6, marginBottom: spellReady ? 6 : 0 }}>
-        <Card icon="⚔️" label="Coup" sub={`+${playerAtk}`} color="#e24b4a" disabled={disabled} onClick={onCoup} />
-        <Card icon="🛡️" label="Déf" sub="-40%" color="#85B7EB" disabled={disabled} onClick={onDefense} />
-        <Card icon="🏃" label="Fuite" sub="70%" color="#7ec850" disabled={disabled} onClick={onFuite} />
-        <Card icon="🧪" label="Potion" sub="+30" color="#ef9f27" disabled={disabled} onClick={onPotion} />
+    <div style={{ padding: '6px 12px 10px', background: '#231b42', borderTop: '1px solid #3a2d5c' }}>
+      {/* 4 cartes permanentes */}
+      <div style={{ display: 'flex', gap: 5, marginBottom: spellHand.length > 0 ? 6 : 0 }}>
+        <Card icon="⚔️" label="Coup" badge="ATK" badgeColor="#e24b4a" sub={`+${playerAtk}`} color="#e24b4a" disabled={disabled} onClick={onCoup} />
+        <Card icon="🛡️" label="Def" badge="DEF" badgeColor="#85B7EB" sub="-40%" color="#85B7EB" disabled={disabled} onClick={onDefense} />
+        <Card icon="🏃" label="Fuite" badge="RUN" badgeColor="#7ec850" sub="70%" color="#7ec850" disabled={disabled} onClick={onFuite} />
+        <Card icon="🧪" label="Potion" badge={noPotions ? '0' : `x${potionCount}`} badgeColor={noPotions ? '#666' : '#ef9f27'} sub={noPotions ? 'vide' : '+30'} color="#ef9f27" disabled={disabled || noPotions} onClick={onPotion} />
       </div>
-      {spellReady && onSpell && (
-        <button onClick={disabled ? undefined : onSpell} style={{
-          width: '100%', padding: '8px',
-          background: '#7F77DD22', border: '2px solid #7F77DD',
-          borderRadius: 10, color: '#7F77DD', fontSize: 12, fontWeight: 600,
-          cursor: disabled ? 'default' : 'pointer',
-          boxShadow: '0 0 15px rgba(127,119,221,0.3)',
-          animation: disabled ? 'none' : 'pulse 1s infinite',
-        }}>
-          ✦ Sort disponible ! ({spellGauge >= 4 ? `×${Math.floor(spellGauge / 2)} ` : ''}tap pour lancer)
-        </button>
+
+      {/* CDC M2: Sorts en main (max 3 cartes sort) */}
+      {spellHand.length > 0 && (
+        <div style={{ display: 'flex', gap: 5 }}>
+          {spellHand.map((spellId, i) => {
+            const color = SPELL_COLORS[spellId] || '#7F77DD'
+            const name = SPELL_NAMES[spellId] || spellId
+            return (
+              <button key={i} onClick={disabled ? undefined : () => onSpell?.(i)} style={{
+                flex: 1, padding: '6px 4px',
+                background: color + '22', border: `2px solid ${color}`,
+                borderRadius: 10, color, fontSize: 11, fontWeight: 600,
+                cursor: disabled ? 'default' : 'pointer',
+                boxShadow: `0 0 12px ${color}44`,
+                animation: disabled ? 'none' : 'spellGlow 1.5s infinite',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}>
+                <span style={{ fontSize: 16 }}>✦</span>
+                <span>{name}</span>
+              </button>
+            )
+          })}
+        </div>
       )}
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }`}</style>
+
+      {/* Jauge info */}
+      {spellHand.length === 0 && spellGauge > 0 && (
+        <div style={{ fontSize: 9, color: '#534AB7', textAlign: 'center', marginTop: 2 }}>
+          Jauge sort: {spellGauge}/6 (sort a 2)
+        </div>
+      )}
+
+      <style>{`@keyframes spellGlow { 0%,100%{box-shadow:0 0 8px var(--glow,#7F77DD44)} 50%{box-shadow:0 0 16px var(--glow,#7F77DD66)} }`}</style>
     </div>
   )
 }
