@@ -171,6 +171,13 @@ export default function SceneMonde() {
     return () => { window.removeEventListener('resize', debounced); window.visualViewport?.removeEventListener('resize', debounced); clearTimeout(timer) }
   }, [])
 
+  // CDC M10: Reset inputs on scene change
+  useEffect(() => {
+    const onReset = () => { joyDXRef.current = 0; joyDYRef.current = 0; setJoyDX(0); setJoyDY(0); setJoyActive(false) }
+    window.addEventListener('reset-inputs', onReset)
+    return () => window.removeEventListener('reset-inputs', onReset)
+  }, [])
+
   // Joystick touch handlers
   const joyStart = (cx: number, cy: number) => {
     const rect = joyRef.current?.getBoundingClientRect()

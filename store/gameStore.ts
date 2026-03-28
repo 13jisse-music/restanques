@@ -65,8 +65,9 @@ export const useGameStore = create<GameState>((set) => ({
   })),
 
   transitionToScene: (scene, data) => set((state) => {
-    // Notify scene change (no forced resize — causes jitter on mobile)
+    // Notify scene change + reset inputs (no forced resize — causes jitter on mobile)
     window.dispatchEvent(new CustomEvent('scene-change', { detail: { from: state.currentScene, to: scene } }))
+    window.dispatchEvent(new CustomEvent('reset-inputs'))
     return {
       previousScene: state.currentScene,
       currentScene: scene,
@@ -75,8 +76,9 @@ export const useGameStore = create<GameState>((set) => ({
   }),
 
   resetInputs: () => {
-    // Reset all active inputs on scene change
-    // Components should subscribe to this
+    // CDC M10: Reset all active inputs on scene change
+    // Dispatch event that components listen for to clear joystick/dpad state
+    window.dispatchEvent(new CustomEvent('reset-inputs'))
   },
 
   setPlayer: (id, name, playerClass) => set({

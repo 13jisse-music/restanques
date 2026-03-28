@@ -423,6 +423,11 @@ export default function SceneCombat() {
     if (idx >= spellHand.length) return
     const spellId = spellHand[idx]
     setSpellHand(prev => prev.filter((_, i) => i !== idx))
+    // CDC M10: Decrement usesRemaining on equipped spell
+    const equipped = player.equippedSpells.find(s => s.spellId === spellId)
+    if (equipped && equipped.usesRemaining !== null && equipped.usesRemaining > 0) {
+      player.setStats({ equippedSpells: player.equippedSpells.map(s => s.spellId === spellId && s.usesRemaining !== null ? { ...s, usesRemaining: s.usesRemaining - 1 } : s) })
+    }
     // Get spell element from sorts data
     const ELEM_MAP: Record<string, string> = { flamme:'Feu', boule_feu:'Feu', meteore:'Feu', brasier:'Feu', vague:'Eau', blizzard:'Eau', tsunami:'Eau', soin:'Lumiere', bouclier_divin:'Lumiere', resurrection:'Lumiere', lumiere:'Lumiere', poison:'Ombre', vol_vie:'Ombre', neant:'Ombre' }
     const spellElement = ELEM_MAP[spellId] || 'Feu'
