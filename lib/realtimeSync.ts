@@ -62,16 +62,18 @@ export function startRealtimeSync(sessionCode: string, playerId: string) {
     })
     .subscribe()
 
-  // Heartbeat — check disconnections every 5s
+  // Heartbeat — check disconnections every 5s + host transfer + auto-respawn
   heartbeatInterval = setInterval(() => {
     const players = useMultiplayerStore.getState().players
     const now = Date.now()
     players.forEach(p => {
       if (p.isConnected && now - p.lastSeen > 15000) {
-        // Player disconnected (15s timeout)
-        useMultiplayerStore.getState().updatePlayer(p.id, { isConnected: false })
+        // CDC M7: Player disconnected → mark + auto-respawn to maison
+        useMultiplayerStore.getState().updatePlayer(p.id, { isConnected: false, biome: 'maison' })
       }
     })
+    // CDC M7: Check host transfer
+    checkHostTransfer()
   }, 5000)
 }
 

@@ -347,7 +347,13 @@ export default function SceneCombat() {
       }
     }
     if (phase === 'defeat') {
-      player.respawn()
+      // CDC M7: Coop death — broadcast to other players
+      if (isCoopCombat) {
+        const { handleCoopDeath } = require('@/lib/realtimeSync')
+        handleCoopDeath(useGameStore.getState().playerId || '', playerClass)
+      } else {
+        player.respawn()
+      }
       player.addSous(-Math.floor(player.sous * 0.1))
       // M6: Game over story if dead against boss/demi-boss (first time)
       const bossMap = getBossStoryMap()

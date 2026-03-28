@@ -18,8 +18,14 @@ export default function JoinPage({ params }: { params: { code: string } }) {
   const { joinSession } = useMultiplayerStore()
   const { setPlayer, transitionToScene } = useGameStore()
 
+  // CDC M7: Filter classes already taken by other players
+  const { players } = useMultiplayerStore()
+  const takenClasses = players.filter(p => p.isConnected).map(p => p.class)
+  const availableClasses = CLASSES.filter(c => !takenClasses.includes(c.id))
+
   const handleJoin = () => {
     if (!selectedClass || !playerName.trim()) return
+    if (takenClasses.includes(selectedClass)) { alert('Cette classe est deja prise !'); return }
     const id = crypto.randomUUID()
     setPlayer(id, playerName.trim(), selectedClass)
     joinSession(params.code)
