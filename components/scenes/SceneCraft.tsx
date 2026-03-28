@@ -49,12 +49,22 @@ export default function SceneCraft() {
   const jisseMalus = !!(sceneData as Record<string, boolean> | null)?.jisseMalus
 
   // CDC M3: Filter by atelier + sort by tier
+  // CDC M3: Jisse (paladin) = armurerie SEULE, les autres = tout
   const filtered = ALL_RECIPES
-    .filter(r => r.atelier === atelier)
+    .filter(r => {
+      if (r.atelier !== atelier) return false
+      if (playerClass === 'paladin' && atelier !== 'armurerie') return false
+      return true
+    })
     .sort((a, b) => {
       const tierOrder: Record<string, number> = { 'Commun': 0, 'Base': 1, 'Avance': 2, 'Rare': 3, 'Sumo': 4, 'Legendaire': 5 }
       return (tierOrder[a.tier] || 0) - (tierOrder[b.tier] || 0)
     })
+
+  // CDC M3: Verification stock — le joueur a-t-il les ingredients ?
+  const hasIngredients = (recipe: Recipe): boolean => {
+    return recipe.ingredients.every(id => player.bag.some(b => b.itemId === id && b.quantity >= 1))
+  }
 
   // Unlocked biomes (simplified — Garrigue always unlocked)
   const unlockedBiomes = ['Garrigue', 'Maison', 'Tous']
@@ -72,6 +82,10 @@ export default function SceneCraft() {
   }
 
   const startCraft = (recipe: Recipe) => {
+    // CDC M3: Verification stock avant craft
+    if (!hasIngredients(recipe)) return
+    // CDC M3: Consommer les ingredients au lancement
+    recipe.ingredients.forEach(id => player.removeFromInventory(id, 1))
     setSelectedRecipe(recipe)
     setPhase('crafting')
   }
@@ -91,11 +105,19 @@ export default function SceneCraft() {
       if (selectedRecipe) {
         player.addToInventory(selectedRecipe.id, 1)
         player.addCraft()
+        // CDC M3: Jisse bonus +30% puissance (via quantity bonus)
+        if (jisseMalus && Math.random() < 0.3) {
+          player.addToInventory(selectedRecipe.id, 1) // bonus item
+        }
       }
       playSound('/sfx/sfx_craft_success.mp3', 'craft_success')
     } else {
       setCraftResult('fail')
-      // CDC M3: 50% ingredients lost on failure
+      // CDC M3: 50% ingredients rendus en cas d'echec (les autres sont perdus)
+      if (selectedRecipe) {
+        const halfIngs = selectedRecipe.ingredients.filter((_, i) => i % 2 === 0)
+        halfIngs.forEach(id => player.addToInventory(id, 1))
+      }
       playSound('/sfx/sfx_craft_fail.mp3', 'craft_fail')
     }
     setPhase('result')
