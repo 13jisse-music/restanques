@@ -64,20 +64,23 @@ interface CardDeckProps {
   potionCount?: number
   spellHand?: string[]
   playerThreat?: number
+  stamina?: number
+  staminaCosts?: Record<string, number>
   disabled?: boolean
 }
 
-export default function CardDeck({ playerAtk, onCoup, onDefense, onFuite, onPotion, onSpell, spellReady, spellGauge, potionCount = 0, spellHand = [], playerThreat = 0, disabled }: CardDeckProps) {
+export default function CardDeck({ playerAtk, onCoup, onDefense, onFuite, onPotion, onSpell, spellReady, spellGauge, potionCount = 0, spellHand = [], playerThreat = 0, stamina = 999, staminaCosts = {}, disabled }: CardDeckProps) {
   const noPotions = potionCount <= 0
+  const noStamina = (action: string) => stamina < (staminaCosts[action] || 0)
 
   return (
     <div style={{ padding: '6px 12px 10px', background: '#231b42', borderTop: '1px solid #3a2d5c' }}>
       {/* 4 cartes permanentes */}
       <div style={{ display: 'flex', gap: 5, marginBottom: spellHand.length > 0 ? 6 : 0 }}>
-        <Card icon="⚔️" label="Coup" badge="ATK" badgeColor="#e24b4a" sub={`+${playerAtk}`} color="#e24b4a" disabled={disabled} onClick={onCoup} />
-        <Card icon="🛡️" label="Def" badge="DEF" badgeColor="#85B7EB" sub="-40%" color="#85B7EB" disabled={disabled} onClick={onDefense} />
-        <Card icon="🏃" label="Fuite" badge="RUN" badgeColor="#7ec850" sub="70%" color="#7ec850" disabled={disabled} onClick={onFuite} />
-        <Card icon="🧪" label="Potion" badge={noPotions ? '0' : `x${potionCount}`} badgeColor={noPotions ? '#666' : '#ef9f27'} sub={noPotions ? 'vide' : '+30'} color="#ef9f27" disabled={disabled || noPotions} onClick={onPotion} />
+        <Card icon="⚔️" label="Coup" badge={`${staminaCosts.coup||20}`} badgeColor={noStamina('coup') ? '#666' : '#4a90c4'} sub={`+${playerAtk}`} color="#e24b4a" disabled={disabled || noStamina('coup')} onClick={onCoup} />
+        <Card icon="🛡️" label="Def" badge={`${staminaCosts.defense||10}`} badgeColor={noStamina('defense') ? '#666' : '#4a90c4'} sub="-40%" color="#85B7EB" disabled={disabled || noStamina('defense')} onClick={onDefense} />
+        <Card icon="🏃" label="Fuite" badge={`${staminaCosts.fuite||15}`} badgeColor={noStamina('fuite') ? '#666' : '#4a90c4'} sub="70%" color="#7ec850" disabled={disabled || noStamina('fuite')} onClick={onFuite} />
+        <Card icon="🧪" label="Potion" badge={noPotions ? '0' : `x${potionCount}`} badgeColor={noPotions || noStamina('potion') ? '#666' : '#ef9f27'} sub={noPotions ? 'vide' : '+30'} color="#ef9f27" disabled={disabled || noPotions || noStamina('potion')} onClick={onPotion} />
       </div>
 
       {/* CDC M2: Sorts en main (max 3 cartes sort) */}

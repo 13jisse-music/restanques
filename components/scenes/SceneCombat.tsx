@@ -5,7 +5,7 @@ import { useGameStore } from '@/store/gameStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useCombatStore } from '@/store/combatStore'
 import { calculateDamage, calculateXP, checkSoloCombo } from '@/lib/combatEngine'
-import { playSound, playMusic } from '@/lib/assetLoader'
+import { playSound, playMusic, playPlaceholderSound } from '@/lib/assetLoader'
 import { triggerBossBefore, triggerBossAfter, triggerStory, isStorySeen, getBossStoryMap } from '@/lib/storyEngine'
 import { markBossDefeated } from '@/lib/biomeLoader'
 import ATBBar from '@/components/combat/ATBBar'
@@ -35,6 +35,12 @@ export default function SceneCombat() {
 
   const [spellGauge, setSpellGauge] = useState(0)
   const [isDefending, setIsDefending] = useState(false)
+
+  // STAMINA system — barre bleue, empeche le spam, recharge avec le temps
+  const staminaMax = 60 + player.level * 4 // Nv1=64, Nv15=120, Nv30=180
+  const [stamina, setStamina] = useState(staminaMax)
+  const STAMINA_COSTS: Record<string, number> = { coup: 20, defense: 10, fuite: 15, potion: 5, sort: 30 }
+  const STAMINA_REGEN = 8 + player.level * 0.5 // par seconde: Nv1=8.5/s, Nv30=23/s
   const [consecutiveActions, setConsecutiveActions] = useState<string[]>([])
   const [combatLog, setCombatLog] = useState<string[]>([])
   const [shaking, setShaking] = useState(false)
@@ -129,6 +135,8 @@ export default function SceneCombat() {
         const delta = (time - lastTimeRef.current) / 1000
         // Pause ATB during animations (shaking, combo text)
         if (shaking || comboText) { lastTimeRef.current = time; atbRef.current = requestAnimationFrame(tick); return }
+        // STAMINA recharge continue
+        setStamina(prev => Math.min(staminaMax, prev + STAMINA_REGEN * delta))
         setMonsterAtb(prev => {
           const next = prev + delta / monsterAtbSpeed
           if (next >= 1) {
@@ -236,6 +244,10 @@ export default function SceneCombat() {
     if (phase !== 'fighting') return
     // CDC M8: Stun check — skip action if stunned
     if (playerStunned) { setPlayerStunned(false); addLog('Etourdi ! Action sautee.'); return }
+    // STAMINA check — pas assez = action impossible
+    const cost = STAMINA_COSTS[action] || 15
+    if (stamina < cost) { addLog('Pas assez de stamina ! (' + Math.round(stamina) + '/' + cost + ')'); playPlaceholderSound('defend'); return }
+    setStamina(prev => prev - cost)
 
     const newActions = [...consecutiveActions, action]
     setConsecutiveActions(newActions)
@@ -384,10 +396,10 @@ export default function SceneCombat() {
   // HP bar
   const HpBar = ({ hp, max, color }: { hp: number; max: number; color: string }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <div style={{ flex: 1, height: 8, background: '#3a2d5c', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ width: `${Math.max(0, (hp / max) * 100)}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+      <div style={{ flex: 1, height: 10, background: '#3a2d5c', borderRadius: 5, overflow: 'hidden', border: '1px solid #534AB733' }}>
+        <div style={{ width: `${Math.max(0, (hp / max) * 100)}%`, height: '100%', background: color, borderRadius: 5, transition: 'width 0.3s' }} />
       </div>
-      <span style={{ fontSize: 10, color: '#9a8fbf', minWidth: 30 }}>{Math.max(0, hp)}</span>
+      <span style={{ fontSize: 10, color, fontWeight: 600, minWidth: 35 }}>{Math.max(0, hp)}/{max}</span>
     </div>
   )
 
@@ -428,6 +440,9 @@ export default function SceneCombat() {
   const castSpell = (spellIdx?: number) => {
     const idx = spellIdx ?? 0
     if (idx >= spellHand.length) return
+    // STAMINA check pour sort
+    if (stamina < STAMINA_COSTS.sort) { addLog('Pas assez de stamina pour un sort !'); return }
+    setStamina(prev => prev - STAMINA_COSTS.sort)
     const spellId = spellHand[idx]
     setSpellHand(prev => prev.filter((_, i) => i !== idx))
     // CDC M10: Decrement usesRemaining on equipped spell
@@ -466,11 +481,22 @@ export default function SceneCombat() {
     <div style={{
       width: '100%', height: '100dvh', background: '#1a1232', display: 'flex', flexDirection: 'column',
     }}>
-      {/* Top bar — HP comparison */}
+      {/* Top bar — HP + Stamina joueur vs monstre */}
       <div style={{ padding: '6px 12px', background: '#231b42', borderBottom: '1px solid #3a2d5c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11, color: '#D4537E', fontWeight: 600 }}>Nv.{player.level}</div>
           <HpBar hp={player.hp} max={player.hpMax} color="#7ec850" />
+          {/* STAMINA bar — bleue */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <div style={{ flex: 1, height: 6, background: '#1a1232', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.max(0, (stamina / staminaMax) * 100)}%`, height: '100%',
+                background: stamina < 20 ? '#e24b4a' : '#4a90c4',
+                borderRadius: 3, transition: 'width 0.15s',
+              }} />
+            </div>
+            <span style={{ fontSize: 8, color: '#4a90c4', minWidth: 20 }}>{Math.round(stamina)}</span>
+          </div>
         </div>
         <div style={{ padding: '0 12px', fontSize: 10, color: '#9a8fbf' }}>VS</div>
         <div style={{ flex: 1, textAlign: 'right' }}>
@@ -556,6 +582,8 @@ export default function SceneCombat() {
           potionCount={player.bag.filter(b => b.itemId.includes('potion') || b.itemId.includes('soin') || b.itemId === 'herbe_med').reduce((s, b) => s + b.quantity, 0)}
           spellHand={spellHand}
           playerThreat={playerThreat}
+          stamina={Math.round(stamina)}
+          staminaCosts={STAMINA_COSTS}
         />
       )}
 

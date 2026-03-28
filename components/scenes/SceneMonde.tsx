@@ -31,10 +31,15 @@ export default function SceneMonde() {
 
   const [biome] = useState<BiomeData>(() => loadBiome(biomeId))
   const [monsters, setMonsters] = useState<MapEntity[]>(() => biome.monsters)
-  const [playerX, setPlayerX] = useState(biome.spawnX)
-  const [playerY, setPlayerY] = useState(biome.spawnY)
-  const [cameraX, setCameraX] = useState(biome.spawnX)
-  const [cameraY, setCameraY] = useState(biome.spawnY)
+  // Fix: restaurer position depuis playerStore (apres combat, la position est sauvegardee)
+  const savedX = usePlayerStore.getState().positionX
+  const savedY = usePlayerStore.getState().positionY
+  const startX = (savedX > 1 && savedX < 149) ? savedX : biome.spawnX
+  const startY = (savedY > 1 && savedY < 149) ? savedY : biome.spawnY
+  const [playerX, setPlayerX] = useState(startX)
+  const [playerY, setPlayerY] = useState(startY)
+  const [cameraX, setCameraX] = useState(startX)
+  const [cameraY, setCameraY] = useState(startY)
   const [viewW, setViewW] = useState(390)
   const [viewH, setViewH] = useState(500)
   const [interactMsg, setInteractMsg] = useState<string | null>(null)
@@ -86,8 +91,8 @@ export default function SceneMonde() {
   const joyRef = useRef<HTMLDivElement>(null)
   const joyCenterRef = useRef({ x: 0, y: 0 })
   const animRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
-  const posRef = useRef({ x: biome.spawnX, y: biome.spawnY })
-  const camRef = useRef({ x: biome.spawnX, y: biome.spawnY })
+  const posRef = useRef({ x: startX, y: startY })
+  const camRef = useRef({ x: startX, y: startY })
 
   const { transitionToScene, setWeather, playerName, playerClass } = useGameStore()
   const player = usePlayerStore()
@@ -261,7 +266,9 @@ export default function SceneMonde() {
       const dist = Math.abs(m.x - px) + Math.abs(m.y - py)
       if (dist < 2) {
         showPopup('first_combat')
-        playPlaceholderSound('hit') // son alerte monstre
+        playPlaceholderSound('hit')
+        // Sauvegarder position avant combat pour la restaurer au retour
+        usePlayerStore.getState().moveTo(playerX, playerY)
         transitionToScene('combat', { name: m.name, hp: (m as any).hp || 30, atk: (m as any).atk || 8, def: (m as any).def || 3, weakness: (m as any).weakness || 'Feu', atbSpeed: (m as any).atbSpeed || 3, xp: (m as any).xp || 15 })
         break
       }
