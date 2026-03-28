@@ -71,15 +71,32 @@ export default function SceneCommerce() {
     return () => clearInterval(interval)
   }, [dayNightCycle])
 
+  // CDC M5: Visiteur attend 3 min avant de partir agace
+  const [visitorPatience, setVisitorPatience] = useState(180) // 3 min
+  useEffect(() => {
+    if (!visitor) return
+    setVisitorPatience(180)
+    const t = setInterval(() => {
+      setVisitorPatience(p => {
+        if (p <= 1) { setVisitor(null); setLog(prev => [...prev.slice(-4), 'Le visiteur part, agace...']); clearInterval(t); return 0 }
+        return p - 1
+      })
+    }, 1000)
+    return () => clearInterval(t)
+  }, [visitor?.name])
+
+  // CDC M5: Remises limitees a Melanie
+  const playerClass = useGameStore(s => s.playerClass)
+  const canDiscount = playerClass === 'artisane'
+
   const sellToVisitor = (itemId: string) => {
     if (!visitor) return
     const price = getItemPrice(itemId) * 1.2 // Visitors pay +20%
     if (player.removeFromInventory(itemId, 1)) {
       player.addSous(Math.floor(price))
-      setLog(prev => [...prev.slice(-4), `${visitor.emoji} ${visitor.name} achète ${itemId} pour ${Math.floor(price)}S`])
+      setLog(prev => [...prev.slice(-4), `${visitor.emoji} ${visitor.name} achete ${itemId} pour ${Math.floor(price)}S`])
       playPlaceholderSound('chest')
       player.addXp(5)
-      // Visitor satisfied → leaves
       setVisitor(null)
       setVisitorTimer(120 + Math.floor(Math.random() * 180))
     }
@@ -118,7 +135,7 @@ export default function SceneCommerce() {
       {visitor && (
         <div style={{ margin: '8px 12px', padding: '10px 14px', background: '#7ec85022', border: '1px solid #7ec850', borderRadius: 10 }}>
           <div style={{ fontSize: 12, color: '#7ec850', fontWeight: 600 }}>{visitor.emoji} Visiteur : {visitor.name}</div>
-          <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>Cherche : {visitor.wants.join(', ')}</div>
+          <div style={{ fontSize: 10, color: '#9a8fbf', marginTop: 2 }}>Cherche : {visitor.wants.join(', ')} — <span style={{ color: visitorPatience < 30 ? '#e24b4a' : '#ef9f27' }}>Patience: {Math.floor(visitorPatience / 60)}m{(visitorPatience % 60).toString().padStart(2, '0')}s</span></div>
           <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
             {visitor.wants.map((w: string) => {
               const has = player.bag.find(b => b.itemId === w)
@@ -147,6 +164,8 @@ export default function SceneCommerce() {
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#231b42', borderRadius: 8 }}>
                 <span style={{ fontSize: 12, color: '#F5ECD7', flex: 1 }}>{item.itemId} <span style={{ color: '#9a8fbf' }}>x{item.quantity}</span></span>
                 <span style={{ fontSize: 10, color: '#ef9f27' }}>{getItemPrice(item.itemId)}S</span>
+                {/* CDC M5: Remises limitees a Melanie */}
+                {canDiscount && (
                 <div style={{ display: 'flex', gap: 2 }}>
                   {[0, 0.1, 0.5, 1].map(d => (
                     <button key={d} onClick={() => setDiscount(prev => ({ ...prev, [item.itemId]: d }))} style={{
@@ -155,6 +174,7 @@ export default function SceneCommerce() {
                     }}>{d === 0 ? 'x1' : d === 1 ? '🎁' : `-${d * 100}%`}</button>
                   ))}
                 </div>
+                )}
                 <button onClick={() => sellItem(item.itemId)} style={{
                   padding: '4px 10px', fontSize: 10, borderRadius: 6, cursor: 'pointer',
                   background: '#ef9f27', color: '#fff', border: 'none', fontWeight: 600,

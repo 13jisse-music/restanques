@@ -68,6 +68,8 @@ interface PlayerState {
   setBiome: (biome: string) => void
   addToInventory: (itemId: string, quantity: number) => boolean
   removeFromInventory: (itemId: string, quantity: number) => boolean
+  addToStorage: (itemId: string, quantity: number) => boolean
+  removeFromStorage: (itemId: string, quantity: number) => boolean
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -191,6 +193,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ bag: state.bag.filter((i) => i.itemId !== itemId) })
     } else {
       set({ bag: state.bag.map((i) => i.itemId === itemId ? { ...i, quantity: i.quantity - quantity } : i) })
+    }
+    return true
+  },
+
+  // CDC M5: Storage (coffre maison)
+  addToStorage: (itemId: string, quantity: number) => {
+    const state = get()
+    const existing = state.storage.find((i) => i.itemId === itemId)
+    if (existing) {
+      if (existing.quantity + quantity > state.storageMaxPerType) return false
+      set({ storage: state.storage.map((i) => i.itemId === itemId ? { ...i, quantity: i.quantity + quantity } : i) })
+    } else {
+      set({ storage: [...state.storage, { itemId, quantity }] })
+    }
+    return true
+  },
+
+  removeFromStorage: (itemId: string, quantity: number) => {
+    const state = get()
+    const existing = state.storage.find((i) => i.itemId === itemId)
+    if (!existing || existing.quantity < quantity) return false
+    if (existing.quantity === quantity) {
+      set({ storage: state.storage.filter((i) => i.itemId !== itemId) })
+    } else {
+      set({ storage: state.storage.map((i) => i.itemId === itemId ? { ...i, quantity: i.quantity - quantity } : i) })
     }
     return true
   },

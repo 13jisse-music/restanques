@@ -370,10 +370,8 @@ export default function SceneMaison() {
         return
       }
       if (action === 'coffre') {
-        // CDC M1: Storage — show real storage
-        const storage = player.storage
-        setInteractMsg(`📦 Coffre — ${storage.length} types stockés, ${player.bag.length}/${player.bagMaxSlots} dans le sac`)
-        setTimeout(() => setInteractMsg(null), 2500)
+        // CDC M5: Coffre panel — transfert sac <-> stockage
+        setMenuOverlay('coffre')
         return
       }
     }
@@ -552,6 +550,28 @@ export default function SceneMaison() {
                   <div>PV : {player.hp}/{player.hpMax} | ATK : {player.atk} | DEF : {player.def}</div>
                   <div>Sous : {player.sous} 💰 | Fatigue : {Math.round(player.fatigue)}%</div>
                   <div>Chance : {player.luck} | Sac : {player.bag.length}/{player.bagMaxSlots}</div>
+                </div>
+              )}
+              {menuOverlay === 'coffre' && (
+                <div>
+                  <div style={{ fontWeight: 600, color: '#C9A84C', marginBottom: 6 }}>📦 Coffre Maison</div>
+                  <div style={{ fontSize: 10, color: '#9a8fbf', marginBottom: 6 }}>Max {player.storageMaxPerType} par type. Sac: {player.bag.length}/{player.bagMaxSlots}</div>
+                  {player.storage.length === 0 && <div style={{ color: '#3a2d5c' }}>Coffre vide.</div>}
+                  {player.storage.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid #2d1f54' }}>
+                      <span>{item.itemId} x{item.quantity}</span>
+                      <button onClick={() => { if (player.addToInventory(item.itemId, 1)) { player.removeFromStorage(item.itemId, 1) } }}
+                        style={{ padding: '2px 6px', fontSize: 9, background: '#7ec850', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>← Sac</button>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 8, fontWeight: 600, color: '#ef9f27' }}>Deposer depuis le sac :</div>
+                  {player.bag.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid #2d1f54' }}>
+                      <span>{item.itemId} x{item.quantity}</span>
+                      <button onClick={() => { player.removeFromInventory(item.itemId, 1); player.addToStorage(item.itemId, 1) }}
+                        style={{ padding: '2px 6px', fontSize: 9, background: '#ef9f27', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Coffre →</button>
+                    </div>
+                  ))}
                 </div>
               )}
               {menuOverlay === 'Livres' && (
