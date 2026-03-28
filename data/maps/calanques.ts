@@ -1,19 +1,13 @@
 // Calanques — falaises blanches, mer turquoise
+import { seededRandom, noise2D, smoothNoise, MAP_W as _MW, MAP_H as _MH } from '@/lib/mapGenerator'
+
 export const CALANQUES_COLORS: Record<number, string> = {
   0: '#c8c4b0', 1: '#c4a661', 2: '#f0ece0', 3: '#4a8f4a',
   4: '#3ab4c4', 5: '#e0d8c0', 6: '#3a6b4a',
   10: '#ef9f27', 11: '#e91e8c', 12: '#534AB7', 13: '#8B4513',
 }
 export const CALANQUES_WALKABLE = new Set([0, 1, 5])
-export const MAP_W = 150, MAP_H = 150
-
-function seededRandom(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647 } }
-function noise2D(x: number, y: number, seed: number): number { const n = Math.sin(x * 127.1 + y * 311.7 + seed * 43758.5453) * 43758.5453; return n - Math.floor(n) }
-function smoothNoise(x: number, y: number, seed: number, scale: number): number {
-  const sx=x/scale,sy=y/scale,ix=Math.floor(sx),iy=Math.floor(sy),fx=sx-ix,fy=sy-iy;
-  const a=noise2D(ix,iy,seed),b=noise2D(ix+1,iy,seed),c=noise2D(ix,iy+1,seed),d=noise2D(ix+1,iy+1,seed);
-  return(a+(b-a)*fx)+(c-a+(d-c)*fx-(b-a)*fx)*fy;
-}
+export const MAP_W = _MW, MAP_H = _MH
 
 export function generateCalanques(seed: number = 101) {
   const rng = seededRandom(seed)

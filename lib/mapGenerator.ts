@@ -1,7 +1,20 @@
-// Map generator - seed-based terrain generation
+// mapGenerator.ts — Utilitaires partages de generation de cartes (seed fixe, Perlin noise)
+// CDC M0: lib/mapGenerator.ts — Les biomes importent ces fonctions au lieu de les dupliquer
+
+export const MAP_W = 150
+export const MAP_H = 150
+
+export interface MapEntity {
+  x: number
+  y: number
+  type: string
+  id: string
+  name?: string
+}
+
 export function seededRandom(seed: number) {
   let s = seed
-  return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647 }
+  return () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
 }
 
 export function noise2D(x: number, y: number, seed: number): number {
@@ -17,4 +30,8 @@ export function smoothNoise(x: number, y: number, seed: number, scale: number): 
   const c = noise2D(ix, iy + 1, seed), d = noise2D(ix + 1, iy + 1, seed)
   const top = a + (b - a) * fx, bot = c + (d - c) * fx
   return top + (bot - top) * fy
+}
+
+export function createEmptyMap(w: number = MAP_W, h: number = MAP_H, fill: number = 0): number[][] {
+  return Array.from({ length: h }, () => Array(w).fill(fill))
 }

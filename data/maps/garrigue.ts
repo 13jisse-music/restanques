@@ -3,6 +3,9 @@
 // 10=PNJ, 11=portail_maison, 12=portail_calanques(locked), 13=donjon_entree
 // 20=resource_bois, 21=resource_herbe, 22=resource_pierre
 
+import { seededRandom, noise2D, smoothNoise, MAP_W as _MW, MAP_H as _MH, type MapEntity } from '@/lib/mapGenerator'
+export type { MapEntity } from '@/lib/mapGenerator'
+
 export const GARRIGUE_COLORS: Record<number, string> = {
   0: '#7a9f45', 1: '#c4a661', 2: '#a0968a', 3: '#5a7f3a', 4: '#4a90c4',
   5: '#9370DB', 6: '#4a6b2e', 10: '#ef9f27', 11: '#e91e8c', 12: '#534AB7',
@@ -15,31 +18,7 @@ export const GARRIGUE_INTERACTIVE: Record<number, string> = {
   20: 'resource', 21: 'resource', 22: 'resource', 3: 'buisson',
 }
 
-export const MAP_W = 150, MAP_H = 150
-
-// Seeded random
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; }
-}
-
-// Simple noise
-function noise2D(x: number, y: number, seed: number): number {
-  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 43758.5453) * 43758.5453;
-  return n - Math.floor(n);
-}
-
-function smoothNoise(x: number, y: number, seed: number, scale: number): number {
-  const sx = x / scale, sy = y / scale;
-  const ix = Math.floor(sx), iy = Math.floor(sy);
-  const fx = sx - ix, fy = sy - iy;
-  const a = noise2D(ix, iy, seed), b = noise2D(ix + 1, iy, seed);
-  const c = noise2D(ix, iy + 1, seed), d = noise2D(ix + 1, iy + 1, seed);
-  const top = a + (b - a) * fx, bot = c + (d - c) * fx;
-  return top + (bot - top) * fy;
-}
-
-export interface MapEntity { x: number; y: number; type: string; id: string; name?: string }
+export const MAP_W = _MW, MAP_H = _MH
 
 export function generateGarrigue(seed: number = 42): { map: number[][], entities: MapEntity[] } {
   const rng = seededRandom(seed);

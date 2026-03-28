@@ -1,19 +1,13 @@
 // Mer — ocean, iles, recifs
+import { seededRandom, noise2D, smoothNoise, MAP_W as _MW, MAP_H as _MH } from '@/lib/mapGenerator'
+
 export const MER_COLORS: Record<number, string> = {
   0: '#3a7ab4', 1: '#8a7a5a', 2: '#5a5a6a', 3: '#2a8a4a',
   4: '#2a5a9a', 5: '#5aaaca', 6: '#2a6a4a',
   10: '#ef9f27', 11: '#e91e8c', 12: '#534AB7', 13: '#8B4513',
 }
 export const MER_WALKABLE = new Set([0, 1, 5])
-export const MAP_W = 150, MAP_H = 150
-
-function seededRandom(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647 } }
-function noise2D(x: number, y: number, seed: number): number { const n = Math.sin(x * 127.1 + y * 311.7 + seed * 43758.5453) * 43758.5453; return n - Math.floor(n) }
-function smoothNoise(x: number, y: number, seed: number, scale: number): number {
-  const sx=x/scale,sy=y/scale,ix=Math.floor(sx),iy=Math.floor(sy),fx=sx-ix,fy=sy-iy;
-  const a=noise2D(ix,iy,seed),b=noise2D(ix+1,iy,seed),c=noise2D(ix,iy+1,seed),d=noise2D(ix+1,iy+1,seed);
-  return(a+(b-a)*fx)+(c-a+(d-c)*fx-(b-a)*fx)*fy;
-}
+export const MAP_W = _MW, MAP_H = _MH
 
 export function generateMer(seed: number = 303) {
   const rng = seededRandom(seed)
