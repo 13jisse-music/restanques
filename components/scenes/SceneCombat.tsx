@@ -5,7 +5,7 @@ import { useGameStore } from '@/store/gameStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useCombatStore } from '@/store/combatStore'
 import { calculateDamage, calculateXP, checkSoloCombo } from '@/lib/combatEngine'
-import { playSound } from '@/lib/assetLoader'
+import { playSound, playMusic } from '@/lib/assetLoader'
 import { triggerBossBefore, triggerBossAfter, triggerStory, isStorySeen, getBossStoryMap } from '@/lib/storyEngine'
 import { markBossDefeated } from '@/lib/biomeLoader'
 import ATBBar from '@/components/combat/ATBBar'
@@ -69,6 +69,11 @@ export default function SceneCombat() {
   // CDC M2: Fiche perso accessible pendant combat
   const [showCharSheet, setShowCharSheet] = useState(false)
 
+  // CDC M2: Coop Tag Team state (sync via M7 Realtime)
+  const [coopPartner, setCoopPartner] = useState<{ name: string; hp: number; atk: number; class: string } | null>(null)
+  const connectedPlayers = useGameStore(s => s.connectedPlayers)
+  const isCoopCombat = connectedPlayers.length > 0
+
   const atbRef = useRef<ReturnType<typeof requestAnimationFrame>>(0)
   const lastTimeRef = useRef(0)
 
@@ -92,6 +97,11 @@ export default function SceneCombat() {
         // Redirect to story, which will come back to combat after
         transitionToScene('story', { storyId: beforeStoryId, nextScene: 'combat', ...d })
       }
+      // CDC M2: Boss music
+      const isBossMonster = (d.hp as number || 0) > 300
+      if (isBossMonster) playMusic('/music/boss.mp3')
+      else playMusic('/music/combat.mp3')
+
       // CDC M2: Mystery rider Quentin (10% chance)
       if (Math.random() < 0.1) {
         setTimeout(() => {
@@ -479,15 +489,18 @@ export default function SceneCombat() {
         }}>Perso</button>
       </div>
       {showCharSheet && (
-        <div style={{ position: 'absolute', top: 70, right: 8, zIndex: 30, background: '#1a1232', border: '1px solid #534AB7', borderRadius: 8, padding: 10, width: 160, fontSize: 10, color: '#F5ECD7' }}>
+        <div style={{ position: 'absolute', top: 70, right: 8, zIndex: 30, background: '#1a1232', border: '1px solid #534AB7', borderRadius: 8, padding: 10, width: 180, fontSize: 10, color: '#F5ECD7' }}>
           <div style={{ fontWeight: 600, color: '#e91e8c', marginBottom: 4 }}>Nv.{player.level} {playerClass}</div>
           <div>PV: {player.hp}/{player.hpMax}</div>
           <div>ATK: {player.atk} | DEF: {player.def}</div>
           <div>Luck: {player.luck}</div>
           <div>Fatigue: {Math.round(player.fatigue)}%</div>
-          <div style={{ marginTop: 4, color: '#ef9f27' }}>Sorts: {spellHand.length}/3 en main</div>
-          <div>Jauge: {spellGauge}/6</div>
-          <div>Menace: {playerThreat}</div>
+          <div style={{ marginTop: 6, borderTop: '1px solid #534AB733', paddingTop: 4, color: '#7F77DD', fontWeight: 600 }}>Spellbook</div>
+          {(player.equippedSpells || []).map((s, i) => (
+            <div key={i} style={{ color: '#9a8fbf' }}>✦ {s.spellId} {s.usesRemaining !== null ? `(x${s.usesRemaining})` : ''}</div>
+          ))}
+          <div style={{ marginTop: 4, color: '#ef9f27' }}>En main: {spellHand.join(', ') || 'vide'}</div>
+          <div>Jauge: {spellGauge}/6 | Menace: {playerThreat}</div>
         </div>
       )}
 
@@ -548,7 +561,11 @@ export default function SceneCombat() {
         </div>
       )}
 
-      <style>{`@keyframes victoryPop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }`}</style>
+      <style>{`
+        @keyframes victoryPop { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes victoryFanfare { 0% { opacity:0;transform:translateY(20px) } 100% { opacity:1;transform:translateY(0) } }
+        @keyframes defeatFade { 0% { opacity:0 } 100% { opacity:1 } }
+      `}</style>
     </div>
   )
 }

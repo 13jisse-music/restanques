@@ -112,16 +112,35 @@ export function checkCombo(
   return null
 }
 
-// Solo combos
+// Solo combos — CDC M2: 7 combos total (4 solo + 3 coop)
 export function checkSoloCombo(consecutiveActions: string[]): ComboResult | null {
   if (consecutiveActions.length >= 3) {
     const last3 = consecutiveActions.slice(-3)
     if (last3.every(a => a === 'coup')) {
-      return { name: 'Rage du Paladin', multiplier: 2.5, effect: '4ème coup = critique garanti' }
+      return { name: 'Rage du Paladin', multiplier: 2.5, effect: '4eme coup = critique garanti' }
     }
     if (last3.every(a => a === 'sort')) {
-      return { name: 'Maître Artisane', multiplier: 3, effect: '3ème sort = puissance ×3' }
+      return { name: 'Maitre Artisane', multiplier: 3, effect: '3eme sort = puissance x3' }
     }
+  }
+  // CDC M2: Lame Enchantee (coup + sort en 2s)
+  if (consecutiveActions.length >= 2) {
+    const last2 = consecutiveActions.slice(-2)
+    if (last2[0] === 'coup' && last2[1] === 'sort') {
+      return { name: 'Lame Enchantee', multiplier: 1.8, effect: 'Sort renforce par le coup' }
+    }
+    // CDC M2: Double Sort (2 sorts differents en 2s)
+    if (last2[0] === 'sort' && last2[1] === 'sort') {
+      return { name: 'Double Sort', multiplier: 2.2, effect: 'Deux sorts enchainesn' }
+    }
+  }
+  return null
+}
+
+// CDC M2: Fusion Elementaire (coop — 2 joueurs lancent un sort chacun)
+export function checkCoopCombo(action1: string, action2: string): ComboResult | null {
+  if (action1 === 'sort' && action2 === 'sort') {
+    return { name: 'Fusion Elementaire', multiplier: 4, effect: 'Fusion de 2 elements = devastation' }
   }
   return null
 }

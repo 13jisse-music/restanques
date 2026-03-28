@@ -31,7 +31,7 @@ export default function BattleField({
   const [playerImgError, setPlayerImgError] = useState(false)
   const [monsterImgError, setMonsterImgError] = useState(false)
   const monsterDead = monsterHp <= 0
-  const monsterSize = isBoss ? 100 : 80
+  const monsterSize = isBoss ? 140 : 80 // CDC M2: Boss sprite plus grand (192px source, 140px display)
 
   return (
     <div style={{
@@ -46,7 +46,8 @@ export default function BattleField({
         border: '3px solid #fff', overflow: 'hidden',
         boxShadow: playerFlash ? `0 0 20px ${playerFlash}` : '0 4px 12px rgba(0,0,0,0.5)',
         transition: 'box-shadow 0.1s, transform 0.15s',
-        transform: playerAnim === 'attack' ? 'translateX(30px)' : playerAnim === 'dodge' ? 'translateX(-10px)' : 'none',
+        transform: playerAnim === 'attack' ? 'translateX(30px)' : 'none',
+        animation: playerAnim === 'dodge' ? 'dodgeAnim 0.4s ease-out' : undefined,
       }}>
         {playerSprite && !playerImgError ? (
           <img src={playerSprite} alt="Player" onError={() => setPlayerImgError(true)}
@@ -83,6 +84,7 @@ export default function BattleField({
 
       <style>{`
         @keyframes battleShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+        @keyframes dodgeAnim { 0%{transform:translateX(0);opacity:1} 30%{transform:translateX(-20px);opacity:0.5} 60%{transform:translateX(-15px);opacity:0.7} 100%{transform:translateX(0);opacity:1} }
       `}</style>
     </div>
   )
