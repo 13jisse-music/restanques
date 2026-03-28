@@ -42,10 +42,12 @@ export default function DebugConsole({ onClose }: { onClose: () => void }) {
     }
   }
 
-  // Send bug report to Telegram
-  const sendBug = async () => {
+  // Save bug report to localStorage (Claude lit quand on revient dans le chat)
+  const sendBug = () => {
     if (!bugText.trim()) return
-    const state = {
+    const report = {
+      date: new Date().toISOString(),
+      bug: bugText,
       scene: currentScene,
       class: playerClass,
       name: playerName,
@@ -56,17 +58,11 @@ export default function DebugConsole({ onClose }: { onClose: () => void }) {
       bag: player.bag.map(b => `${b.itemId}x${b.quantity}`).join(', ') || 'vide',
       spells: player.equippedSpells.map(s => s.spellId).join(', ') || 'aucun',
     }
-    const msg = `BUG REPORT\n\n${bugText}\n\n--- ETAT ---\nScene: ${state.scene}\nClasse: ${state.class} (${state.name})\nNv.${state.level} | PV: ${state.hp}\nSous: ${state.sous} | Fatigue: ${state.fatigue}%\nSac: ${state.bag}\nSorts: ${state.spells}`
-
-    try {
-      await fetch('https://api.telegram.org/bot8745661004:AAGJffmkzEK6GfI0wfgVj0K8XboyWDpiCRY/sendMessage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: '8064044229', text: msg })
-      })
-      setBugSent(true)
-      setTimeout(() => { setBugSent(false); setBugText('') }, 2000)
-    } catch { alert('Erreur envoi') }
+    const bugs = JSON.parse(localStorage.getItem('restanques_bugs') || '[]')
+    bugs.push(report)
+    localStorage.setItem('restanques_bugs', JSON.stringify(bugs))
+    setBugSent(true)
+    setTimeout(() => { setBugSent(false); setBugText('') }, 2000)
   }
 
   const scenes = [
@@ -204,7 +200,38 @@ export default function DebugConsole({ onClose }: { onClose: () => void }) {
             <button onClick={sendBug} disabled={bugSent} style={{
               marginTop: 6, width: '100%', padding: '10px', background: bugSent ? '#7ec850' : '#e24b4a',
               border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>{bugSent ? 'Envoye sur Telegram !' : 'Envoyer le rapport'}</button>
+            }}>{bugSent ? 'Bug sauvegarde !' : 'Sauvegarder le bug'}</button>
+
+            {/* Liste des bugs sauvegardes */}
+            {(() => {
+              const bugs = JSON.parse(localStorage.getItem('restanques_bugs') || '[]')
+              if (bugs.length === 0) return null
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#ef9f27', fontWeight: 600 }}>{bugs.length} bug(s) sauvegarde(s)</span>
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(bugs, null, 2))
+                      alert('Bugs copies ! Colle-les dans le chat Claude.')
+                    }} style={{
+                      padding: '3px 8px', background: '#534AB7', border: 'none', borderRadius: 4,
+                      color: '#fff', fontSize: 9, cursor: 'pointer',
+                    }}>Copier tout</button>
+                  </div>
+                  <div style={{ maxHeight: 100, overflowY: 'auto', marginTop: 4 }}>
+                    {bugs.map((b: any, i: number) => (
+                      <div key={i} style={{ fontSize: 9, color: '#9a8fbf', padding: '2px 0', borderBottom: '1px solid #2d1f54' }}>
+                        {new Date(b.date).toLocaleTimeString('fr-FR')} — {b.bug.substring(0, 50)}...
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => { localStorage.removeItem('restanques_bugs'); onClose() }} style={{
+                    marginTop: 4, padding: '3px 8px', background: '#3a2d5c', border: 'none', borderRadius: 4,
+                    color: '#9a8fbf', fontSize: 9, cursor: 'pointer',
+                  }}>Vider les bugs</button>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
