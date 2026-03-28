@@ -217,7 +217,9 @@ export default function SceneMonde() {
         let dx = joyDXRef.current, dy = joyDYRef.current
         if (dx !== 0 || dy !== 0) {
           if (Math.abs(dx) > Math.abs(dy)) { dy = 0 } else { dx = 0 }
-          const weatherMod = useGameStore.getState().weather === 'wind' ? 0.7 : 1
+          // CDC M4: Effets meteo gameplay — vent=vitesse x0.7, pluie=rien sur vitesse, brouillard=rien sur vitesse
+          const currentWeather = useGameStore.getState().weather
+          const weatherMod = currentWeather === 'wind' ? 0.7 : 1
           const speed = 3.5 * weatherMod
           const pos = posRef.current
           const nx = pos.x + dx * speed * dt
@@ -478,7 +480,7 @@ export default function SceneMonde() {
         <TileRenderer map={biome.map} tileColors={biome.colors} tileSize={TILE_SIZE}
           cameraX={cameraX} cameraY={cameraY} cameraRef={camRef} viewportW={viewW} viewportH={viewH} entities={allEntities} biome={biomeId} />
         <ClockStardew />
-        <Minimap map={biome.map} tileColors={biome.colors} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={20} />
+        <Minimap map={biome.map} tileColors={biome.colors} playerX={Math.floor(playerX)} playerY={Math.floor(playerY)} playerColor="#ef9f27" fogRadius={8} /* CDC M4: rayon 8 tiles */ />
         <WeatherOverlay />
         {/* Monster proximity alert "!" */}
         {nearbyMonster && (
@@ -642,6 +644,17 @@ export default function SceneMonde() {
                     </div>
                   )}
                   {menuOverlay === 'Quêtes' && 'Parle aux PNJ pour recevoir des quêtes.'}
+                  {menuOverlay === 'Bestiai.' && (
+                    <div>
+                      <div style={{ marginBottom: 6, color: '#ef9f27', fontWeight: 600 }}>Monstres rencontres</div>
+                      {monsters.map((m, i) => (
+                        <div key={i} style={{ padding: '3px 0', borderBottom: '1px solid #2d1f54' }}>
+                          {m.name} — {m.type}
+                        </div>
+                      ))}
+                      {monsters.length === 0 && <div>Aucun monstre rencontre.</div>}
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => setMenuOverlay(null)} style={{ marginTop: 16, width: '100%', padding: '10px', background: 'var(--hud-accent)',
                   border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
@@ -655,7 +668,7 @@ export default function SceneMonde() {
       <div className="controls-zone" style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Menu strip */}
         <div style={{ display: 'flex', gap: 2, padding: '4px 8px', borderBottom: '1px solid rgba(139,105,20,0.3)' }}>
-          {['Sac', 'Sorts', 'Équip', 'Quêtes', 'Carte'].map(m => (
+          {['Sac', 'Sorts', 'Équip', 'Quêtes', 'Bestiai.'].map(m => (
             <button key={m} onClick={() => setMenuOverlay(m)} style={{
               flex: 1, padding: '4px 0', background: 'rgba(139,105,20,0.2)',
               border: '1px solid rgba(139,105,20,0.4)', borderRadius: 4,
@@ -668,7 +681,7 @@ export default function SceneMonde() {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
           {/* Joystick */}
           <div ref={joyRef} style={{
-            width: 80, height: 80, borderRadius: '50%', background: 'rgba(139,105,20,0.3)',
+            width: 68, height: 68, borderRadius: '50%', background: 'rgba(139,105,20,0.3)', // CDC M4: 68x68
             border: '2px solid var(--hud-btn)', position: 'relative', touchAction: 'none',
           }}
             onMouseDown={(e) => joyStart(e.clientX, e.clientY)}
@@ -679,7 +692,7 @@ export default function SceneMonde() {
             onTouchEnd={joyEnd} onTouchCancel={joyEnd}
           >
             <div style={{
-              width: 28, height: 28, borderRadius: '50%', background: 'var(--hud-btn)',
+              width: 16, height: 16, borderRadius: '50%', background: 'var(--hud-btn)', // CDC M4: knob 16x16
               position: 'absolute', left: '50%', top: '50%',
               transform: `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`,
               border: '2px solid var(--hud-text)', boxShadow: 'var(--hud-shadow)',

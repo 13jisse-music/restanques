@@ -8,4 +8,7 @@ export const PNJ_LIST: PNJ[] = [
   { id:'elsa', name:'Forgerone Elsa', biome:'Mines', role:'Quete principale', personality:'Forge seule, coeur tendre', quest:'Recupere le marteau', reward:'Recette armes Mines' },
   { id:'blanche', name:'Amiral Blanche', biome:'Mer', role:'Quete principale', personality:'Femme capitaine', quest:'Brise le charme sirene', reward:'Carte donjon' },
   { id:'aurore', name:'Sage Aurore', biome:'Restanques', role:'Quete principale', personality:'Gardienne millenaire', quest:'Prouve ta valeur', reward:'Acces chateau final' },
+  { id:'gaston', name:'Gaston & Fanny', biome:'Garrigue', role:'Quete secondaire', personality:'Vieux couple inseparable sur un banc', quest:'Apporte-leur du miel', reward:'Recette confiture + XP' },
+  { id:'facteur', name:'Le Facteur', biome:'Garrigue', role:'Quete secondaire', personality:'Jovial, pedale partout', quest:'Retrouve 3 lettres perdues', reward:'Bottes de vitesse' },
+  { id:'toinette', name:'Toinette', biome:'Garrigue', role:'Quete secondaire', personality:'Petite fille espiegle, pieds nus', quest:'Trouve ses 5 champignons', reward:'Recette tarte + amitie' },
 ]
