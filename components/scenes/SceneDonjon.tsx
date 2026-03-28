@@ -5,8 +5,9 @@ import { useGameStore } from '@/store/gameStore'
 import { usePlayerStore } from '@/store/playerStore'
 import TileRenderer from '@/components/world/TileRenderer'
 import { MONSTERS } from '@/data/monsters'
-import { playPlaceholderSound } from '@/lib/assetLoader'
+import { playPlaceholderSound, playMusic } from '@/lib/assetLoader'
 import { markBossDefeated } from '@/lib/biomeLoader'
+import { triggerStory } from '@/lib/storyEngine'
 
 const TILE_SIZE = 48
 const COLORS: Record<number, string> = {
@@ -95,8 +96,44 @@ export default function SceneDonjon() {
     return () => window.removeEventListener('resize', update)
   }, [])
 
+  // CDC M8: Dungeon monsters — spawn 5-8 per level with stat boost
+  const [dungeonMonsters, setDungeonMonsters] = useState<{ x: number; y: number; data: typeof MONSTERS[0] }[]>([])
+  // CDC M8: Coffres loot
+  const [chests, setChests] = useState<{ x: number; y: number; opened: boolean }[]>([])
+
+  // CDC M8: Story trigger on dungeon entry + dungeon music
+  useEffect(() => {
+    const biomeCap = biome.charAt(0).toUpperCase() + biome.slice(1)
+    const storyId = `story_${biome}_demiboss_entree`
+    triggerStory(storyId, 'donjon')
+    playMusic('/music/donjon.mp3')
+  }, [])
+
   // Regenerate map on level change
-  useEffect(() => { setMap(generateMaze(mapSize, mapSize, 42 + level * 7)); setPlayerX(1); setPlayerY(1); posRef.current = { x: 1, y: 1 } }, [level, mapSize])
+  useEffect(() => {
+    setMap(generateMaze(mapSize, mapSize, 42 + level * 7))
+    setPlayerX(1); setPlayerY(1); posRef.current = { x: 1, y: 1 }
+    // CDC M8: Spawn monsters for this level
+    const biomeCap = biome.charAt(0).toUpperCase() + biome.slice(1)
+    const biomeMonsters = MONSTERS.filter(m => m.biome === biomeCap && m.type === 'Normal')
+    const statMult = donjonType === 'demiboss' ? 1.2 : 1.3 // CDC M8: +20% demi-boss, +30% boss
+    const count = 5 + Math.floor(Math.random() * 4) // 5-8
+    const spawned: typeof dungeonMonsters = []
+    for (let i = 0; i < count && biomeMonsters.length > 0; i++) {
+      const m = biomeMonsters[Math.floor(Math.random() * biomeMonsters.length)]
+      const x = 3 + Math.floor(Math.random() * (mapSize - 6))
+      const y = 3 + Math.floor(Math.random() * (mapSize - 6))
+      spawned.push({ x, y, data: { ...m, hp: Math.floor(m.hp * statMult), atk: Math.floor(m.atk * statMult), def: Math.floor(m.def * statMult) } })
+    }
+    setDungeonMonsters(spawned)
+    // CDC M8: Spawn 1-2 chests
+    const chestCount = 1 + Math.floor(Math.random() * 2)
+    const newChests: typeof chests = []
+    for (let i = 0; i < chestCount; i++) {
+      newChests.push({ x: 5 + Math.floor(Math.random() * (mapSize - 10)), y: 5 + Math.floor(Math.random() * (mapSize - 10)), opened: false })
+    }
+    setChests(newChests)
+  }, [level, mapSize])
 
   // Place stairs and boss room
   useEffect(() => {
@@ -159,9 +196,35 @@ export default function SceneDonjon() {
   }
   const joyEnd = () => { setJoyActive(false); joyDXRef.current = 0; joyDYRef.current = 0; setJoyDX(0); setJoyDY(0) }
 
+  // CDC M8: Monster collision in dungeon
+  useEffect(() => {
+    const px = Math.floor(playerX), py = Math.floor(playerY)
+    for (const m of dungeonMonsters) {
+      if (Math.abs(m.x - px) + Math.abs(m.y - py) < 2) {
+        setDungeonMonsters(prev => prev.filter(dm => dm !== m))
+        transitionToScene('combat', { name: m.data.name, hp: m.data.hp, atk: m.data.atk, def: m.data.def, weakness: m.data.weakness, atbSpeed: m.data.atbSpeed, xp: m.data.xp })
+        break
+      }
+    }
+  }, [playerX, playerY, dungeonMonsters])
+
   // Action
   const handleAction = useCallback(() => {
     const px = Math.floor(posRef.current.x), py = Math.floor(posRef.current.y)
+    // CDC M8: Coffre interaction
+    const chest = chests.find(c => !c.opened && Math.abs(c.x - px) <= 1 && Math.abs(c.y - py) <= 1)
+    if (chest) {
+      chest.opened = true
+      setChests([...chests])
+      const lootItems = ['potion_soin', 'herbe_med', 'antidote', 'cristal']
+      const loot = lootItems[Math.floor(Math.random() * lootItems.length)]
+      player.addToInventory(loot, 1 + Math.floor(Math.random() * 2))
+      player.addSous(20 + Math.floor(Math.random() * 30))
+      setMsg('Coffre ! ' + loot + ' + Sous')
+      playPlaceholderSound('chest')
+      setTimeout(() => setMsg(null), 2000)
+      return
+    }
     const tile = map[py]?.[px]
     if (tile === 3) { // escalier
       if (level < maxLevels) {
