@@ -45,6 +45,8 @@ export default function SceneCraft() {
   const [craftResult, setCraftResult] = useState<'success' | 'fail' | null>(null)
 
   const atelier = (sceneData as Record<string, string> | null)?.atelier || 'cuisine'
+  // CDC M1: Jisse a un malus en armurerie (+30% puissance objet mais -10% reussite en plus)
+  const jisseMalus = !!(sceneData as Record<string, boolean> | null)?.jisseMalus
 
   // CDC M3: Filter by atelier + sort by tier
   const filtered = ALL_RECIPES
@@ -58,11 +60,13 @@ export default function SceneCraft() {
   const unlockedBiomes = ['Garrigue', 'Maison', 'Tous']
 
   // CDC M3: Success chance = 60% base + level*2%, +10% Artisane, -10% Jisse/Quentin, -20% Sumo recipes
+  // CDC M1: Jisse armurerie = -10% supplémentaire (total -20% vs Artisane)
   const getSuccessChance = (recipe?: Recipe) => {
     let chance = 60 + player.level * 2
     if (playerClass === 'artisane') chance += 10
     if (playerClass === 'paladin') chance -= 10
     if (playerClass === 'ombre') chance -= 10
+    if (jisseMalus) chance -= 10 // Jisse armurerie: -10% supplémentaire
     if (recipe?.tier === 'Sumo') chance -= 20
     return Math.min(95, Math.max(10, chance))
   }
