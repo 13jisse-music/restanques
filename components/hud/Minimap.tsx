@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
+import { useSkin } from '@/lib/useSkin'
 
 interface MinimapProps {
   map: number[][]
@@ -93,11 +94,14 @@ export default function Minimap({
 
   }, [map, tileColors, playerX, playerY, playerColor, fogRadius, size, entities, exploredTiles])
 
+  const minimapFrame = useSkin('skin_minimap_frame.png')
+
   return (
     <div style={{
       position: 'absolute', top: 4, right: 4, zIndex: 50,
       border: '2px solid rgba(139,105,20,0.6)', borderRadius: 6,
       overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+      ...(minimapFrame ? { backgroundImage: `url(${minimapFrame})`, backgroundSize: 'cover', padding: 3 } : {}),
     }}>
       <canvas ref={canvasRef} style={{ display: 'block' }} />
     </div>

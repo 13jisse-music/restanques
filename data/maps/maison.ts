@@ -42,10 +42,10 @@ export const MAP_W = 100
 export const MAP_H = 100
 
 // House position (top-left corner of house)
-const HX = 35 // house X start
-const HY = 25 // house Y start
-const HW = 30 // house width
-const HH = 20 // house height
+export const HX = 35 // house X start
+export const HY = 25 // house Y start
+export const HW = 30 // house width
+export const HH = 20 // house height
 
 // Generate the 100x100 map
 export function generateMaisonMap(): number[][] {
@@ -79,6 +79,11 @@ export function generateMaisonMap(): number[][] {
 
       // Water pond
       if (tile === 0 && x >= 75 && x <= 80 && y >= 70 && y <= 75) tile = 4
+
+      // CDC M1: Roof visible from outside (1-tile overhang around house)
+      const isRoof = !tile && x >= HX - 1 && x < HX + HW + 1 && y >= HY - 1 && y < HY + HH + 1
+        && !(x >= HX && x < HX + HW && y >= HY && y < HY + HH)
+      if (isRoof) tile = 30
 
       // House walls
       const inHouse = x >= HX && x < HX + HW && y >= HY && y < HY + HH

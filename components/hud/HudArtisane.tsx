@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
+import { useSkin, skinBg } from '@/lib/useSkin'
 
 // CDC M1: D-pad + bouton A + menu Mélanie
 // D-pad = 4 flèches discrètes, hold-to-repeat (200ms initial, 100ms interval)
@@ -51,8 +52,10 @@ export default function HudArtisane({ onMove, onAction, menuItems, activeMenu, o
     >{label}</button>
   )
 
+  const ctrlBg = useSkin('skin_ctrl_bg.png')
+
   return (
-    <div className="controls-zone" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="controls-zone" style={{ display: 'flex', flexDirection: 'column', ...skinBg(ctrlBg, 'var(--hud-bg)') }}>
       {/* Menu bar */}
       <div style={{ display: 'flex', gap: 2, padding: '4px 8px', borderBottom: '1px solid rgba(139,105,20,0.3)' }}>
         {menuItems.map(m => (

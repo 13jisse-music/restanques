@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/gameStore'
+import { useSkin } from '@/lib/useSkin'
 
 // 1 cycle = 20 min real time = 24h game time
 const CYCLE_MS = 20 * 60 * 1000
@@ -26,12 +27,15 @@ export default function ClockStardew() {
   const isDay = h >= 6 && h < 20
   const angleDeg = dayNightCycle * 360
 
+  const clockFrame = useSkin('skin_clock_frame.png')
+
   return (
     <div style={{
       position: 'absolute', top: 4, left: 4, zIndex: 50,
       display: 'flex', alignItems: 'center', gap: 6,
       background: 'rgba(26,18,50,0.85)', borderRadius: 8,
       padding: '3px 8px 3px 4px', border: '1px solid rgba(139,105,20,0.4)',
+      ...(clockFrame ? { backgroundImage: `url(${clockFrame})`, backgroundSize: 'cover' } : {}),
     }}>
       {/* Clock dial */}
       <div style={{ width: 28, height: 28, position: 'relative' }}>

@@ -10,7 +10,7 @@ import TopBar from '@/components/hud/TopBar'
 import HudArtisane from '@/components/hud/HudArtisane'
 import CharacterSheet from '@/components/ui/CharacterSheet'
 import ContextualPopup from '@/components/ui/ContextualPopup'
-import { generateMaisonMap, TILE_COLORS, TILE_WALKABLE, TILE_INTERACTIVE, SPAWN_X, SPAWN_Y, MAP_W, MAP_H, GARDEN_PLOTS } from '@/data/maps/maison'
+import { generateMaisonMap, TILE_COLORS, TILE_WALKABLE, TILE_INTERACTIVE, SPAWN_X, SPAWN_Y, MAP_W, MAP_H, GARDEN_PLOTS, HX, HY, HH } from '@/data/maps/maison'
 import { allPlayersInMaison, broadcastSleep } from '@/lib/realtimeSync'
 import { isDay, getGameHour } from '@/lib/dayNightCycle'
 import { getDarkness } from '@/lib/dayNightCycle'
@@ -152,9 +152,13 @@ export default function SceneMaison() {
       const count = 2 + Math.floor(Math.random() * 2) // 2-3
       const spawned: typeof creatures = []
       for (let i = 0; i < count; i++) {
-        // Spawn in exterior area (y > 70 roughly)
-        const x = 10 + Math.floor(Math.random() * (MAP_W - 20))
-        const y = Math.floor(MAP_H * 0.7) + Math.floor(Math.random() * (MAP_H * 0.25))
+        // Spawn in exterior area (y > 70), avoid garden plots
+        let x = 0, y = 0, attempts = 0
+        do {
+          x = 10 + Math.floor(Math.random() * (MAP_W - 20))
+          y = Math.floor(MAP_H * 0.7) + Math.floor(Math.random() * (MAP_H * 0.25))
+          attempts++
+        } while (attempts < 20 && GARDEN_PLOTS.some(p => Math.abs(p.x - x) < 3 && Math.abs(p.y - y) < 3))
         const data = DAY_CREATURES[Math.floor(Math.random() * DAY_CREATURES.length)]
         spawned.push({ x, y, data })
       }
@@ -346,10 +350,21 @@ export default function SceneMaison() {
       }
       if (action === 'armurerie') {
         showPopup('first_craft')
-        transitionToScene('craft', { atelier: 'armurerie' })
+        // CDC M1: Jisse a +30% puissance -10% reussite en armurerie
+        transitionToScene('craft', { atelier: 'armurerie', jisseMalus: playerClass === 'paladin' })
         return
       }
       if (action === 'comptoir') {
+        // CDC M1: Jisse ET Melanie doivent etre proches du comptoir
+        const { connectedPlayers } = useGameStore.getState()
+        if (connectedPlayers.length > 0) {
+          // Multiplayer: check if both players are in maison
+          if (!allPlayersInMaison()) {
+            setInteractMsg('Les deux joueurs doivent etre a la maison pour commercer')
+            setTimeout(() => setInteractMsg(null), 2500)
+            return
+          }
+        }
         showPopup('first_shop')
         transitionToScene('commerce')
         return
@@ -364,23 +379,44 @@ export default function SceneMaison() {
     }
   }, [playerX, playerY, map, gardenState, playerClass, player, transitionToScene])
 
-  // CDC M1: Sumo NPC appears after 10 crafts
+  // CDC M1: Sumo NPC appears after 10 crafts — wanders 2-3 tiles randomly
   const sumoActive = player.totalCrafts >= 10
-  const sumoX = Math.floor(MAP_W / 2) + 3
-  const sumoY = Math.floor(MAP_H / 2) + 2
+  const sumoBaseX = Math.floor(MAP_W / 2) + 3
+  const sumoBaseY = Math.floor(MAP_H / 2) + 2
+  const [sumoX, setSumoX] = useState(sumoBaseX)
+  const [sumoY, setSumoY] = useState(sumoBaseY)
 
-  // Sumo interaction check (inside handleAction won't work since it checks tiles)
   useEffect(() => {
     if (!sumoActive) return
-    if (Math.abs(playerX - sumoX) <= 1 && Math.abs(playerY - sumoY) <= 1) {
-      // Player is near Sumo — show dialogue on next A press (handled below)
-    }
-  }, [playerX, playerY, sumoActive])
+    const interval = setInterval(() => {
+      setSumoX(sumoBaseX + Math.floor(Math.random() * 5) - 2)
+      setSumoY(sumoBaseY + Math.floor(Math.random() * 5) - 2)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [sumoActive])
+
+  // CDC M1: PNJ visiteurs spawn devant comptoir (exterieur, jour seulement)
+  const [visitor, setVisitor] = useState<{ name: string; emoji: string; x: number; y: number } | null>(null)
+  useEffect(() => {
+    if (!isDay(dayNightCycle)) { setVisitor(null); return }
+    const timer = setTimeout(() => {
+      const visitors = [
+        { name: 'Paysan', emoji: '👨‍🌾' },
+        { name: 'Voyageur', emoji: '🧳' },
+        { name: 'Marchande', emoji: '👩‍💼' },
+      ]
+      const v = visitors[Math.floor(Math.random() * visitors.length)]
+      // Spawn south of house near comptoir
+      setVisitor({ ...v, x: HX + 18, y: HY + HH + 2 })
+    }, (180 + Math.floor(Math.random() * 300)) * 1000) // 3-8 min
+    return () => clearTimeout(timer)
+  }, [dayNightCycle, visitor])
 
   // Entities for TileRenderer
   const allEntities = [
     { x: playerX, y: playerY, color: playerClass === 'artisane' ? '#D4537E' : '#ef9f27', label: displayName },
     ...(sumoActive ? [{ x: sumoX, y: sumoY, color: '#ef9f27', label: '🐱 Sumo' }] : []),
+    ...(visitor ? [{ x: visitor.x, y: visitor.y, color: '#C9A84C', label: visitor.emoji + ' ' + visitor.name }] : []),
     ...creatures.map(c => ({ x: c.x, y: c.y, color: '#e24b4a', label: c.data.name })),
     ...GARDEN_PLOTS.map((p, i) => {
       const plot = gardenState[i]
