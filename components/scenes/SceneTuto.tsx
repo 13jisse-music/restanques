@@ -71,7 +71,13 @@ const STEPS: TutoStep[] = [
   {
     title: 'La barre ATB',
     icon: '⏱️',
-    text: 'Le monstre attaque quand sa barre ATB est pleine. Tu dois jouer tes cartes vite ! Les boss ont des attaques spéciales redoutables.',
+    text: 'Le monstre attaque quand sa barre ATB est pleine. Les boss ont des attaques spéciales redoutables.',
+    action: 'Compris !',
+  },
+  {
+    title: 'La Stamina',
+    icon: '💧',
+    text: 'La barre BLEUE c\'est ta stamina. Chaque action coûte de la stamina (Coup=20, Défense=10, Sort=30). Elle se recharge automatiquement. Gère-la bien, tu ne peux pas spammer !',
     action: 'Compris !',
   },
   {
