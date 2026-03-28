@@ -52,8 +52,8 @@ export default function AdminPage() {
         <div style={{ fontSize: 20, color: '#e91e8c', fontWeight: 700 }}>Admin Restanques</div>
         <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} placeholder="Mot de passe"
           style={{ background: '#231b42', border: '2px solid #3a2d5c', borderRadius: 10, padding: '12px 16px', fontSize: 14, color: '#F5ECD7', textAlign: 'center', outline: 'none' }}
-          onKeyDown={e => { if (e.key === 'Enter') setAuth(pwd === 'restanques2026') }} />
-        <button onClick={() => setAuth(pwd === 'restanques2026')} style={{
+          onKeyDown={e => { if (e.key === 'Enter') setAuth(pwd === (process.env.NEXT_PUBLIC_ADMIN_PWD || 'restanques2026')) }} />
+        <button onClick={() => setAuth(pwd === (process.env.NEXT_PUBLIC_ADMIN_PWD || 'restanques2026'))} style={{
           background: '#e91e8c', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
         }}>Entrer</button>
       </div>
